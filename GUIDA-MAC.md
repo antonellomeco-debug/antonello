@@ -133,6 +133,7 @@ Per **chiudere** il programma: clicca sulla finestra del Terminale e premi **con
 | *"Chiave non valida"* quando la salvi | Ricopia la chiave per intero (inizia con `sk-ant-`). Se non l'hai più, creane una nuova: viene mostrata una sola volta. |
 | *"La chiave non funziona più (scaduta o disattivata)"* | Crea una nuova chiave in console.anthropic.com (scadenza **Never**) e incollala in ⚙️ Impostazioni. |
 | *"Credito di Claude esaurito"* | In console.anthropic.com → **Settings → Billing** aggiungi credito. |
+| *"Il tuo account Anthropic è sospeso"* (o *organization has been disabled*) | Il problema è nell'account Anthropic, non nel programma né nella chiave. Chiedi la riattivazione su **console.anthropic.com/appeal** o scrivi al supporto (**support.anthropic.com**). Nel frattempo gli agenti a regole funzionano lo stesso. |
 | *"Questa chiave va creata per un solo workspace"* | Crea una nuova chiave scegliendo il workspace **Default** e incollala in ⚙️ Impostazioni. |
 | Una pagina diversa su localhost:3000 | Un altro programma usa la stessa porta. Nel Terminale, dentro la cartella, avvia con: `PORT=3001 npm start` e apri http://localhost:3001 |
 

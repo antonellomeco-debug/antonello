@@ -17,6 +17,10 @@ test("friendlyError traduce gli errori più comuni", () => {
   assert.match(friendlyError(apiError(400, "Your credit balance is too low to access the API")), /Credito di Claude esaurito/);
   assert.match(friendlyError(apiError(429, "rate limited")), /riprova tra un minuto/);
   assert.match(friendlyError(apiError(529, "Overloaded")), /sovraccarico/);
+  assert.match(
+    friendlyError(apiError(400, 'This organization has been disabled. An organization admin can appeal at https://console.anthropic.com/appeal')),
+    /account Anthropic è sospeso/,
+  );
   assert.equal(friendlyError(new Error("altro")), "altro");
 });
 
