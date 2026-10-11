@@ -26,6 +26,7 @@
       <button class="nav" data-view="portfolio" title="Portafoglio"><span>💼</span><em>Portafoglio</em></button>
       <button class="nav" data-view="log" title="Attività"><span>📜</span><em>Attività</em></button>
       <button class="nav mobile-only" data-view="chat" title="Parla"><span>💬</span><em>Parla</em></button>
+      <button class="nav settings-nav" id="open-settings" title="Impostazioni"><span>⚙️</span><em>Impostazioni</em><b class="badge hidden" id="badge-settings">!</b></button>
     </nav>
 
     <main class="main">
@@ -37,6 +38,7 @@
             <p class="sub" id="office-sub"></p>
           </div>
           <div class="head-actions">
+            <button class="btn key-cta hidden" id="key-cta">🔑 Collega Claude</button>
             <button class="btn" id="reset-view">⟲ Vista</button>
             <button class="btn primary" id="new-agent">+ Nuovo agente</button>
           </div>
@@ -178,6 +180,39 @@
         <span class="spacer"></span>
         <button type="button" class="btn ghost" data-close>Annulla</button>
         <button type="submit" class="btn primary">Salva</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="settings-dialog">
+    <form id="settings-form" class="dlg-form" method="dialog">
+      <header class="dlg-head">
+        <h2>⚙️ Impostazioni</h2>
+        <button type="button" class="btn ghost" data-close>✕</button>
+      </header>
+      <div class="key-status" id="key-status"></div>
+      <p class="hint">
+        Gli agenti di tipo <b>LLM</b> e la chat con il regista usano Claude, che si paga a consumo con una chiave personale.
+        Gli agenti a <b>regole</b> funzionano anche senza chiave e sono gratuiti.
+      </p>
+      <label>Chiave API di Claude
+        <input type="password" name="key" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" />
+      </label>
+      <details class="howto">
+        <summary>Come ottengo la chiave?</summary>
+        <ol>
+          <li>Vai su <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a> e crea un account (o accedi).</li>
+          <li>In <b>Billing</b> aggiungi un metodo di pagamento e un po' di credito (bastano pochi euro per iniziare). Ti consiglio di impostare anche un limite di spesa mensile.</li>
+          <li>Apri <b>API Keys</b> → <b>Create Key</b>, dai un nome (es. "agenti borsa") e copia la chiave: inizia con <code>sk-ant-</code>.</li>
+          <li>Incollala qui sopra e premi <b>Salva e verifica</b>.</li>
+        </ol>
+        <p class="hint">La chiave resta solo sul tuo Mac (nel file <code>data/settings.json</code>). Non condividerla con nessuno.</p>
+      </details>
+      <p class="errors" id="settings-errors"></p>
+      <footer class="dlg-foot">
+        <button type="button" class="btn danger" id="remove-key">Rimuovi chiave</button>
+        <span class="spacer"></span>
+        <button type="submit" class="btn primary" id="save-key">Salva e verifica</button>
       </footer>
     </form>
   </dialog>

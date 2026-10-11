@@ -1,5 +1,7 @@
 # 🏢 Ufficio Agenti — borsa (paper trading)
 
+> 🍎 **Non sei pratico di programmazione? Segui la [guida passo passo per Mac](GUIDA-MAC.md).**
+
 Un ufficio virtuale in 3D con **stanze** e **agenti** che analizzano i mercati. Ogni stanza è un'isola sospesa attorno a un nucleo centrale, il **regista** (Orion). Ogni agente siede alla sua scrivania, lavora da solo (su richiesta o a intervalli) e pubblica i risultati nella **bacheca** della stanza. Gli altri agenti leggono quelle bacheche, così il lavoro passa da una stanza all'altra.
 
 Cosa trovi nell'interfaccia:
@@ -13,13 +15,25 @@ Cosa trovi nell'interfaccia:
 
 ## Avvio
 
+Serve [Node.js](https://nodejs.org) 20 o più recente.
+
 ```bash
 npm install
-export ANTHROPIC_API_KEY=sk-ant-...   # serve solo per gli agenti in modalità "llm"
-npm start                              # http://localhost:3000
+npm start              # apre da solo il browser su http://localhost:3000
+npm run collegamento   # (solo Mac) crea sulla Scrivania l'icona "Avvia Agenti"
 ```
 
-Variabili facoltative: `PORT` (default 3000), `INITIAL_CASH` (default 100000), `MARKET_MODE=demo` (prezzi simulati, utile offline), `ASSISTANT_NAME` (default Orion), `ASSISTANT_MODEL` (default claude-opus-5-5).
+La chiave di Claude serve solo per gli agenti in modalità `llm` e per la chat. Si inserisce dall'app in **⚙️ Impostazioni**: viene verificata e salvata solo sul tuo computer, in `data/settings.json`. In alternativa puoi impostare la variabile `ANTHROPIC_API_KEY`.
+
+Variabili facoltative:
+
+- `PORT` (default 3000)
+- `HOST` (default `127.0.0.1`: l'app è raggiungibile solo da questo computer)
+- `OPEN_BROWSER=0` (non apre il browser all'avvio)
+- `INITIAL_CASH` (default 100000)
+- `MARKET_MODE=demo` (prezzi simulati, utile offline)
+- `ASSISTANT_NAME` (default Orion)
+- `ASSISTANT_MODEL` (default claude-opus-5-5)
 
 La spesa API mostrata nell'ufficio è una stima calcolata dai token usati.
 
@@ -103,6 +117,9 @@ lib/broker.js      portafoglio virtuale e limiti di rischio
 lib/runner.js      esecuzione agenti (Claude con strumenti, oppure strategia JS)
 lib/tools.js       strumenti disponibili agli agenti
 lib/orchestrator.js il regista con cui parli in chat
+lib/claude.js      client Claude condiviso e verifica della chiave
+lib/settings.js    impostazioni salvate dall'app (data/settings.json)
+scripts/           icona di avvio per Mac
 lib/store.js       stato persistente in data/state.json
 public/office3d.js scena 3D (three.js)
 public/            interfaccia (ufficio, approvazioni, bacheca, portafoglio, chat, editor)

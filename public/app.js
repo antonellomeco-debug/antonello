@@ -30,6 +30,8 @@ async function loadOffice() {
     `${agents.length} agenti in ${rooms.length} reparti, coordinati da ${assistant}. ` +
     "Trascina per girare attorno all'ufficio, clicca una scrivania per aprire la scheda.";
   $("#chat-title").textContent = `Parla con ${assistant}`;
+  $("#key-cta").classList.toggle("hidden", state.office.llmReady);
+  $("#badge-settings").classList.toggle("hidden", state.office.llmReady);
   if (!office3d) {
     office3d = new Office3D($("#scene"), {
       assistantName: assistant,
@@ -70,7 +72,10 @@ async function refreshStats() {
     [`$${fmt(s.costUsd)}`, "spesa API (stima)"], [fmt(s.tokens / 1000, 1) + "k", "token usati"],
     [state.office.llmReady ? "sì" : "no", "Claude collegato"],
   ];
-  $("#stats").innerHTML = cells.map(([v, l]) => `<div class="stat"><b>${esc(v)}</b><small>${esc(l)}</small></div>`).join("");
+  $("#stats").innerHTML = cells
+    .map(([v, l]) => `<div class="stat ${l === "Claude collegato" ? "clickable" : ""}"><b>${esc(v)}</b><small>${esc(l)}</small></div>`)
+    .join("");
+  $("#stats .clickable")?.addEventListener("click", openSettings);
   const badge = $("#badge-approvals");
   badge.textContent = s.pending;
   badge.classList.toggle("hidden", !s.pending);
@@ -89,11 +94,11 @@ async function refreshPortfolio() {
 
 // ---------- navigazione ----------
 
-document.querySelectorAll(".nav").forEach((b) =>
+document.querySelectorAll(".nav[data-view]").forEach((b) =>
   b.addEventListener("click", () => {
     if (b.dataset.view === "chat") return $("#chat").classList.add("open");
     state.view = b.dataset.view;
-    document.querySelectorAll(".nav").forEach((x) => x.classList.toggle("active", x === b));
+    document.querySelectorAll(".nav[data-view]").forEach((x) => x.classList.toggle("active", x === b));
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("hidden", v.id !== `view-${state.view}`));
     renderView();
   }),
@@ -255,7 +260,7 @@ function renderChat() {
   const t = state.chat.transcript;
   body.innerHTML = t.length
     ? t.map((m) => `<div class="msg ${m.role}" data-who="${esc(state.office.assistant.toUpperCase())}">${m.role === "tool" ? "⚙ " : ""}${esc(m.text)}</div>`).join("")
-    : `<div class="msg assistant" data-who="${esc(state.office.assistant.toUpperCase())}">Ciao! Sono ${esc(state.office.assistant)}, coordino gli agenti dell'ufficio. Chiedimi cosa stanno facendo, fai lavorare qualcuno o descrivimi un nuovo agente da creare.${state.office.llmReady ? "" : "\n\n⚠️ Per parlarmi serve ANTHROPIC_API_KEY sul server."}</div>`;
+    : `<div class="msg assistant" data-who="${esc(state.office.assistant.toUpperCase())}">Ciao! Sono ${esc(state.office.assistant)}, coordino gli agenti dell'ufficio. Chiedimi cosa stanno facendo, fai lavorare qualcuno o descrivimi un nuovo agente da creare.${state.office.llmReady ? "" : "\n\n🔑 Per parlarmi inserisci la chiave di Claude in ⚙️ Impostazioni."}</div>`;
   body.scrollTop = body.scrollHeight;
   $("#chat").classList.toggle("busy", state.chat.busy);
   $("#chat-state").textContent = state.chat.busy ? "Sto lavorando…" : "Ti ascolto — scrivi pure";
@@ -289,6 +294,60 @@ $("#chat-input").addEventListener("keydown", (e) => {
   }
 });
 $("#chat-reset").onclick = () => api("/api/chat/reset", { method: "POST" });
+
+// ---------- impostazioni ----------
+
+const settingsDlg = $("#settings-dialog");
+const settingsForm = $("#settings-form");
+
+async function openSettings() {
+  settingsForm.key.value = "";
+  $("#settings-errors").textContent = "";
+  await renderKeyStatus();
+  if (!state.office.llmReady) settingsForm.querySelector(".howto").open = true;
+  settingsDlg.showModal();
+}
+
+async function renderKeyStatus() {
+  const k = await api("/api/settings").catch(() => null);
+  const el = $("#key-status");
+  if (k?.ready) {
+    el.className = "key-status ok";
+    el.textContent = `✅ Claude è collegato (chiave ${k.hint ?? ""}${k.source === "env" ? ", dal terminale" : ""}).`;
+  } else {
+    el.className = "key-status missing";
+    el.textContent = "🔑 Nessuna chiave inserita: per ora funzionano solo gli agenti a regole.";
+  }
+  $("#remove-key").classList.toggle("hidden", k?.source !== "app");
+}
+
+settingsForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = $("#save-key");
+  btn.disabled = true;
+  btn.textContent = "Verifico…";
+  $("#settings-errors").textContent = "";
+  try {
+    await api("/api/settings", { method: "PUT", body: JSON.stringify({ anthropicApiKey: settingsForm.key.value }) });
+    settingsForm.key.value = "";
+    await renderKeyStatus();
+  } catch (err) {
+    $("#settings-errors").textContent = err.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Salva e verifica";
+  }
+});
+
+$("#remove-key").onclick = async () => {
+  if (!confirm("Rimuovere la chiave di Claude da questo computer?")) return;
+  await api("/api/settings", { method: "DELETE" });
+  renderKeyStatus();
+};
+
+settingsDlg.querySelectorAll("[data-close]").forEach((b) => (b.onclick = () => settingsDlg.close()));
+$("#open-settings").onclick = openSettings;
+$("#key-cta").onclick = openSettings;
 
 // ---------- editor agente ----------
 

@@ -172,7 +172,7 @@ h4 { margin: 14px 0 6px; font-size: 12px; color: var(--muted); text-transform: u
 /* ---------- dialog agente ---------- */
 dialog { width: min(720px, 94vw); background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: 0; }
 dialog::backdrop { background: #000b; backdrop-filter: blur(2px); }
-#agent-form { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; max-height: 88vh; overflow: auto; }
+#agent-form, .dlg-form { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; max-height: 88vh; overflow: auto; }
 .dlg-head, .dlg-foot, .row { display: flex; align-items: center; gap: 8px; }
 .dlg-head h2 { margin: 0; flex: 1; font-size: 18px; }
 .spacer { flex: 1; }
@@ -191,6 +191,18 @@ legend { padding: 0 6px; color: var(--muted); font-size: 12px; }
 .checks .lbl { color: var(--muted); font-size: 12px; }
 .errors { color: var(--bad); margin: 0; white-space: pre-wrap; }
 
+.settings-nav { margin-top: auto; }
+.key-cta { border-color: var(--warn); color: var(--warn); }
+.key-status { padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font-size: 13px; }
+.key-status.ok { color: var(--good); }
+.key-status.missing { color: var(--warn); }
+.howto { background: var(--surface-2); border-radius: 10px; padding: 8px 12px; }
+.howto summary { cursor: pointer; color: var(--accent); }
+.howto ol { padding-left: 20px; line-height: 1.55; }
+.howto a { color: var(--accent); }
+.stat.clickable { cursor: pointer; }
+.stat.clickable:hover small { color: var(--accent); }
+
 /* ---------- responsive ---------- */
 @media (max-width: 1180px) {
   .app { grid-template-columns: 76px 1fr 320px; }
@@ -205,12 +217,14 @@ legend { padding: 0 6px; color: var(--muted); font-size: 12px; }
   .main { order: 1; }
   .view { padding: 14px 16px; }
   .page-head { flex-direction: column; }
+  .head-actions { flex-wrap: wrap; }
   .chat { position: fixed; inset: 0 0 64px 0; z-index: 20; border-left: 0; transform: translateY(110%); visibility: hidden; transition: transform .25s, visibility .25s; }
   .chat.open { transform: none; visibility: visible; }
   .stats { grid-template-columns: repeat(3, auto); gap: 6px 12px; padding: 8px 10px; font-size: 12px; right: 12px; }
   .stat b { font-size: 14px; }
   .stat:nth-child(n+7) { display: none; }
-  .nav em { font-size: 9px; }
+  .nav em { font-size: 8.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .settings-nav { margin-top: 0; }
   .pnl-card { top: auto; bottom: 56px; }
   .kpis { grid-template-columns: repeat(2, 1fr); }
   .grid2, .grid3 { grid-template-columns: 1fr; }

@@ -6,11 +6,15 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "collegamento": "node scripts/crea-collegamento.js",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
     "express": "^5.3.0",
     "three": "^0.186.1"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
