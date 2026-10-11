@@ -1,6 +1,6 @@
 // Server: API REST + eventi in tempo reale (SSE) + scheduler degli agenti.
 import express from "express";
-import { loadRooms, loadAgents, normalize, validate, saveAgent, deleteAgent, ALL_TOOLS } from "./lib/config.js";
+import { loadRooms, loadAgents, normalize, validate, saveAgent, deleteAgent, ALL_TOOLS, ID_PATTERN } from "./lib/config.js";
 import { runAgent, isRunning } from "./lib/runner.js";
 import { getState, resetState, bus } from "./lib/store.js";
 import { portfolioValue, decide } from "./lib/broker.js";
@@ -8,7 +8,7 @@ import { chat, getTranscript, resetChat, ASSISTANT_NAME } from "./lib/orchestrat
 import { getQuote } from "./lib/market.js";
 import fs from "node:fs";
 import { exec } from "node:child_process";
-import { hasCredentials, keyStatus, verifyKey } from "./lib/claude.js";
+import { hasCredentials, keyStatus, verifyKey, cleanKey } from "./lib/claude.js";
 import { updateSettings } from "./lib/settings.js";
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -16,6 +16,21 @@ const PORT = Number(process.env.PORT ?? 3000);
 const HOST = process.env.HOST ?? "127.0.0.1";
 const URL_APP = `http://localhost:${PORT}`;
 const app = express();
+
+// Protezione dai siti web aperti nello stesso browser:
+// - DNS rebinding: con l'indirizzo locale accettiamo solo richieste rivolte a localhost/127.0.0.1;
+// - CSRF: le richieste che modificano qualcosa devono arrivare da questa stessa pagina.
+const LOOPBACK = HOST === "127.0.0.1" || HOST === "localhost" || HOST === "::1";
+const LOCAL_HOSTS = new Set([`localhost:${PORT}`, `127.0.0.1:${PORT}`, `[::1]:${PORT}`]);
+app.use((req, res, next) => {
+  const host = req.headers.host ?? "";
+  if (LOOPBACK && !LOCAL_HOSTS.has(host)) return res.status(403).send("Accesso consentito solo da questo computer.");
+  const origin = req.get("origin");
+  if (req.method !== "GET" && req.method !== "HEAD" && origin && origin.replace(/^https?:\/\//, "") !== host) {
+    return res.status(403).json({ error: "Richiesta da un altro sito bloccata." });
+  }
+  next();
+});
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static("public"));
 app.use("/vendor/three", express.static("node_modules/three"));
@@ -45,9 +60,9 @@ app.get("/api/office", (_req, res) => {
 
 app.get("/api/settings", (_req, res) => res.json(keyStatus()));
 app.put("/api/settings", async (req, res) => {
-  const key = String(req.body?.anthropicApiKey ?? "").trim();
+  const key = cleanKey(req.body?.anthropicApiKey);
   if (!key) return res.status(400).json({ error: "Incolla la chiave prima di salvare." });
-  if (/\s/.test(key) || key.length < 20) return res.status(400).json({ error: "La chiave sembra incompleta: deve essere un'unica riga che inizia con sk-ant-." });
+  if (!/^[\x21-\x7E]+$/.test(key) || key.length < 20) return res.status(400).json({ error: "La chiave sembra incompleta: deve essere un'unica riga che inizia con sk-ant-." });
   const check = await verifyKey(key);
   if (!check.ok) return res.status(400).json({ error: check.error });
   updateSettings({ anthropicApiKey: key });
@@ -130,6 +145,7 @@ app.put("/api/agents/:id", (req, res) => {
 });
 
 app.delete("/api/agents/:id", (req, res) => {
+  if (!ID_PATTERN.test(req.params.id)) return res.status(400).json({ error: "id non valido" });
   deleteAgent(req.params.id);
   reload();
   res.json({ ok: true });
@@ -181,7 +197,7 @@ app.listen(PORT, HOST, (err) => {
   console.log(`  👉 Apri nel browser: ${URL_APP}`);
   console.log("");
   console.log("  Lascia aperta questa finestra finché usi il programma.");
-  console.log("  Per chiuderlo: premi Ctrl + C oppure chiudi la finestra.");
+  console.log("  Per chiuderlo: premi control + C oppure chiudi la finestra.");
   if (!hasCredentials()) console.log("  (La chiave di Claude si inserisce dall'app: ⚙️ Impostazioni.)");
   console.log("");
   openBrowser();

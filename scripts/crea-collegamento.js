@@ -18,8 +18,20 @@ cd ${quoted} || { echo "Cartella del programma non trovata: l'hai spostata? Rifa
 npm start
 `;
 
-fs.writeFileSync(file, script, { mode: 0o755 });
-fs.chmodSync(file, 0o755);
+try {
+  fs.writeFileSync(file, script, { mode: 0o755 });
+  fs.chmodSync(file, 0o755);
+} catch (err) {
+  if (err.code === "EPERM" || err.code === "EACCES") {
+    console.log("");
+    console.log("  ⚠️  Il Mac non ha dato al Terminale il permesso di scrivere sulla Scrivania.");
+    console.log("  Apri Impostazioni di Sistema → Privacy e sicurezza → File e cartelle → Terminale,");
+    console.log("  attiva «Cartella Scrivania», chiudi e riapri il Terminale e riprova.");
+    console.log("");
+    process.exit(1);
+  }
+  throw err;
+}
 console.log("");
 console.log(`  ✅ Creato sulla Scrivania: "Avvia Agenti"`);
 console.log("  D'ora in poi basta un doppio clic su quell'icona per avviare il programma.");

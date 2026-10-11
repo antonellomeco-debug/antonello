@@ -202,11 +202,11 @@
         <summary>Come ottengo la chiave?</summary>
         <ol>
           <li>Vai su <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a> e crea un account (o accedi).</li>
-          <li>In <b>Billing</b> aggiungi un metodo di pagamento e un po' di credito (bastano pochi euro per iniziare). Ti consiglio di impostare anche un limite di spesa mensile.</li>
-          <li>Apri <b>API Keys</b> → <b>Create Key</b>, dai un nome (es. "agenti borsa") e copia la chiave: inizia con <code>sk-ant-</code>.</li>
-          <li>Incollala qui sopra e premi <b>Salva e verifica</b>.</li>
+          <li>In <b>Settings → Billing</b> aggiungi un metodo di pagamento e un po' di credito (bastano pochi euro per iniziare). <b>Senza credito gli agenti non funzionano</b>, anche se la chiave risulta valida. Ti consiglio di impostare anche un limite di spesa mensile.</li>
+          <li>Vai in <b>Settings → API keys → Create key</b>. Dai un nome (es. "agenti borsa"); se ti chiede il <b>workspace</b> scegli <b>Default</b>; alla voce <b>scadenza</b> scegli <b>Never</b> (o la durata più lunga), altrimenti dopo poco smette di funzionare.</li>
+          <li>Copia <b>subito</b> la chiave (inizia con <code>sk-ant-</code>): viene mostrata una sola volta. Incollala qui sopra e premi <b>Salva e verifica</b>.</li>
         </ol>
-        <p class="hint">La chiave resta solo sul tuo Mac (nel file <code>data/settings.json</code>). Non condividerla con nessuno.</p>
+        <p class="hint">La chiave viene salvata solo nella cartella del programma, nel file <code>data/settings.json</code>. Non condividerla con nessuno.</p>
       </details>
       <p class="errors" id="settings-errors"></p>
       <footer class="dlg-foot">

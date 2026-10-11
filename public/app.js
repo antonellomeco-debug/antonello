@@ -529,7 +529,10 @@ events.onmessage = (msg) => {
       renderChat();
       break;
     case "config":
-      loadOffice().then(refreshStats);
+      loadOffice().then(() => {
+        refreshStats();
+        renderChat();
+      });
       break;
     case "reset":
       loadAll();
