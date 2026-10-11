@@ -1,0 +1,11 @@
+{
+  "id": "risk_manager",
+  "name": "Risk Manager",
+  "avatar": "🛡️",
+  "room": "rischio",
+  "mode": "rule",
+  "strategy": "risk_monitor",
+  "params": { "stopLossPct": -8, "maxConcentrationPct": 25, "minCashPct": 10, "autoStop": false },
+  "everyMinutes": 30,
+  "canTrade": false
+}

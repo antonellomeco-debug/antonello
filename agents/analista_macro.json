@@ -1,0 +1,12 @@
+{
+  "id": "analista_macro",
+  "name": "Analista Macro",
+  "avatar": "🌍",
+  "room": "ricerca",
+  "mode": "llm",
+  "everyMinutes": 0,
+  "watchlist": ["^GSPC", "^IXIC", "FTSEMIB.MI", "^STOXX50E", "^VIX"],
+  "tools": ["get_quote", "get_indicators", "post_note"],
+  "effort": "medium",
+  "instructions": "Analizza gli indici della watchlist: trend (SMA20 vs SMA50), momentum (rendimenti 5/20/60 giorni) e livello del VIX. Classifica il regime di mercato come RISK-ON, NEUTRALE o RISK-OFF e spiega in 3-5 righe perché. Pubblica la conclusione con il tag del regime."
+}

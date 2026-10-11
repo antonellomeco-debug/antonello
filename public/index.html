@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ufficio Agenti</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏢</text></svg>" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🏢 Ufficio Agenti <span class="tag">paper trading</span></div>
+    <div class="kpis" id="kpis"></div>
+    <div class="actions">
+      <span id="llm-status" class="pill"></span>
+      <button id="new-agent" class="btn primary">+ Nuovo agente</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="floor" id="floor" aria-label="Pianta dell'ufficio"></section>
+
+    <aside class="side">
+      <nav class="tabs" role="tablist">
+        <button class="tab active" data-tab="notes">Bacheca</button>
+        <button class="tab" data-tab="portfolio">Portafoglio</button>
+        <button class="tab" data-tab="log">Attività</button>
+      </nav>
+      <div class="filter" id="room-filter"></div>
+      <div class="panel" id="panel-notes"></div>
+      <div class="panel hidden" id="panel-portfolio"></div>
+      <div class="panel hidden" id="panel-log"></div>
+    </aside>
+  </main>
+
+  <dialog id="agent-dialog">
+    <form id="agent-form" method="dialog">
+      <header class="dlg-head">
+        <h2 id="dlg-title">Agente</h2>
+        <button type="button" class="btn ghost" data-close>✕</button>
+      </header>
+
+      <div class="grid2">
+        <label>ID <input name="id" required pattern="[a-z0-9_\-]+" /></label>
+        <label>Nome <input name="name" required /></label>
+        <label>Avatar <input name="avatar" maxlength="4" /></label>
+        <label>Stanza <select name="room"></select></label>
+        <label>Modalità
+          <select name="mode">
+            <option value="llm">LLM — istruzioni in linguaggio naturale</option>
+            <option value="rule">Regole — strategia JavaScript</option>
+          </select>
+        </label>
+        <label>Esegui ogni (minuti, 0 = manuale) <input name="everyMinutes" type="number" min="0" /></label>
+        <label class="span2">Watchlist (ticker separati da virgola) <input name="watchlist" placeholder="AAPL, MSFT, ENI.MI" /></label>
+      </div>
+
+      <fieldset class="only-llm">
+        <legend>Cosa deve fare</legend>
+        <textarea name="instructions" rows="6" placeholder="Descrivi il lavoro dell'agente…"></textarea>
+        <div class="grid2">
+          <label>Modello <input name="model" /></label>
+          <label>Impegno
+            <select name="effort">
+              <option>low</option><option>medium</option><option>high</option><option>xhigh</option><option>max</option>
+            </select>
+          </label>
+        </div>
+        <div class="checks" id="tools-checks"><span class="lbl">Strumenti:</span></div>
+      </fieldset>
+
+      <fieldset class="only-rule">
+        <legend>Strategia</legend>
+        <label>Strategia <select name="strategy"></select></label>
+        <label>Parametri (JSON) <textarea name="params" rows="4" class="mono"></textarea></label>
+        <p class="hint">Per creare una strategia tua copia <code>strategies/_template.js</code>.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Accessi e rischio</legend>
+        <div class="checks" id="reads-checks"><span class="lbl">Legge le stanze:</span></div>
+        <label class="inline"><input type="checkbox" name="canTrade" /> Può eseguire ordini (simulati)</label>
+        <div class="grid3">
+          <label>Max per ordine % <input name="maxOrderPct" type="number" min="0" max="100" step="0.5" /></label>
+          <label>Max per titolo % <input name="maxPositionPct" type="number" min="0" max="100" step="0.5" /></label>
+          <label class="inline"><input type="checkbox" name="onlyWatchlist" /> Solo watchlist</label>
+        </div>
+        <label class="inline"><input type="checkbox" name="enabled" /> Attivo (lo scheduler lo esegue)</label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Esegui ora</legend>
+        <div class="row">
+          <input id="run-task" placeholder="Compito specifico (facoltativo)…" />
+          <button type="button" class="btn" id="run-btn">▶ Esegui</button>
+        </div>
+      </fieldset>
+
+      <p class="errors" id="form-errors"></p>
+      <footer class="dlg-foot">
+        <button type="button" class="btn danger" id="delete-btn">Elimina</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn ghost" data-close>Annulla</button>
+        <button type="submit" class="btn primary" id="save-btn">Salva</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

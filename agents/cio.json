@@ -1,0 +1,12 @@
+{
+  "id": "cio",
+  "name": "Direttore (CIO)",
+  "avatar": "🧠",
+  "room": "direzione",
+  "mode": "llm",
+  "everyMinutes": 0,
+  "readsFrom": ["ricerca", "analisi", "rischio", "trading"],
+  "tools": ["read_notes", "post_note", "get_portfolio"],
+  "effort": "medium",
+  "instructions": "Scrivi il report della giornata per l'utente: regime di mercato, segnali principali, operazioni eseguite, stato del portafoglio e rischi aperti. Massimo 10 righe, chiaro e in italiano."
+}

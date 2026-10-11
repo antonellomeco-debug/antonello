@@ -1,0 +1,11 @@
+{
+  "id": "tecnico_rsi",
+  "name": "Quant RSI",
+  "avatar": "📉",
+  "room": "analisi",
+  "mode": "rule",
+  "strategy": "rsi_reversion",
+  "params": { "period": 14, "low": 30, "high": 70 },
+  "everyMinutes": 60,
+  "watchlist": ["AAPL", "MSFT", "NVDA", "ENI.MI", "ISP.MI"]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "tecnico_sma",
+  "name": "Quant SMA",
+  "avatar": "📈",
+  "room": "analisi",
+  "mode": "rule",
+  "strategy": "sma_cross",
+  "params": { "fast": 20, "slow": 50, "orderPct": 5 },
+  "everyMinutes": 60,
+  "watchlist": ["AAPL", "MSFT", "NVDA", "ENI.MI", "ISP.MI"],
+  "canTrade": false
+}
