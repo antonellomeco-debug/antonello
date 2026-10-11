@@ -3,35 +3,110 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Ufficio Agenti</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏢</text></svg>" />
+  <title>I miei agenti</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🪐</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
+  <script type="importmap">
+    { "imports": {
+        "three": "/vendor/three/build/three.module.js",
+        "three/addons/": "/vendor/three/examples/jsm/"
+    } }
+  </script>
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">🏢 Ufficio Agenti <span class="tag">paper trading</span></div>
-    <div class="kpis" id="kpis"></div>
-    <div class="actions">
-      <span id="llm-status" class="pill"></span>
-      <button id="new-agent" class="btn primary">+ Nuovo agente</button>
-    </div>
-  </header>
+  <div class="app">
+    <!-- barra di navigazione (laterale su desktop, in basso su telefono) -->
+    <nav class="rail" aria-label="Sezioni">
+      <div class="logo" title="Ufficio Agenti">🪐</div>
+      <button class="nav active" data-view="office" title="Ufficio"><span>🏢</span><em>Ufficio</em></button>
+      <button class="nav" data-view="approvals" title="Approvazioni"><span>✅</span><em>Approvazioni</em><b class="badge hidden" id="badge-approvals"></b></button>
+      <button class="nav" data-view="notes" title="Bacheca"><span>📝</span><em>Bacheca</em></button>
+      <button class="nav" data-view="portfolio" title="Portafoglio"><span>💼</span><em>Portafoglio</em></button>
+      <button class="nav" data-view="log" title="Attività"><span>📜</span><em>Attività</em></button>
+      <button class="nav mobile-only" data-view="chat" title="Parla"><span>💬</span><em>Parla</em></button>
+    </nav>
 
-  <main class="layout">
-    <section class="floor" id="floor" aria-label="Pianta dell'ufficio"></section>
+    <main class="main">
+      <!-- UFFICIO 3D -->
+      <section class="view" id="view-office">
+        <header class="page-head">
+          <div>
+            <h1>I miei agenti IA</h1>
+            <p class="sub" id="office-sub"></p>
+          </div>
+          <div class="head-actions">
+            <button class="btn" id="reset-view">⟲ Vista</button>
+            <button class="btn primary" id="new-agent">+ Nuovo agente</button>
+          </div>
+        </header>
+        <div class="stage">
+          <div class="scene" id="scene"></div>
+          <div class="stats" id="stats"></div>
+          <div class="pnl-card" id="pnl-card"></div>
+          <details class="roster" id="roster">
+            <summary id="roster-sum">Elenco completo degli agenti</summary>
+            <div class="roster-list" id="roster-list"></div>
+          </details>
+        </div>
+      </section>
 
-    <aside class="side">
-      <nav class="tabs" role="tablist">
-        <button class="tab active" data-tab="notes">Bacheca</button>
-        <button class="tab" data-tab="portfolio">Portafoglio</button>
-        <button class="tab" data-tab="log">Attività</button>
-      </nav>
-      <div class="filter" id="room-filter"></div>
-      <div class="panel" id="panel-notes"></div>
-      <div class="panel hidden" id="panel-portfolio"></div>
-      <div class="panel hidden" id="panel-log"></div>
+      <!-- APPROVAZIONI -->
+      <section class="view hidden" id="view-approvals">
+        <header class="page-head">
+          <div>
+            <h1>Approvazioni</h1>
+            <p class="sub">Gli agenti propongono gli ordini, tu decidi. Nulla parte senza il tuo ok.</p>
+          </div>
+        </header>
+        <div class="cards" id="approvals-list"></div>
+      </section>
+
+      <!-- BACHECA -->
+      <section class="view hidden" id="view-notes">
+        <header class="page-head">
+          <div><h1>Bacheca</h1><p class="sub">Quello che gli agenti scrivono nelle loro stanze.</p></div>
+        </header>
+        <div class="filter" id="room-filter"></div>
+        <div class="feed" id="notes-list"></div>
+      </section>
+
+      <!-- PORTAFOGLIO -->
+      <section class="view hidden" id="view-portfolio">
+        <header class="page-head">
+          <div><h1>Portafoglio</h1><p class="sub">Simulato (paper trading): nessun ordine reale.</p></div>
+          <button class="btn danger" id="reset-btn">Azzera tutto</button>
+        </header>
+        <div id="portfolio-body"></div>
+      </section>
+
+      <!-- ATTIVITÀ -->
+      <section class="view hidden" id="view-log">
+        <header class="page-head"><div><h1>Attività</h1><p class="sub">Registro di tutto ciò che fanno gli agenti.</p></div></header>
+        <div class="log" id="log-list"></div>
+      </section>
+    </main>
+
+    <!-- PARLA CON IL REGISTA -->
+    <aside class="chat" id="chat">
+      <header class="chat-head">
+        <div class="orb" aria-hidden="true"></div>
+        <div>
+          <b id="chat-title">Parla con …</b>
+          <small id="chat-state">Ti ascolto — scrivi pure</small>
+        </div>
+        <button class="btn ghost small" id="chat-reset" title="Nuova conversazione">↺</button>
+        <button class="btn ghost small mobile-only" id="chat-close" title="Chiudi">✕</button>
+      </header>
+      <div class="chat-body" id="chat-body"></div>
+      <div class="chips" id="chat-chips"></div>
+      <form class="chat-form" id="chat-form">
+        <textarea id="chat-input" rows="1" placeholder="Scrivi un messaggio…"></textarea>
+        <button class="btn primary" type="submit" aria-label="Invia">➤</button>
+      </form>
     </aside>
-  </main>
+  </div>
 
   <dialog id="agent-dialog">
     <form id="agent-form" method="dialog">
@@ -79,7 +154,8 @@
       <fieldset>
         <legend>Accessi e rischio</legend>
         <div class="checks" id="reads-checks"><span class="lbl">Legge le stanze:</span></div>
-        <label class="inline"><input type="checkbox" name="canTrade" /> Può eseguire ordini (simulati)</label>
+        <label class="inline"><input type="checkbox" name="canTrade" /> Può proporre ordini (simulati)</label>
+        <label class="inline"><input type="checkbox" name="requireApproval" /> Ogni ordine richiede la mia approvazione</label>
         <div class="grid3">
           <label>Max per ordine % <input name="maxOrderPct" type="number" min="0" max="100" step="0.5" /></label>
           <label>Max per titolo % <input name="maxPositionPct" type="number" min="0" max="100" step="0.5" /></label>
@@ -101,7 +177,7 @@
         <button type="button" class="btn danger" id="delete-btn">Elimina</button>
         <span class="spacer"></span>
         <button type="button" class="btn ghost" data-close>Annulla</button>
-        <button type="submit" class="btn primary" id="save-btn">Salva</button>
+        <button type="submit" class="btn primary">Salva</button>
       </footer>
     </form>
   </dialog>

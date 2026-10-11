@@ -1,0 +1,12 @@
+{
+  "id": "analista_italia",
+  "name": "Analista Italia",
+  "avatar": "🇮🇹",
+  "room": "ricerca",
+  "mode": "llm",
+  "everyMinutes": 0,
+  "watchlist": ["FTSEMIB.MI", "ENI.MI", "ISP.MI", "UCG.MI", "ENEL.MI", "STLAM.MI"],
+  "tools": ["get_quote", "get_indicators", "post_note"],
+  "effort": "medium",
+  "instructions": "Analizza i titoli italiani della watchlist rispetto all'indice FTSE MIB: chi è più forte e chi più debole su 20 e 60 giorni, chi ha RSI estremo. Pubblica una classifica sintetica con i 2 titoli più interessanti e il motivo."
+}

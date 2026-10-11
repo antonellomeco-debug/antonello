@@ -3,7 +3,8 @@ import express from "express";
 import { loadRooms, loadAgents, normalize, validate, saveAgent, deleteAgent, ALL_TOOLS } from "./lib/config.js";
 import { runAgent, isRunning } from "./lib/runner.js";
 import { getState, resetState, bus } from "./lib/store.js";
-import { portfolioValue } from "./lib/broker.js";
+import { portfolioValue, decide } from "./lib/broker.js";
+import { chat, getTranscript, resetChat, ASSISTANT_NAME } from "./lib/orchestrator.js";
 import { getQuote } from "./lib/market.js";
 import fs from "node:fs";
 
@@ -11,6 +12,7 @@ const PORT = Number(process.env.PORT ?? 3000);
 const app = express();
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static("public"));
+app.use("/vendor/three", express.static("node_modules/three"));
 
 let rooms = loadRooms();
 let agents = loadAgents();
@@ -31,6 +33,7 @@ app.get("/api/office", (_req, res) => {
     tools: ALL_TOOLS,
     strategies: fs.readdirSync("strategies").filter((f) => f.endsWith(".js") && !f.startsWith("_")).map((f) => f.slice(0, -3)),
     llmReady: Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN),
+    assistant: ASSISTANT_NAME,
   });
 });
 
@@ -41,6 +44,47 @@ app.get("/api/portfolio", async (_req, res, next) => {
 });
 app.get("/api/quote/:symbol", async (req, res, next) => {
   try { res.json(await getQuote(req.params.symbol)); } catch (e) { next(e); }
+});
+
+app.get("/api/stats", (_req, res) => {
+  const st = getState();
+  const notes = Object.values(st.notes).flat();
+  res.json({
+    working: agents.filter((a) => isRunning(a.id)).length,
+    agents: agents.length,
+    rooms: rooms.length,
+    scheduled: agents.filter((a) => a.enabled && a.everyMinutes > 0).length,
+    notes: notes.length,
+    trades: st.portfolio.trades.length,
+    pending: st.approvals.filter((a) => a.status === "pending").length,
+    costUsd: st.usage.costUsd,
+    tokens: st.usage.inputTokens + st.usage.outputTokens,
+  });
+});
+
+app.get("/api/approvals", (_req, res) => res.json(getState().approvals.slice().reverse()));
+app.post("/api/approvals/:id", async (req, res) => {
+  try {
+    res.json(await decide(req.params.id, Boolean(req.body?.approve)));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+const chatCtx = { agents: () => agents, rooms: () => rooms, reload: () => reload() };
+app.get("/api/chat", (_req, res) => res.json(getTranscript()));
+app.post("/api/chat", async (req, res) => {
+  const text = String(req.body?.message ?? "").trim();
+  if (!text) return res.status(400).json({ error: "messaggio vuoto" });
+  try {
+    res.json({ reply: await chat(chatCtx, text) });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+app.post("/api/chat/reset", (_req, res) => {
+  resetChat();
+  res.json({ ok: true });
 });
 
 app.post("/api/agents/:id/run", async (req, res) => {

@@ -1,6 +1,13 @@
 # 🏢 Ufficio Agenti — borsa (paper trading)
 
-Un ufficio virtuale con **stanze** e **agenti** che analizzano i mercati. Ogni agente siede alla scrivania della sua stanza, lavora da solo (su richiesta o a intervalli) e pubblica i risultati nella **bacheca** della stanza. Gli altri agenti leggono quelle bacheche, così il lavoro passa da una stanza all'altra.
+Un ufficio virtuale in 3D con **stanze** e **agenti** che analizzano i mercati. Ogni stanza è un'isola sospesa attorno a un nucleo centrale, il **regista** (Orion). Ogni agente siede alla sua scrivania, lavora da solo (su richiesta o a intervalli) e pubblica i risultati nella **bacheca** della stanza. Gli altri agenti leggono quelle bacheche, così il lavoro passa da una stanza all'altra.
+
+Cosa trovi nell'interfaccia:
+
+- **Ufficio**: scena 3D da girare trascinando. Clicchi una scrivania per aprire la scheda dell'agente, clicchi il nome di una stanza per avvicinarti. In alto ci sono i numeri dell'ufficio e il valore del portafoglio.
+- **Parla con Orion**: chat con il regista. Puoi chiedergli cosa succede, far lavorare gli agenti, oppure **creare e modificare agenti descrivendoli a parole**.
+- **Approvazioni**: gli agenti *propongono* gli ordini e tu scegli "Fallo per me" o "Scarta".
+- **Bacheca**, **Portafoglio**, **Attività**.
 
 > ⚠️ **Solo simulazione.** Gli ordini sono eseguiti su un portafoglio virtuale (`paper trading`): nessun ordine reale viene inviato a un broker. Non è una consulenza finanziaria.
 
@@ -12,13 +19,15 @@ export ANTHROPIC_API_KEY=sk-ant-...   # serve solo per gli agenti in modalità "
 npm start                              # http://localhost:3000
 ```
 
-Variabili facoltative: `PORT` (default 3000), `INITIAL_CASH` (default 100000), `MARKET_MODE=demo` (prezzi simulati, utile offline).
+Variabili facoltative: `PORT` (default 3000), `INITIAL_CASH` (default 100000), `MARKET_MODE=demo` (prezzi simulati, utile offline), `ASSISTANT_NAME` (default Orion), `ASSISTANT_MODEL` (default claude-opus-5-5).
+
+La spesa API mostrata nell'ufficio è una stima calcolata dai token usati.
 
 I prezzi arrivano da Yahoo Finance (ticker come `AAPL`, `ENI.MI`, `^GSPC`). Se il servizio non risponde, l'app usa prezzi simulati e li segnala come `demo`.
 
 ## Le stanze
 
-Sono definite in [`rooms.json`](rooms.json). `x`, `y`, `w`, `h` indicano la posizione sulla pianta, che è una griglia di 4 colonne.
+Sono definite in [`rooms.json`](rooms.json): ognuna diventa un'isola del colore indicato, disposte in cerchio attorno al nucleo. Puoi aggiungerne o toglierne.
 
 | Stanza | Ruolo |
 |---|---|
@@ -82,6 +91,7 @@ Le strategie si trovano in [`strategies/`](strategies). Quelle già incluse sono
 - `enabled`: se `false`, lo scheduler lo ignora.
 - `limits.maxOrderPct` / `limits.maxPositionPct`: percentuale massima del portafoglio per un singolo ordine e per un singolo titolo.
 - `limits.onlyWatchlist`: l'agente può operare solo sui titoli della sua watchlist.
+- `limits.requireApproval` (default `true`): ogni ordine finisce in **Approvazioni** e parte solo con il tuo ok. Con `false` l'agente esegue da solo, sempre e solo sul portafoglio simulato.
 
 ## Struttura
 
@@ -92,8 +102,10 @@ lib/indicators.js  indicatori tecnici
 lib/broker.js      portafoglio virtuale e limiti di rischio
 lib/runner.js      esecuzione agenti (Claude con strumenti, oppure strategia JS)
 lib/tools.js       strumenti disponibili agli agenti
+lib/orchestrator.js il regista con cui parli in chat
 lib/store.js       stato persistente in data/state.json
-public/            interfaccia (pianta dell'ufficio, bacheca, portafoglio, editor)
+public/office3d.js scena 3D (three.js)
+public/            interfaccia (ufficio, approvazioni, bacheca, portafoglio, chat, editor)
 agents/            un file JSON per agente
 strategies/        strategie JavaScript
 ```

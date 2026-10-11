@@ -1,7 +1,7 @@
 [
-  { "id": "ricerca",   "name": "Sala Ricerca",      "description": "Macro, indici e contesto di mercato", "color": "#4f8cff", "x": 0, "y": 0, "w": 2, "h": 1 },
-  { "id": "analisi",   "name": "Analisi Tecnica",   "description": "Segnali da indicatori e strategie quantitative", "color": "#22b07d", "x": 2, "y": 0, "w": 2, "h": 1 },
-  { "id": "rischio",   "name": "Risk Room",         "description": "Controllo dei rischi del portafoglio", "color": "#e5534b", "x": 0, "y": 1, "w": 1, "h": 1 },
-  { "id": "trading",   "name": "Trading Desk",      "description": "Decisioni ed esecuzione degli ordini (simulati)", "color": "#d29922", "x": 1, "y": 1, "w": 2, "h": 1 },
-  { "id": "direzione", "name": "Direzione",         "description": "Sintesi giornaliera e strategia complessiva", "color": "#a371f7", "x": 3, "y": 1, "w": 1, "h": 1 }
+  {"id": "ricerca", "name": "Sala Ricerca", "description": "Macro, indici e contesto di mercato", "color": "#4f8cff"},
+  {"id": "analisi", "name": "Analisi Tecnica", "description": "Segnali da indicatori e strategie quantitative", "color": "#22b07d"},
+  {"id": "rischio", "name": "Risk Room", "description": "Controllo dei rischi del portafoglio", "color": "#e5534b"},
+  {"id": "trading", "name": "Trading Desk", "description": "Decisioni ed esecuzione degli ordini (simulati)", "color": "#d29922"},
+  {"id": "direzione", "name": "Direzione", "description": "Sintesi giornaliera e strategia complessiva", "color": "#a371f7"}
 ]
