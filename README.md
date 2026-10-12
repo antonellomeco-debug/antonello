@@ -2,12 +2,13 @@
 
 > 🍎 **Non sei pratico di programmazione? Segui la [guida passo passo per Mac](GUIDA-MAC.md).**
 
-Un ufficio virtuale in 3D con **stanze** e **agenti** che analizzano i mercati. Ogni stanza è un'isola sospesa attorno a un nucleo centrale, il **regista** (Orion). Ogni agente siede alla sua scrivania, lavora da solo (su richiesta o a intervalli) e pubblica i risultati nella **bacheca** della stanza. Gli altri agenti leggono quelle bacheche, così il lavoro passa da una stanza all'altra.
+Un **palazzo** virtuale in 3D di agenti che analizzano i mercati. Il palazzo ha più **piani**: ogni piano gestisce un settore (es. Azioni, Crypto) e contiene **stanze**, isole sospese attorno a una colonna centrale. In cima c'è il **regista** (Orion). Ogni agente siede alla sua scrivania, lavora da solo (su richiesta o a intervalli) e pubblica i risultati nella **bacheca** della stanza. Gli altri agenti leggono quelle bacheche, così il lavoro passa da una stanza all'altra. I piani **collegati** si scambiano informazioni.
 
 Cosa trovi nell'interfaccia:
 
-- **Ufficio**: scena 3D da girare trascinando. Clicchi una scrivania per aprire la scheda dell'agente, clicchi il nome di una stanza per avvicinarti. In alto ci sono i numeri dell'ufficio e il valore del portafoglio.
-- **Parla con Orion**: chat con il regista. Puoi chiedergli cosa succede, far lavorare gli agenti, oppure **creare e modificare agenti descrivendoli a parole**.
+- **Ufficio**: il palazzo in 3D. Con l'ascensore scegli un piano o tutto il palazzo; trascini per girare. Clicchi una scrivania per aprire la scheda dell'agente, clicchi il nome di una stanza per avvicinarti. In alto ci sono i numeri dell'ufficio e il valore del portafoglio.
+- **Palazzo**: crei e modifichi piani e stanze, e decidi quali piani comunicano tra loro.
+- **Parla con Orion**: chat con il regista. Puoi chiedergli cosa succede, far lavorare gli agenti, oppure **creare e modificare agenti, piani, stanze e collegamenti descrivendoli a parole**.
 - **Approvazioni**: gli agenti *propongono* gli ordini e tu scegli "Fallo per me" o "Scarta".
 - **Bacheca**, **Portafoglio**, **Attività**.
 
@@ -39,21 +40,32 @@ La spesa API mostrata nell'ufficio è una stima calcolata dai token usati.
 
 I prezzi arrivano da Yahoo Finance (ticker come `AAPL`, `ENI.MI`, `^GSPC`). Se il servizio non risponde, l'app usa prezzi simulati e li segnala come `demo`.
 
-## Le stanze
+## Il palazzo: piani, stanze e collegamenti
 
-Sono definite in [`rooms.json`](rooms.json): ognuna diventa un'isola del colore indicato, disposte in cerchio attorno al nucleo. Puoi aggiungerne o toglierne.
+Il palazzo si trova in `data/building.json`. Si modifica dall'app (sezione **🏗️ Palazzo**) o chiedendo a Orion. Al primo avvio viene copiato da [`defaults/building.json`](defaults/building.json):
 
-| Stanza | Ruolo |
-|---|---|
-| Sala Ricerca | Macro, indici, regime di mercato |
-| Analisi Tecnica | Segnali quantitativi (SMA, RSI, …) |
-| Risk Room | Stop-loss, concentrazione, liquidità |
-| Trading Desk | Decide ed esegue gli ordini (simulati) |
-| Direzione | Report di sintesi per te |
+| Piano | Settore | Stanze |
+|---|---|---|
+| 1° Piano · Azioni | Azioni e indici | Sala Ricerca, Analisi Tecnica, Risk Room, Trading Desk |
+| Piano Terra · Direzione | Coordinamento | Direzione |
+
+Collegamento di partenza: **1° Piano → Piano Terra**, in un solo senso. La Direzione legge il lavoro del piano Azioni, ma non viceversa.
+
+Cosa può leggere un agente (`read_notes`):
+
+- la propria stanza;
+- le stanze del proprio piano elencate in `readsFrom`;
+- **tutte** le stanze dei piani collegati che mandano informazioni al suo piano.
+
+Ogni collegamento ha tre proprietà:
+
+- `direction`: `"both"` (si leggono a vicenda) oppure `"one-way"` (da `from` verso `to`);
+- `active`: si può spegnere senza cancellarlo;
+- è unico per ogni coppia di piani.
 
 ## Programmare un agente
 
-Ogni agente è un file JSON in [`agents/`](agents). Puoi modificarlo a mano oppure dall'interfaccia: clicca un agente sulla pianta, o usa **+ Nuovo agente**. Esistono due modalità.
+Ogni agente è un file JSON in `data/agents/`; quelli di partenza vengono copiati da [`defaults/agents/`](defaults/agents). Puoi modificarlo a mano oppure dall'interfaccia: clicca un agente nel palazzo, o usa **+ Nuovo agente**. Esistono due modalità.
 
 ### 1. Modalità `llm`: descrivi il compito a parole
 
@@ -107,24 +119,42 @@ Le strategie si trovano in [`strategies/`](strategies). Quelle già incluse sono
 - `limits.onlyWatchlist`: l'agente può operare solo sui titoli della sua watchlist.
 - `limits.requireApproval` (default `true`): ogni ordine finisce in **Approvazioni** e parte solo con il tuo ok. Con `false` l'agente esegue da solo, sempre e solo sul portafoglio simulato.
 
+## Aggiornamenti
+
+**⚙️ Impostazioni → Aggiornamenti → Aggiorna ora** fa tutto in automatico:
+
+1. scarica da GitHub l'ultima versione (`antonellomeco-debug/antonello`, oppure il repository indicato in `UPDATE_REPO`);
+2. sostituisce i file del programma, dopo averne salvato una copia in `data/backup/`;
+3. esegue `npm install` se sono cambiate le librerie;
+4. si riavvia da solo.
+
+La cartella `data/` non viene mai toccata. Il riavvio automatico funziona quando il programma è avviato con `npm start` (cioè `start.js`) o con l'icona sulla Scrivania. Se la cartella è un checkout git, l'aggiornamento dall'app è disattivato: usa `git pull`.
+
 ## Struttura
 
 ```
-server.js          API REST, eventi live (SSE), scheduler
-lib/market.js      prezzi (Yahoo Finance + fallback demo)
-lib/indicators.js  indicatori tecnici
-lib/broker.js      portafoglio virtuale e limiti di rischio
-lib/runner.js      esecuzione agenti (Claude con strumenti, oppure strategia JS)
-lib/tools.js       strumenti disponibili agli agenti
+start.js            avvia il server e lo riavvia dopo un aggiornamento
+server.js           API REST, eventi live (SSE), scheduler
+lib/building.js     palazzo: piani, stanze, collegamenti, chi può leggere cosa
+lib/office.js       stato condiviso e modifiche (usato da interfaccia e Orion)
+lib/config.js       configurazione e validazione degli agenti
+lib/market.js       prezzi (Yahoo Finance + fallback demo)
+lib/indicators.js   indicatori tecnici
+lib/broker.js       portafoglio virtuale, limiti di rischio, approvazioni
+lib/runner.js       esecuzione agenti (Claude con strumenti, oppure strategia JS)
+lib/tools.js        strumenti disponibili agli agenti
 lib/orchestrator.js il regista con cui parli in chat
-lib/claude.js      client Claude condiviso e verifica della chiave
-lib/settings.js    impostazioni salvate dall'app (data/settings.json)
-scripts/           icona di avvio per Mac
-lib/store.js       stato persistente in data/state.json
-public/office3d.js scena 3D (three.js)
-public/            interfaccia (ufficio, approvazioni, bacheca, portafoglio, chat, editor)
-agents/            un file JSON per agente
-strategies/        strategie JavaScript
+lib/claude.js       client Claude condiviso, verifica della chiave, errori in italiano
+lib/updater.js      aggiornamento dall'app
+lib/store.js        stato persistente (data/state.json)
+lib/settings.js     impostazioni salvate dall'app (data/settings.json)
+lib/paths.js        percorsi del progetto
+public/office3d.js  palazzo 3D (three.js)
+public/             interfaccia
+defaults/           palazzo e agenti di partenza
+strategies/         strategie JavaScript
+scripts/            icona di avvio per Mac
+data/               i tuoi dati (creata al primo avvio, mai toccata dagli aggiornamenti)
 ```
 
 Test: `npm test`.

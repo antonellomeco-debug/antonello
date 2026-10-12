@@ -1,25 +1,31 @@
-// Ufficio 3D: nucleo centrale (il regista) e un'isola sospesa per ogni stanza, con scrivanie e agenti.
+// Palazzo 3D: piani sovrapposti attorno a una colonna centrale (il regista sta in cima).
+// Ogni piano ha le sue isole-stanza con scrivanie e agenti; i collegamenti tra piani sono archi luminosi
+// percorsi da "messaggi" che si muovono nel verso in cui viaggiano le informazioni.
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 
-const RING_RADIUS = 15;
+const FLOOR_GAP = 15;
 const DESK_SPACING = 3;
 
 export class Office3D {
-  constructor(container, { onAgentClick, onRoomClick, assistantName }) {
+  constructor(container, { onAgentClick, onFloorFocus, assistantName }) {
     this.container = container;
     this.onAgentClick = onAgentClick;
-    this.onRoomClick = onRoomClick;
-    this.agentObjs = new Map(); // id -> { group, body, head, ring, monitor, label }
+    this.onFloorFocus = onFloorFocus;
+    this.assistantName = assistantName;
+    this.agentObjs = new Map(); // id -> { head, ring, monitor, el, status, floorId }
     this.clickables = [];
+    this.floors = new Map(); // floorId -> { group, y, labels: { floor, rooms: [], agents: [] }, islands: [] }
+    this.flows = []; // sferette che viaggiano lungo i collegamenti
+    this.focused = null; // id del piano in primo piano, null = tutto il palazzo
     this.clock = new THREE.Clock();
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x05060f);
-    this.scene.fog = new THREE.Fog(0x05060f, 45, 90);
+    this.scene.fog = new THREE.Fog(0x05060f, 60, 160);
 
-    this.camera = new THREE.PerspectiveCamera(42, 1, 0.1, 300);
+    this.camera = new THREE.PerspectiveCamera(42, 1, 0.1, 500);
     this.camera.position.set(0, 24, 34);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -35,15 +41,15 @@ export class Office3D {
     this.controls.enableDamping = true;
     this.controls.autoRotate = true;
     this.controls.autoRotateSpeed = 0.35;
-    this.controls.maxPolarAngle = Math.PI * 0.46;
-    this.controls.minDistance = 12;
-    this.controls.maxDistance = 70;
-    this.controls.target.set(0, 0, 0);
+    this.controls.maxPolarAngle = Math.PI * 0.49;
+    this.controls.minDistance = 10;
+    this.controls.maxDistance = 160;
     this.renderer.domElement.addEventListener("pointerdown", () => (this.controls.autoRotate = false));
 
     this.addLights();
     this.addStars();
-    this.addHub(assistantName);
+    this.world = new THREE.Group(); // tutto ciò che dipende dal palazzo (ricostruito a ogni modifica)
+    this.scene.add(this.world);
 
     this.raycaster = new THREE.Raycaster();
     this.pointer = new THREE.Vector2();
@@ -56,115 +62,230 @@ export class Office3D {
   }
 
   addLights() {
-    this.scene.add(new THREE.AmbientLight(0x8890ff, 0.55));
-    const key = new THREE.DirectionalLight(0xffffff, 1.6);
-    key.position.set(15, 30, 10);
+    this.scene.add(new THREE.AmbientLight(0x8890ff, 0.6));
+    const key = new THREE.DirectionalLight(0xffffff, 1.5);
+    key.position.set(25, 80, 20);
     key.castShadow = true;
     key.shadow.mapSize.set(2048, 2048);
-    Object.assign(key.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30 });
+    Object.assign(key.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, far: 200 });
     this.scene.add(key);
-    const rim = new THREE.PointLight(0x6a7bff, 60, 40);
-    rim.position.set(0, 6, 0);
-    this.scene.add(rim);
+    this.keyLight = key;
   }
 
   addStars() {
-    const n = 1500;
+    const n = 1800;
     const pos = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
-      const r = 60 + Math.random() * 80;
+      const r = 90 + Math.random() * 120;
       const t = Math.random() * Math.PI * 2;
       const p = Math.acos(2 * Math.random() - 1);
-      pos.set([r * Math.sin(p) * Math.cos(t), r * Math.cos(p) * 0.6, r * Math.sin(p) * Math.sin(t)], i * 3);
+      pos.set([r * Math.sin(p) * Math.cos(t), r * Math.cos(p) * 0.7, r * Math.sin(p) * Math.sin(t)], i * 3);
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    this.stars = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xaab4ff, size: 0.35, sizeAttenuation: true, fog: false }));
+    this.stars = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xaab4ff, size: 0.4, sizeAttenuation: true, fog: false }));
     this.scene.add(this.stars);
   }
 
-  addHub(name) {
-    const hub = new THREE.Group();
-    const base = new THREE.Mesh(
-      new THREE.CylinderGeometry(3.6, 4, 0.8, 48),
-      new THREE.MeshStandardMaterial({ color: 0x1b1f3a, metalness: 0.4, roughness: 0.5 }),
-    );
-    base.receiveShadow = true;
-    hub.add(base);
-    const ringTop = new THREE.Mesh(
-      new THREE.TorusGeometry(3.6, 0.08, 8, 64),
-      new THREE.MeshBasicMaterial({ color: 0x6f7dff }),
-    );
-    ringTop.rotation.x = Math.PI / 2;
-    ringTop.position.y = 0.42;
-    hub.add(ringTop);
+  // ---------- costruzione del palazzo ----------
 
-    // Sfera "cervello": wireframe luminoso + nucleo.
-    this.core = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(2.4, 2),
-      new THREE.MeshBasicMaterial({ color: 0x8fa2ff, wireframe: true, transparent: true, opacity: 0.55 }),
-    );
-    this.core.position.y = 3.6;
-    hub.add(this.core);
-    const glow = new THREE.Mesh(
-      new THREE.SphereGeometry(1.2, 32, 16),
-      new THREE.MeshBasicMaterial({ color: 0xc9d2ff, transparent: true, opacity: 0.85 }),
-    );
-    glow.position.y = 3.6;
-    hub.add(glow);
-    this.coreGlow = glow;
-
-    const el = document.createElement("div");
-    el.className = "hub-label";
-    el.textContent = name;
-    const label = new CSS2DObject(el);
-    label.position.set(0, 6.6, 0);
-    hub.add(label);
-    this.scene.add(hub);
-  }
-
-  /** Ricostruisce isole e agenti. rooms: [{id,name,color}], agents: [{id,name,avatar,room,...}] */
-  setOffice(rooms, agents) {
-    this.islands?.forEach((g) => {
-      g.traverse((o) => o.isCSS2DObject && o.element.remove());
-      this.scene.remove(g);
-    });
-    this.links?.forEach((l) => this.scene.remove(l));
-    this.islands = [];
-    this.links = [];
+  /** building: { floors, rooms, links }, agents: [...] */
+  setBuilding(building, agents) {
+    // Rimuove la versione precedente (e le etichette HTML).
+    this.world.traverse((o) => o.isCSS2DObject && o.element.remove());
+    this.scene.remove(this.world);
+    this.world = new THREE.Group();
+    this.scene.add(this.world);
+    this.floors.clear();
     this.agentObjs.clear();
     this.clickables = [];
+    this.flows = [];
+
+    const floors = building.floors; // già ordinati dal piano più basso
+    this.topY = Math.max(0, (floors.length - 1) * FLOOR_GAP);
+    floors.forEach((floor, i) => {
+      const rooms = building.rooms.filter((r) => r.floor === floor.id);
+      const entry = this.buildFloor(floor, rooms, agents, i * FLOOR_GAP);
+      this.floors.set(floor.id, entry);
+      this.world.add(entry.group);
+    });
+    this.buildCore(floors.length);
+    building.links.forEach((link, k) => this.buildLink(link, k));
+
+    // Mantiene la vista corrente se il piano esiste ancora.
+    if (this.focused && !this.floors.has(this.focused)) this.focused = null;
+    if (!this.initialized) {
+      this.initialized = true;
+      this.focused = floors.length === 1 ? floors[0].id : null;
+      this.camera.position.copy(this.cameraFor(this.focused).camera);
+      this.controls.target.copy(this.cameraFor(this.focused).target);
+    }
+    this.applyFocus();
+  }
+
+  buildFloor(floor, rooms, agents, y) {
+    const group = new THREE.Group();
+    group.position.y = y;
+    group.userData.floorId = floor.id;
+    const color = new THREE.Color(floor.color ?? "#6f7dff");
+    const ringRadius = Math.max(12, rooms.length * 3.2 + 6);
+    const entry = { group, y, ringRadius, labels: { floor: null, rooms: [], agents: [] }, islands: [] };
+
+    // Lastra del piano: disco trasparente con bordo luminoso.
+    const plateR = ringRadius + 7;
+    const plate = new THREE.Mesh(
+      new THREE.CircleGeometry(plateR, 72),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.07, side: THREE.DoubleSide, depthWrite: false }),
+    );
+    plate.rotation.x = -Math.PI / 2;
+    plate.position.y = -1.6;
+    plate.userData.floorId = floor.id;
+    group.add(plate);
+    this.clickables.push(plate);
+    const edge = new THREE.Mesh(
+      new THREE.TorusGeometry(plateR, 0.07, 6, 120),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55 }),
+    );
+    edge.rotation.x = Math.PI / 2;
+    edge.position.y = -1.6;
+    group.add(edge);
+
+    // Base attorno alla colonna centrale.
+    const base = new THREE.Mesh(
+      new THREE.CylinderGeometry(2.8, 3.2, 0.6, 40),
+      new THREE.MeshStandardMaterial({ color: 0x1b1f3a, metalness: 0.4, roughness: 0.5 }),
+    );
+    base.position.y = -0.4;
+    group.add(base);
+    const baseRing = new THREE.Mesh(new THREE.TorusGeometry(2.8, 0.06, 8, 48), new THREE.MeshBasicMaterial({ color }));
+    baseRing.rotation.x = Math.PI / 2;
+    baseRing.position.y = -0.08;
+    group.add(baseRing);
+
+    const fl = document.createElement("div");
+    fl.className = "floor-label";
+    fl.style.setProperty("--c", floor.color ?? "#6f7dff");
+    fl.innerHTML = `<b></b><small></small>`;
+    fl.querySelector("b").textContent = floor.name;
+    fl.querySelector("small").textContent = floor.sector ?? "";
+    fl.addEventListener("click", () => this.focusFloor(floor.id));
+    const flObj = new CSS2DObject(fl);
+    flObj.position.set(0, -1.6, plateR); // sul bordo davanti
+    group.add(flObj);
+    entry.labels.floor = flObj;
 
     rooms.forEach((room, i) => {
-      // La prima stanza sta davanti alla camera: nessuna isola resta nascosta dietro al nucleo.
-      const angle = (i / rooms.length) * Math.PI * 2 + Math.PI / 2;
-      const center = new THREE.Vector3(Math.cos(angle) * RING_RADIUS, 0, Math.sin(angle) * RING_RADIUS);
-      const roomAgents = agents.filter((a) => a.room === room.id);
-      const island = this.buildIsland(room, roomAgents);
+      const angle = (i / Math.max(rooms.length, 1)) * Math.PI * 2 + Math.PI / 2;
+      const center = new THREE.Vector3(Math.cos(angle) * ringRadius, 0, Math.sin(angle) * ringRadius);
+      const island = this.buildIsland(room, agents.filter((a) => a.room === room.id), entry, floor.id);
       island.position.copy(center);
-      island.position.y = -0.5 + (i % 2) * 0.6;
-      island.lookAt(0, island.position.y, 0); // le scrivanie guardano verso il nucleo
+      island.position.y = (i % 2) * 0.6 - 0.3;
+      island.lookAt(0, island.position.y, 0);
       island.userData.baseY = island.position.y;
-      island.userData.phase = i;
-      this.scene.add(island);
-      this.islands.push(island);
+      island.userData.phase = i + y;
+      group.add(island);
+      entry.islands.push(island);
 
-      // Collegamento luminoso nucleo → isola.
       const curve = new THREE.QuadraticBezierCurve3(
-        new THREE.Vector3(0, 1, 0),
-        new THREE.Vector3(center.x / 2, 3.5, center.z / 2),
+        new THREE.Vector3(0, 0.2, 0),
+        new THREE.Vector3(center.x / 2, 3, center.z / 2),
         new THREE.Vector3(center.x * 0.78, island.position.y + 0.6, center.z * 0.78),
       );
       const line = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints(curve.getPoints(40)),
         new THREE.LineBasicMaterial({ color: new THREE.Color(room.color), transparent: true, opacity: 0.35 }),
       );
-      this.scene.add(line);
-      this.links.push(line);
+      group.add(line);
     });
+    return entry;
   }
 
-  buildIsland(room, agents) {
+  buildCore(floorCount) {
+    const height = this.topY + 8;
+    const column = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.9, 0.9, height, 24, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0x6f7dff, transparent: true, opacity: 0.12, side: THREE.DoubleSide, depthWrite: false }),
+    );
+    column.position.y = height / 2 - 2;
+    this.world.add(column);
+    const beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12, 0.12, height, 8),
+      new THREE.MeshBasicMaterial({ color: 0xb7c0ff }),
+    );
+    beam.position.y = height / 2 - 2;
+    this.world.add(beam);
+
+    // Il regista in cima al palazzo.
+    const top = this.topY + 6;
+    this.core = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(2.2, 2),
+      new THREE.MeshBasicMaterial({ color: 0x8fa2ff, wireframe: true, transparent: true, opacity: 0.6 }),
+    );
+    this.core.position.y = top;
+    this.world.add(this.core);
+    this.coreGlow = new THREE.Mesh(
+      new THREE.SphereGeometry(1.1, 32, 16),
+      new THREE.MeshBasicMaterial({ color: 0xc9d2ff, transparent: true, opacity: 0.9 }),
+    );
+    this.coreGlow.position.y = top;
+    this.world.add(this.coreGlow);
+    const light = new THREE.PointLight(0x6a7bff, 50, 40);
+    light.position.y = top;
+    this.world.add(light);
+
+    const el = document.createElement("div");
+    el.className = "hub-label";
+    el.textContent = this.assistantName;
+    const label = new CSS2DObject(el);
+    label.position.set(0, top + 3.2, 0);
+    this.world.add(label);
+    this.coreLabel = label;
+    this.floorCount = floorCount;
+  }
+
+  /** Arco luminoso tra due piani, sul lato del palazzo. */
+  buildLink(link, k) {
+    const a = this.floors.get(link.from);
+    const b = this.floors.get(link.to);
+    if (!a || !b) return;
+    const angle = -Math.PI / 5 + k * 0.42; // ogni collegamento su un lato diverso
+    const r = Math.max(a.ringRadius, b.ringRadius) + 9;
+    const dir = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+    const p0 = dir.clone().multiplyScalar(r - 2).setY(a.y - 1.6);
+    const p2 = dir.clone().multiplyScalar(r - 2).setY(b.y - 1.6);
+    const p1 = dir.clone().multiplyScalar(r + 6 + Math.abs(b.y - a.y) * 0.25).setY((a.y + b.y) / 2 - 1.6);
+    const curve = new THREE.QuadraticBezierCurve3(p0, p1, p2);
+    const points = curve.getPoints(60);
+    const geo = new THREE.BufferGeometry().setFromPoints(points);
+    const mat = link.active
+      ? new THREE.LineBasicMaterial({ color: 0x7cffc4, transparent: true, opacity: 0.85 })
+      : new THREE.LineDashedMaterial({ color: 0x6b7090, dashSize: 0.8, gapSize: 0.6, transparent: true, opacity: 0.6 });
+    const line = new THREE.Line(geo, mat);
+    if (!link.active) line.computeLineDistances();
+    this.world.add(line);
+
+    // Estremità: anelli sui due piani.
+    for (const p of [p0, p2]) {
+      const dot = new THREE.Mesh(
+        new THREE.SphereGeometry(0.35, 12, 8),
+        new THREE.MeshBasicMaterial({ color: link.active ? 0x7cffc4 : 0x6b7090 }),
+      );
+      dot.position.copy(p);
+      this.world.add(dot);
+    }
+    if (!link.active) return;
+    // "Messaggi" che viaggiano: da from a to; nei due sensi se il collegamento è bidirezionale.
+    const ways = link.direction === "both" ? [1, -1] : [1];
+    for (const w of ways) {
+      for (let i = 0; i < 2; i++) {
+        const m = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+        this.world.add(m);
+        this.flows.push({ mesh: m, curve, way: w, offset: i * 0.5 + (w < 0 ? 0.25 : 0) });
+      }
+    }
+  }
+
+  buildIsland(room, agents, entry, floorId) {
     const color = new THREE.Color(room.color);
     const g = new THREE.Group();
     const cols = Math.max(2, Math.ceil(Math.sqrt(Math.max(agents.length, 1))));
@@ -177,7 +298,7 @@ export class Office3D {
       new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.05 }),
     );
     top.castShadow = top.receiveShadow = true;
-    top.userData.roomId = room.id;
+    top.userData = { roomId: room.id, floorId };
     g.add(top);
     this.clickables.push(top);
 
@@ -188,7 +309,6 @@ export class Office3D {
     under.position.y = -0.8;
     g.add(under);
 
-    // Griglia del pavimento.
     const grid = new THREE.GridHelper(Math.min(w, d) - 1, 6, 0xffffff, 0xffffff);
     grid.material.transparent = true;
     grid.material.opacity = 0.12;
@@ -199,24 +319,25 @@ export class Office3D {
     title.className = "room-label";
     title.style.setProperty("--c", room.color);
     title.textContent = room.name.toUpperCase();
-    title.addEventListener("click", () => this.onRoomClick?.(room.id));
+    title.addEventListener("click", () => this.focusRoom(room.id));
     const tl = new CSS2DObject(title);
     tl.position.set(0, -1.9, 0); // sotto l'isola, così non copre gli agenti
+    tl.userData.roomId = room.id;
     g.add(tl);
+    entry.labels.rooms.push(tl);
+    g.userData.roomId = room.id;
 
     agents.forEach((agent, i) => {
       const c = i % cols;
       const r = Math.floor(i / cols);
-      const x = (c - (cols - 1) / 2) * DESK_SPACING;
-      const z = (r - (rows - 1) / 2) * DESK_SPACING + 0.3;
-      const desk = this.buildDesk(agent, color, i);
-      desk.position.set(x, 0.45, z);
+      const desk = this.buildDesk(agent, color, i, entry, floorId);
+      desk.position.set((c - (cols - 1) / 2) * DESK_SPACING, 0.45, (r - (rows - 1) / 2) * DESK_SPACING + 0.3);
       g.add(desk);
     });
     return g;
   }
 
-  buildDesk(agent, roomColor, index = 0) {
+  buildDesk(agent, roomColor, index, entry, floorId) {
     const g = new THREE.Group();
     const white = new THREE.MeshStandardMaterial({ color: 0xeef0f7, roughness: 0.6 });
     const dark = new THREE.MeshStandardMaterial({ color: 0x23263a, roughness: 0.5 });
@@ -240,7 +361,6 @@ export class Office3D {
     stand.position.set(0, 0.9, -0.3);
     g.add(stand);
 
-    // L'agente: corpo a capsula + testa, seduto davanti al monitor.
     const bodyMat = new THREE.MeshStandardMaterial({ color: 0xf5f6fb, roughness: 0.45 });
     const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.45, 6, 12), bodyMat);
     body.position.set(0, 0.95, 0.55);
@@ -254,10 +374,9 @@ export class Office3D {
     chair.position.set(0, 0.55, 0.6);
     g.add(chair);
 
-    const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(0.62, 0.05, 8, 40),
-      new THREE.MeshBasicMaterial({ color: 0xffc94d, transparent: true, opacity: 0 }),
-    );
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xffc94d, transparent: true, opacity: 0 });
+    ringMat.userData.noDim = true; // l'opacità la gestisce lo stato dell'agente
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.05, 8, 40), ringMat);
     ring.rotation.x = Math.PI / 2;
     ring.position.set(0, 0.05, 0.4);
     g.add(ring);
@@ -269,17 +388,20 @@ export class Office3D {
     el.querySelector(".nm").textContent = agent.name;
     el.addEventListener("click", () => this.onAgentClick?.(agent.id));
     const label = new CSS2DObject(el);
-    label.position.set(0, 2.25 + (index % 2) * 0.75, 0.4); // etichette sfalsate
+    label.position.set(0, 2.25 + (index % 2) * 0.75, 0.4);
     g.add(label);
+    entry.labels.agents.push(label);
 
     for (const m of [table, monitor, body, head, chair]) {
-      m.userData.agentId = agent.id;
+      m.userData = { agentId: agent.id, floorId };
       this.clickables.push(m);
     }
-    this.agentObjs.set(agent.id, { group: g, body, head, ring, monitor, el, status: "idle", enabled: agent.enabled });
+    this.agentObjs.set(agent.id, { head, ring, monitor, el, status: "idle", floorId });
     if (!agent.enabled) el.classList.add("off");
     return g;
   }
+
+  // ---------- stato degli agenti ----------
 
   setStatus(agentId, status, detail = "") {
     const o = this.agentObjs.get(agentId);
@@ -303,82 +425,148 @@ export class Office3D {
     setTimeout(() => b.remove(), 7000);
   }
 
-  focusRoom(roomId) {
-    const island = this.islands.find((g) => g.children[0]?.userData.roomId === roomId);
-    if (!island) return;
-    this.controls.autoRotate = false;
-    const p = island.position;
-    this.focus = {
-      target: new THREE.Vector3(p.x, p.y, p.z),
-      camera: new THREE.Vector3(p.x * 1.9, p.y + 12, p.z * 1.9),
-    };
+  // ---------- vista: tutto il palazzo o un piano ----------
+
+  cameraFor(floorId) {
+    const narrow = this.camera.aspect < 1 ? 1.8 : 1;
+    if (floorId && this.floors.has(floorId)) {
+      const f = this.floors.get(floorId);
+      const dist = (f.ringRadius + 12) * narrow;
+      // Sotto il piano superiore, così non copre la vista.
+      return { target: new THREE.Vector3(0, f.y - 1, 0), camera: new THREE.Vector3(0, f.y + Math.min(dist * 0.5, FLOOR_GAP * 0.8), dist * 1.2) };
+    }
+    const h = this.topY ?? 0;
+    const maxR = Math.max(12, ...[...this.floors.values()].map((f) => f.ringRadius));
+    const dist = (maxR + 22 + h * 0.7) * narrow;
+    return { target: new THREE.Vector3(0, h / 2 + 2, 0), camera: new THREE.Vector3(0, h / 2 + dist * 0.38, dist * 1.25) };
   }
 
-  homePosition() {
-    // Su schermi stretti (telefono) la camera si allontana per far stare tutto l'ufficio.
-    const k = this.camera.aspect < 1 ? 1.9 : 1;
-    return new THREE.Vector3(0, 26 * k, 36 * k);
+  focusFloor(floorId) {
+    this.focused = floorId ?? null;
+    this.flyTo(this.cameraFor(this.focused));
+    this.applyFocus();
+    this.onFloorFocus?.(this.focused);
+  }
+
+  focusRoom(roomId) {
+    for (const [floorId, f] of this.floors) {
+      const island = f.islands.find((g) => g.userData.roomId === roomId);
+      if (!island) continue;
+      if (this.focused !== floorId) {
+        this.focused = floorId;
+        this.applyFocus();
+        this.onFloorFocus?.(floorId);
+      }
+      const p = island.getWorldPosition(new THREE.Vector3());
+      this.flyTo({ target: p.clone(), camera: new THREE.Vector3(p.x * 1.9, p.y + 12, p.z * 1.9) });
+      return;
+    }
   }
 
   resetView() {
-    this.focus = { target: new THREE.Vector3(0, 0, 0), camera: this.homePosition() };
+    this.focusFloor(this.focused);
     this.controls.autoRotate = true;
   }
+
+  flyTo(view) {
+    this.controls.autoRotate = false;
+    this.fly = view;
+  }
+
+  /** Mette in risalto il piano scelto: gli altri diventano trasparenti e senza etichette. */
+  applyFocus() {
+    const overview = !this.focused;
+    for (const [id, f] of this.floors) {
+      const active = overview || id === this.focused;
+      dim(f.group, !active);
+      f.labels.floor.visible = true;
+      f.labels.floor.element.classList.toggle("active", id === this.focused);
+      for (const l of f.labels.rooms) l.visible = active;
+      for (const l of f.labels.agents) l.visible = !overview && active;
+    }
+  }
+
+  // ---------- interazione ----------
 
   pick(e) {
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(this.pointer, this.camera);
-    return this.raycaster.intersectObjects(this.clickables, false)[0]?.object;
+    const hits = this.raycaster.intersectObjects(this.clickables, false);
+    // Con un piano in primo piano, i piani trasparenti sopra di lui non devono "rubare" il clic.
+    const onFocused = this.focused && hits.find((h) => h.object.userData.floorId === this.focused);
+    return (onFocused ?? hits[0])?.object;
   }
 
   handleClick(e) {
     const hit = this.pick(e);
-    if (hit?.userData.agentId) this.onAgentClick?.(hit.userData.agentId);
-    else if (hit?.userData.roomId) this.focusRoom(hit.userData.roomId);
+    if (!hit) return;
+    const { floorId, agentId, roomId } = hit.userData;
+    if (floorId && floorId !== this.focused) return this.focusFloor(floorId); // prima si entra nel piano
+    if (agentId) this.onAgentClick?.(agentId);
+    else if (roomId) this.focusRoom(roomId);
   }
 
   handleHover(e) {
-    const hit = this.pick(e);
-    this.renderer.domElement.style.cursor = hit ? "pointer" : "grab";
+    this.renderer.domElement.style.cursor = this.pick(e) ? "pointer" : "grab";
   }
 
   resize() {
     const { clientWidth: w, clientHeight: h } = this.container;
     if (!w || !h) return;
-    const first = !this.sized;
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    if (first) {
-      this.sized = true;
-      this.camera.position.copy(this.homePosition());
-    }
     this.renderer.setSize(w, h);
     this.labels.setSize(w, h);
   }
 
   tick() {
     const t = this.clock.getElapsedTime();
-    this.core.rotation.y = t * 0.25;
-    this.core.rotation.x = Math.sin(t * 0.3) * 0.2;
-    this.coreGlow.scale.setScalar(1 + Math.sin(t * 2) * 0.06);
-    this.stars.rotation.y = t * 0.005;
-    for (const g of this.islands ?? []) g.position.y = g.userData.baseY + Math.sin(t * 0.6 + g.userData.phase) * 0.18;
+    if (this.core) {
+      this.core.rotation.y = t * 0.25;
+      this.core.rotation.x = Math.sin(t * 0.3) * 0.2;
+      this.coreGlow.scale.setScalar(1 + Math.sin(t * 2) * 0.06);
+    }
+    this.stars.rotation.y = t * 0.004;
+    for (const f of this.floors.values()) {
+      for (const g of f.islands) g.position.y = g.userData.baseY + Math.sin(t * 0.6 + g.userData.phase) * 0.18;
+    }
     for (const o of this.agentObjs.values()) {
       if (o.status === "working") {
         o.head.position.y = 1.55 + Math.abs(Math.sin(t * 6)) * 0.08;
         o.ring.rotation.z = t * 2;
       } else o.head.position.y = 1.55;
     }
-    if (this.focus) {
-      this.controls.target.lerp(this.focus.target, 0.06);
-      this.camera.position.lerp(this.focus.camera, 0.06);
-      if (this.camera.position.distanceTo(this.focus.camera) < 0.1) this.focus = null;
+    for (const fl of this.flows) {
+      let u = (t * 0.22 + fl.offset) % 1;
+      if (fl.way < 0) u = 1 - u;
+      fl.mesh.position.copy(fl.curve.getPoint(u));
+    }
+    if (this.fly) {
+      this.controls.target.lerp(this.fly.target, 0.07);
+      this.camera.position.lerp(this.fly.camera, 0.07);
+      if (this.camera.position.distanceTo(this.fly.camera) < 0.1) this.fly = null;
     }
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
     this.labels.render(this.scene, this.camera);
   }
+}
+
+/** Rende un gruppo semi-trasparente (piani non in primo piano) o lo riporta normale. */
+function dim(group, on) {
+  group.traverse((o) => {
+    const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
+    for (const m of mats) {
+      if (m.userData.noDim) continue;
+      if (m.userData.base == null) m.userData.base = { opacity: m.opacity, transparent: m.transparent, depthWrite: m.depthWrite };
+      const base = m.userData.base;
+      m.transparent = on ? true : base.transparent;
+      m.opacity = on ? base.opacity * 0.1 : base.opacity;
+      m.depthWrite = on ? false : base.depthWrite;
+      m.needsUpdate = true; // necessario quando cambia "transparent"
+    }
+  });
 }
 
 // Lastra con angoli arrotondati (pianta dell'isola).

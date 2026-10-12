@@ -2,7 +2,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import Anthropic from "@anthropic-ai/sdk";
 import { cleanKey, friendlyError } from "../lib/claude.js";
-import { normalize, validate, loadRooms } from "../lib/config.js";
+import fs from "node:fs";
+import path from "node:path";
+import { normalize, validate } from "../lib/config.js";
+import { DEFAULTS_DIR } from "../lib/paths.js";
+
+const loadRooms = () => JSON.parse(fs.readFileSync(path.join(DEFAULTS_DIR, "building.json"), "utf8")).rooms;
 
 const apiError = (status, message) =>
   Anthropic.APIError.generate(status, { type: "error", error: { type: "x", message } }, message, new Headers());

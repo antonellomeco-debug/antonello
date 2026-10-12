@@ -1,4 +1,5 @@
-// Interfaccia: ufficio 3D, approvazioni, bacheca, portafoglio, attività, chat con il regista ed editor agenti.
+// Interfaccia: palazzo 3D, gestione di piani/stanze/collegamenti, approvazioni, bacheca, portafoglio,
+// attività, chat con il regista ed editor degli agenti.
 import { Office3D } from "./office3d.js";
 
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -10,7 +11,24 @@ const when = (iso) => new Date(iso).toLocaleString("it-IT", { day: "2-digit", mo
 const state = {
   office: null, notes: {}, log: [], approvals: [], portfolio: null, stats: null,
   chat: { name: "", busy: false, transcript: [] }, status: {}, view: "office", room: null, editing: null,
+  floorFocus: null,
 };
+
+// ---------- utilità sul palazzo ----------
+const B = () => state.office.building;
+const floorById = (id) => B().floors.find((f) => f.id === id);
+const roomById = (id) => B().rooms.find((r) => r.id === id);
+const floorOfRoom = (roomId) => roomById(roomId)?.floor;
+/** true se gli agenti del piano `to` leggono le bacheche del piano `from` (stessa regola del server). */
+function flowsInto(from, to) {
+  if (from === to) return true;
+  return B().links.some(
+    (l) =>
+      l.active &&
+      ((l.direction === "both" && ((l.from === from && l.to === to) || (l.from === to && l.to === from))) ||
+        (l.direction === "one-way" && l.from === from && l.to === to)),
+  );
+}
 let office3d;
 
 async function api(path, opts = {}) {
@@ -25,10 +43,10 @@ async function api(path, opts = {}) {
 async function loadOffice() {
   state.office = await api("/api/office");
   for (const a of state.office.agents) state.status[a.id] ??= { status: a.running ? "working" : "idle" };
-  const { rooms, agents, assistant } = state.office;
+  const { building, agents, assistant } = state.office;
   $("#office-sub").textContent =
-    `${agents.length} agenti in ${rooms.length} reparti, coordinati da ${assistant}. ` +
-    "Trascina per girare attorno all'ufficio, clicca una scrivania per aprire la scheda.";
+    `${building.name}: ${agents.length} agenti in ${building.rooms.length} stanze su ${building.floors.length} piani, coordinati da ${assistant}. ` +
+    "Scegli un piano nell'ascensore, trascina per girare, clicca una scrivania per aprire la scheda.";
   $("#chat-title").textContent = `Parla con ${assistant}`;
   $("#key-cta").classList.toggle("hidden", state.office.llmReady);
   $("#badge-settings").classList.toggle("hidden", state.office.llmReady);
@@ -36,13 +54,19 @@ async function loadOffice() {
     office3d = new Office3D($("#scene"), {
       assistantName: assistant,
       onAgentClick: (id) => openEditor(state.office.agents.find((a) => a.id === id)),
-      onRoomClick: (id) => office3d.focusRoom(id),
+      onFloorFocus: (id) => {
+        state.floorFocus = id;
+        renderElevator();
+      },
     });
   }
-  office3d.setOffice(rooms, agents);
+  office3d.setBuilding(building, agents);
+  state.floorFocus = office3d.focused;
   for (const [id, s] of Object.entries(state.status)) office3d.setStatus(id, s.status, s.detail);
+  renderElevator();
   renderRoster();
   renderFilter();
+  if (state.view === "building") renderBuilding();
 }
 
 async function loadAll() {
@@ -67,10 +91,9 @@ async function refreshStats() {
   const s = state.stats;
   if (!s) return;
   const cells = [
-    [s.working, "al lavoro ora"], [s.agents, "agenti"], [s.rooms, "reparti"], [s.scheduled, "programmati"],
-    [s.notes, "note in bacheca"], [s.trades, "ordini eseguiti"], [s.pending, "da approvare"],
-    [`$${fmt(s.costUsd)}`, "spesa API (stima)"], [fmt(s.tokens / 1000, 1) + "k", "token usati"],
-    [state.office.llmReady ? "sì" : "no", "Claude collegato"],
+    [s.working, "al lavoro ora"], [s.agents, "agenti"], [s.floors, "piani"], [s.rooms, "stanze"], [s.notes, "note in bacheca"],
+    [s.trades, "ordini eseguiti"], [s.pending, "da approvare"], [`$${fmt(s.costUsd)}`, "spesa API (stima)"],
+    [state.office.llmReady ? "sì" : "no", "Claude collegato"], [s.scheduled, "programmati"],
   ];
   $("#stats").innerHTML = cells
     .map(([v, l]) => `<div class="stat ${l === "Claude collegato" ? "clickable" : ""}"><b>${esc(v)}</b><small>${esc(l)}</small></div>`)
@@ -106,7 +129,8 @@ document.querySelectorAll(".nav[data-view]").forEach((b) =>
 $("#chat-close").onclick = () => $("#chat").classList.remove("open");
 
 function renderView() {
-  if (state.view === "approvals") renderApprovals();
+  if (state.view === "building") renderBuilding();
+  else if (state.view === "approvals") renderApprovals();
   else if (state.view === "notes") renderNotes();
   else if (state.view === "log") renderLog();
   else if (state.view === "portfolio") renderPortfolio();
@@ -117,7 +141,7 @@ function renderView() {
 function renderRoster() {
   const agents = state.office.agents;
   $("#roster-sum").textContent = `▸ Elenco completo dei ${agents.length} agenti`;
-  const room = (id) => state.office.rooms.find((r) => r.id === id)?.name ?? id;
+  const room = (id) => `${roomById(id)?.name ?? id} · ${floorById(floorOfRoom(id))?.name ?? ""}`;
   $("#roster-list").innerHTML = agents
     .map((a) => `<div class="roster-row" data-id="${esc(a.id)}">
       <span>${esc(a.avatar)}</span>
@@ -131,6 +155,231 @@ function renderRoster() {
 }
 
 $("#reset-view").onclick = () => office3d?.resetView();
+
+/** Pulsantiera "ascensore": tutto il palazzo + un pulsante per piano (dal più alto). */
+function renderElevator() {
+  const el = $("#elevator");
+  const floors = B().floors.slice().reverse();
+  const btn = (id, html, title) =>
+    `<button class="lift ${state.floorFocus === id ? "active" : ""}" data-floor="${id ?? ""}" title="${esc(title)}">${html}</button>`;
+  el.innerHTML =
+    btn(null, `<span class="lift-ico">🏢</span><span class="lift-name">Tutto il palazzo</span>`, B().name) +
+    floors
+      .map((f) => {
+        const n = state.office.agents.filter((a) => floorOfRoom(a.room) === f.id).length;
+        const linked = B().floors.some((o) => o.id !== f.id && (flowsInto(o.id, f.id) || flowsInto(f.id, o.id)));
+        return btn(
+          f.id,
+          `<span class="lift-dot" style="--c:${esc(f.color)}"></span><span class="lift-name">${esc(f.name)}</span>` +
+            `<small>${esc(f.sector || "")}${f.sector ? " · " : ""}${n} agenti${linked ? " · 🔗" : ""}</small>`,
+          f.description || f.name,
+        );
+      })
+      .join("") +
+    `<button class="lift add" id="lift-add" title="Aggiungi un piano">+ Piano</button>`;
+  el.querySelectorAll(".lift[data-floor]").forEach((b) => (b.onclick = () => office3d.focusFloor(b.dataset.floor || null)));
+  $("#lift-add").onclick = () => openFloorEditor(null);
+}
+
+// ---------- palazzo: piani, stanze, collegamenti ----------
+
+function renderBuilding() {
+  const b = B();
+  $("#building-title").textContent = `🏗️ ${b.name}`;
+  const agentsIn = (roomId) => state.office.agents.filter((a) => a.room === roomId);
+  $("#floors-list").innerHTML = b.floors
+    .slice()
+    .reverse()
+    .map((f) => {
+      const rooms = b.rooms.filter((r) => r.floor === f.id);
+      const conns = b.floors
+        .filter((o) => o.id !== f.id)
+        .map((o) => ({ o, recv: flowsInto(o.id, f.id), send: flowsInto(f.id, o.id) }))
+        .filter((c) => c.recv || c.send)
+        .map((c) => `<span class="conn">${c.recv && c.send ? "↔" : c.recv ? "← riceve da" : "→ invia a"} ${esc(c.o.name)}</span>`)
+        .concat(
+          b.links
+            .filter((l) => !l.active && (l.from === f.id || l.to === f.id))
+            .map((l) => `<span class="conn none">⏸ collegamento spento con ${esc(floorById(l.from === f.id ? l.to : l.from)?.name ?? "")}</span>`),
+        )
+        .join("");
+      return `<article class="card floor-card" style="--c:${esc(f.color)}">
+        <header>
+          <span class="floor-dot"></span>
+          <div class="floor-head"><h3>${esc(f.name)}</h3><small>livello ${f.level}${f.sector ? ` · ${esc(f.sector)}` : ""}${f.description ? ` · ${esc(f.description)}` : ""}</small></div>
+          <button class="btn small" data-edit-floor="${esc(f.id)}">✏️ Modifica</button>
+          <button class="btn small" data-show-floor="${esc(f.id)}">👁 Vedi</button>
+        </header>
+        <div class="rooms-row">
+          ${rooms
+            .map(
+              (r) => `<button class="room-chip" style="--c:${esc(r.color)}" data-edit-room="${esc(r.id)}" title="${esc(r.description)}">
+                <b>${esc(r.name)}</b><small>${agentsIn(r.id).map((a) => esc(a.avatar)).join(" ") || "vuota"}</small></button>`,
+            )
+            .join("")}
+          <button class="room-chip add" data-new-room="${esc(f.id)}">+ Stanza</button>
+        </div>
+        <div class="conns">${conns || '<span class="conn none">Nessun collegamento: questo piano lavora da solo</span>'}</div>
+      </article>`;
+    })
+    .join("") || `<p class="empty">Nessun piano. Crea il primo con "+ Nuovo piano".</p>`;
+
+  $("#floors-list").querySelectorAll("[data-edit-floor]").forEach((x) => (x.onclick = () => openFloorEditor(floorById(x.dataset.editFloor))));
+  $("#floors-list").querySelectorAll("[data-show-floor]").forEach((x) => (x.onclick = () => showFloorInOffice(x.dataset.showFloor)));
+  $("#floors-list").querySelectorAll("[data-edit-room]").forEach((x) => (x.onclick = () => openRoomEditor(roomById(x.dataset.editRoom))));
+  $("#floors-list").querySelectorAll("[data-new-room]").forEach((x) => (x.onclick = () => openRoomEditor(null, x.dataset.newRoom)));
+
+  const name = (id) => esc(floorById(id)?.name ?? id);
+  $("#links-list").innerHTML =
+    b.links
+      .map(
+        (l) => `<div class="card link-row ${l.active ? "" : "off"}">
+          <span class="link-desc">${name(l.from)} <b>${l.direction === "both" ? "↔" : "→"}</b> ${name(l.to)}</span>
+          <small>${l.direction === "both" ? "si leggono a vicenda" : `${name(l.to)} legge ${name(l.from)}`}</small>
+          <label class="switch" title="${l.active ? "Collegamento attivo" : "Collegamento spento"}">
+            <input type="checkbox" data-toggle-link="${esc(l.from)}|${esc(l.to)}" ${l.active ? "checked" : ""} />
+            <span>${l.active ? "Attivo" : "Spento"}</span>
+          </label>
+          <button class="btn small" data-flip-link="${esc(l.from)}|${esc(l.to)}">${l.direction === "both" ? "Rendi →" : "Rendi ↔"}</button>
+          <button class="btn small danger" data-del-link="${esc(l.from)}|${esc(l.to)}">Elimina</button>
+        </div>`,
+      )
+      .join("") || `<p class="empty">Nessun collegamento: ogni piano lavora da solo.</p>`;
+  const linkOf = (key) => b.links.find((l) => `${l.from}|${l.to}` === key);
+  const saveLink = async (l) => {
+    try {
+      await api("/api/links", { method: "PUT", body: JSON.stringify(l) });
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+  $("#links-list").querySelectorAll("[data-toggle-link]").forEach((x) => (x.onchange = () => saveLink({ ...linkOf(x.dataset.toggleLink), active: x.checked })));
+  $("#links-list").querySelectorAll("[data-flip-link]").forEach((x) => {
+    x.onclick = () => {
+      const l = linkOf(x.dataset.flipLink);
+      saveLink({ ...l, direction: l.direction === "both" ? "one-way" : "both" });
+    };
+  });
+  $("#links-list").querySelectorAll("[data-del-link]").forEach((x) => {
+    x.onclick = async () => {
+      const [from, to] = x.dataset.delLink.split("|");
+      if (!confirm("Eliminare questo collegamento?")) return;
+      await api(`/api/links?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { method: "DELETE" }).catch((e) => alert(e.message));
+    };
+  });
+
+  const lf = $("#link-form");
+  const opts = b.floors.map((f) => `<option value="${esc(f.id)}">${esc(f.name)}</option>`).join("");
+  const keep = { from: lf.from.value, to: lf.to.value };
+  lf.from.innerHTML = opts;
+  lf.to.innerHTML = opts;
+  if (keep.from) lf.from.value = keep.from;
+  lf.to.value = keep.to || b.floors[1]?.id || b.floors[0]?.id || "";
+  lf.classList.toggle("hidden", b.floors.length < 2);
+}
+
+$("#link-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  $("#link-errors").textContent = "";
+  try {
+    await api("/api/links", { method: "PUT", body: JSON.stringify({ from: f.from.value, to: f.to.value, direction: f.direction.value, active: true }) });
+  } catch (err) {
+    $("#link-errors").textContent = err.message;
+  }
+});
+
+function showFloorInOffice(floorId) {
+  document.querySelector('.nav[data-view="office"]').click();
+  requestAnimationFrame(() => office3d.focusFloor(floorId));
+}
+
+$("#new-floor").onclick = () => openFloorEditor(null);
+$("#rename-building").onclick = async () => {
+  const name = prompt("Nome del palazzo:", B().name);
+  if (name == null) return;
+  await api("/api/building", { method: "PUT", body: JSON.stringify({ name }) }).catch((e) => alert(e.message));
+};
+
+// Finestra piano
+const floorDlg = $("#floor-dialog");
+const floorForm = $("#floor-form");
+function openFloorEditor(floor) {
+  state.editingFloor = floor?.id ?? null;
+  $("#floor-title").textContent = floor ? `Modifica: ${floor.name}` : "Nuovo piano";
+  floorForm.name.value = floor?.name ?? "";
+  floorForm.sector.value = floor?.sector ?? "";
+  floorForm.description.value = floor?.description ?? "";
+  floorForm.level.value = floor?.level ?? Math.max(-1, ...B().floors.map((f) => f.level)) + 1;
+  floorForm.color.value = floor?.color ?? ["#2fb7c4", "#f06292", "#8bc34a", "#ff8a3d", "#7986cb"][B().floors.length % 5];
+  $("#floor-delete").classList.toggle("hidden", !floor);
+  $("#floor-errors").textContent = "";
+  floorDlg.showModal();
+}
+floorForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const body = {
+    name: floorForm.name.value,
+    sector: floorForm.sector.value,
+    description: floorForm.description.value,
+    level: Number(floorForm.level.value),
+    color: floorForm.color.value,
+  };
+  try {
+    const id = state.editingFloor;
+    await api(id ? `/api/floors/${encodeURIComponent(id)}` : "/api/floors", { method: id ? "PUT" : "POST", body: JSON.stringify(body) });
+    floorDlg.close();
+  } catch (err) {
+    $("#floor-errors").textContent = err.message;
+  }
+});
+$("#floor-delete").onclick = async () => {
+  if (!confirm("Eliminare questo piano? (Deve essere vuoto: niente stanze.)")) return;
+  try {
+    await api(`/api/floors/${encodeURIComponent(state.editingFloor)}`, { method: "DELETE" });
+    floorDlg.close();
+  } catch (err) {
+    $("#floor-errors").textContent = err.message;
+  }
+};
+floorDlg.querySelectorAll("[data-close]").forEach((b) => (b.onclick = () => floorDlg.close()));
+
+// Finestra stanza
+const roomDlg = $("#room-dialog");
+const roomForm = $("#room-form");
+function openRoomEditor(room, floorId) {
+  state.editingRoom = room?.id ?? null;
+  $("#room-title").textContent = room ? `Modifica: ${room.name}` : "Nuova stanza";
+  roomForm.floor.innerHTML = B().floors.map((f) => `<option value="${esc(f.id)}">${esc(f.name)}</option>`).join("");
+  roomForm.name.value = room?.name ?? "";
+  roomForm.floor.value = room?.floor ?? floorId ?? B().floors[0]?.id;
+  roomForm.description.value = room?.description ?? "";
+  roomForm.color.value = room?.color ?? ["#4f8cff", "#22b07d", "#e5534b", "#d29922", "#a371f7", "#2fb7c4"][B().rooms.length % 6];
+  $("#room-delete").classList.toggle("hidden", !room);
+  $("#room-errors").textContent = "";
+  roomDlg.showModal();
+}
+roomForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const body = { name: roomForm.name.value, floor: roomForm.floor.value, description: roomForm.description.value, color: roomForm.color.value };
+  try {
+    const id = state.editingRoom;
+    await api(id ? `/api/rooms/${encodeURIComponent(id)}` : "/api/rooms", { method: id ? "PUT" : "POST", body: JSON.stringify(body) });
+    roomDlg.close();
+  } catch (err) {
+    $("#room-errors").textContent = err.message;
+  }
+});
+$("#room-delete").onclick = async () => {
+  if (!confirm("Eliminare questa stanza? (Deve essere vuota: niente agenti.)")) return;
+  try {
+    await api(`/api/rooms/${encodeURIComponent(state.editingRoom)}`, { method: "DELETE" });
+    roomDlg.close();
+  } catch (err) {
+    $("#room-errors").textContent = err.message;
+  }
+};
+roomDlg.querySelectorAll("[data-close]").forEach((b) => (b.onclick = () => roomDlg.close()));
 
 // ---------- approvazioni ----------
 
@@ -303,6 +552,7 @@ const settingsForm = $("#settings-form");
 async function openSettings() {
   settingsForm.key.value = "";
   $("#settings-errors").textContent = "";
+  checkForUpdate();
   await renderKeyStatus();
   if (!state.office.llmReady) settingsForm.querySelector(".howto").open = true;
   settingsDlg.showModal();
@@ -347,6 +597,58 @@ $("#remove-key").onclick = async () => {
 
 settingsDlg.querySelectorAll("[data-close]").forEach((b) => (b.onclick = () => settingsDlg.close()));
 $("#open-settings").onclick = openSettings;
+
+// ---------- aggiornamenti ----------
+
+async function checkForUpdate({ quiet } = {}) {
+  const status = $("#update-status");
+  if (!quiet) status.textContent = "Controllo in corso…";
+  $("#update-errors").textContent = "";
+  try {
+    const u = await api("/api/update");
+    state.update = u;
+    const latest = `${u.latest.message} (${u.latest.date ? when(u.latest.date) : u.latest.short})`;
+    if (!u.canUpdate) status.textContent = u.reason;
+    else if (!u.installed) status.textContent = `Non so quale versione hai (scaricata a mano). Ultima versione: ${latest}. Aggiorna per essere sicuro di avere l'ultima.`;
+    else if (u.available) status.textContent = `È disponibile una nuova versione: ${latest}.`;
+    else status.textContent = `Hai l'ultima versione ✅ (${latest}).`;
+    const show = u.canUpdate && u.available;
+    $("#update-apply").classList.toggle("hidden", !show);
+    $("#update-cta").classList.toggle("hidden", !(show && u.installed)); // il banner solo se c'è davvero una versione nuova
+  } catch (err) {
+    if (!quiet) status.textContent = "";
+    $("#update-errors").textContent = quiet ? "" : err.message;
+  }
+}
+
+$("#update-check").onclick = () => checkForUpdate();
+$("#update-cta").onclick = () => openSettings();
+$("#update-apply").onclick = async () => {
+  if (!confirm("Scaricare e installare la nuova versione? Il programma si riavvierà da solo.")) return;
+  const btn = $("#update-apply");
+  btn.disabled = true;
+  $("#update-status").textContent = "Scarico e installo la nuova versione… (può volerci qualche minuto)";
+  try {
+    const before = (await api("/api/version")).startedAt;
+    const r = await api("/api/update", { method: "POST" });
+    if (!r.restarting) {
+      $("#update-status").textContent = "Aggiornamento installato ✅. Chiudi il programma e riaprilo con l'icona \"Avvia Agenti\" per usare la nuova versione.";
+      return;
+    }
+    $("#update-status").textContent = "Aggiornamento installato ✅. Riavvio in corso…";
+    // Aspetta che il server riparta con la nuova versione, poi ricarica la pagina.
+    for (let i = 0; i < 120; i++) {
+      await new Promise((r) => setTimeout(r, 1500));
+      const v = await api("/api/version").catch(() => null);
+      if (v && v.startedAt !== before) return location.reload();
+    }
+    $("#update-status").textContent = "Il programma non è ripartito: chiudilo e riaprilo con l'icona \"Avvia Agenti\".";
+  } catch (err) {
+    $("#update-errors").textContent = err.message;
+  } finally {
+    btn.disabled = false;
+  }
+};
 $("#key-cta").onclick = openSettings;
 
 // ---------- editor agente ----------
@@ -374,18 +676,28 @@ form.mode.addEventListener("change", syncMode);
 function openEditor(agent) {
   const isNew = !agent;
   agent ??= {
-    id: "", name: "", avatar: "🤖", room: state.office.rooms[0].id, mode: "llm", enabled: true, everyMinutes: 0,
+    id: "", name: "", avatar: "🤖", mode: "llm", enabled: true, everyMinutes: 0,
+    room: B().rooms.find((r) => r.floor === state.floorFocus)?.id ?? B().rooms[0]?.id,
     watchlist: [], readsFrom: [], tools: ["get_quote", "get_indicators", "read_notes", "post_note"], canTrade: false,
     limits: { maxOrderPct: 10, maxPositionPct: 20, onlyWatchlist: true, requireApproval: true },
     model: "claude-opus-5-5", effort: "medium", instructions: "", strategy: state.office.strategies[0], params: {},
   };
   state.editing = isNew ? null : agent.id;
   $("#dlg-title").textContent = isNew ? "Nuovo agente" : `${agent.avatar} ${agent.name}`;
-  form.room.innerHTML = state.office.rooms.map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join("");
+  // Stanze raggruppate per piano (dal più alto).
+  form.room.innerHTML = B()
+    .floors.slice()
+    .reverse()
+    .map((f) => {
+      const rooms = B().rooms.filter((r) => r.floor === f.id);
+      if (!rooms.length) return "";
+      return `<optgroup label="${esc(f.name)}">${rooms.map((r) => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join("")}</optgroup>`;
+    })
+    .join("");
   form.strategy.innerHTML = state.office.strategies.map((s) => `<option>${esc(s)}</option>`).join("");
 
   form.id.value = agent.id;
-  form.id.readOnly = !isNew;
+  form.querySelector(".id-field").classList.toggle("hidden", isNew); // per i nuovi agenti il codice lo crea il programma
   form.name.value = agent.name;
   form.avatar.value = agent.avatar;
   form.room.value = agent.room;
@@ -404,7 +716,7 @@ function openEditor(agent) {
   form.maxPositionPct.value = agent.limits.maxPositionPct;
   form.onlyWatchlist.checked = agent.limits.onlyWatchlist !== false;
   checkboxes($("#tools-checks"), "tools", state.office.tools.map((t) => [t, t]), agent.tools);
-  checkboxes($("#reads-checks"), "readsFrom", state.office.rooms.filter((r) => r.id !== agent.room).map((r) => [r.id, r.name]), agent.readsFrom);
+  renderReadsFrom(agent.room, agent.readsFrom);
   $("#delete-btn").classList.toggle("hidden", isNew);
   $("#run-btn").disabled = isNew;
   $("#form-errors").textContent = "";
@@ -412,6 +724,21 @@ function openEditor(agent) {
   syncMode();
   dlg.showModal();
 }
+
+/** Stanze leggibili: quelle del proprio piano si scelgono; quelle dei piani collegati sono automatiche. */
+function renderReadsFrom(roomId, selected) {
+  const myFloor = floorOfRoom(roomId);
+  const sameFloor = B().rooms.filter((r) => r.floor === myFloor && r.id !== roomId);
+  checkboxes($("#reads-checks"), "readsFrom", sameFloor.map((r) => [r.id, r.name]), selected);
+  const linked = B().floors.filter((f) => f.id !== myFloor && flowsInto(f.id, myFloor));
+  $("#reads-linked").innerHTML = linked.length
+    ? `🔗 Legge in automatico anche i piani collegati: <b>${linked.map((f) => esc(f.name)).join(", ")}</b>.`
+    : "Nessun piano collegato: legge solo il proprio piano. I collegamenti si gestiscono in 🏗️ Palazzo.";
+}
+form.room.addEventListener("change", () => {
+  const selected = [...form.querySelectorAll('input[name="readsFrom"]:checked')].map((i) => i.value);
+  renderReadsFrom(form.room.value, selected);
+});
 
 function readForm() {
   let params;
@@ -451,7 +778,8 @@ form.addEventListener("submit", async (e) => {
   e.preventDefault();
   try {
     const agent = readForm();
-    await api(`/api/agents/${encodeURIComponent(agent.id)}`, { method: "PUT", body: JSON.stringify(agent) });
+    if (state.editing) await api(`/api/agents/${encodeURIComponent(state.editing)}`, { method: "PUT", body: JSON.stringify(agent) });
+    else await api("/api/agents", { method: "POST", body: JSON.stringify({ ...agent, id: undefined }) });
     dlg.close();
   } catch (err) {
     $("#form-errors").textContent = err.body?.errors?.join("\n") ?? err.message;
@@ -542,3 +870,4 @@ events.onmessage = (msg) => {
 
 loadAll();
 setInterval(refreshPortfolio, 60_000);
+setTimeout(() => checkForUpdate({ quiet: true }), 3000); // un controllo silenzioso all'apertura

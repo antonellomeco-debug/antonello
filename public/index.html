@@ -21,11 +21,12 @@
     <nav class="rail" aria-label="Sezioni">
       <div class="logo" title="Ufficio Agenti">🪐</div>
       <button class="nav active" data-view="office" title="Ufficio"><span>🏢</span><em>Ufficio</em></button>
+      <button class="nav mobile-only" data-view="chat" title="Parla"><span>💬</span><em>Parla</em></button>
+      <button class="nav" data-view="building" title="Palazzo: piani, stanze e collegamenti"><span>🏗️</span><em>Palazzo</em></button>
       <button class="nav" data-view="approvals" title="Approvazioni"><span>✅</span><em>Approvazioni</em><b class="badge hidden" id="badge-approvals"></b></button>
       <button class="nav" data-view="notes" title="Bacheca"><span>📝</span><em>Bacheca</em></button>
       <button class="nav" data-view="portfolio" title="Portafoglio"><span>💼</span><em>Portafoglio</em></button>
       <button class="nav" data-view="log" title="Attività"><span>📜</span><em>Attività</em></button>
-      <button class="nav mobile-only" data-view="chat" title="Parla"><span>💬</span><em>Parla</em></button>
       <button class="nav settings-nav" id="open-settings" title="Impostazioni"><span>⚙️</span><em>Impostazioni</em><b class="badge hidden" id="badge-settings">!</b></button>
     </nav>
 
@@ -38,6 +39,7 @@
             <p class="sub" id="office-sub"></p>
           </div>
           <div class="head-actions">
+            <button class="btn update-cta hidden" id="update-cta">🔄 Nuova versione</button>
             <button class="btn key-cta hidden" id="key-cta">🔑 Collega Claude</button>
             <button class="btn" id="reset-view">⟲ Vista</button>
             <button class="btn primary" id="new-agent">+ Nuovo agente</button>
@@ -45,13 +47,44 @@
         </header>
         <div class="stage">
           <div class="scene" id="scene"></div>
-          <div class="stats" id="stats"></div>
+          <div class="overlay-left">
+            <div class="stats" id="stats"></div>
+            <nav class="elevator" id="elevator" aria-label="Piani"></nav>
+          </div>
           <div class="pnl-card" id="pnl-card"></div>
           <details class="roster" id="roster">
             <summary id="roster-sum">Elenco completo degli agenti</summary>
             <div class="roster-list" id="roster-list"></div>
           </details>
         </div>
+      </section>
+
+      <!-- PALAZZO: piani, stanze, collegamenti -->
+      <section class="view hidden" id="view-building">
+        <header class="page-head">
+          <div>
+            <h1 id="building-title">Il palazzo</h1>
+            <p class="sub">Ogni piano gestisce un settore. I piani <b>collegati</b> si scambiano informazioni: gli agenti di un piano leggono le bacheche dell'altro. Puoi fare tutto anche chiedendolo a Orion.</p>
+          </div>
+          <div class="head-actions">
+            <button class="btn" id="rename-building">✏️ Nome palazzo</button>
+            <button class="btn primary" id="new-floor">+ Nuovo piano</button>
+          </div>
+        </header>
+        <div class="floors-list" id="floors-list"></div>
+        <h2 class="section-title">Collegamenti tra piani</h2>
+        <p class="sub">Un collegamento <b>↔</b> fa comunicare i piani nei due sensi; <b>→</b> manda le informazioni in un solo senso (il secondo piano legge il primo). Spegnilo quando non vuoi che comunichino.</p>
+        <div class="links-list" id="links-list"></div>
+        <form class="link-form card" id="link-form">
+          <select name="from" aria-label="Da piano"></select>
+          <select name="direction" aria-label="Direzione">
+            <option value="both">↔ nei due sensi</option>
+            <option value="one-way">→ solo verso</option>
+          </select>
+          <select name="to" aria-label="A piano"></select>
+          <button class="btn primary" type="submit">Collega</button>
+          <p class="errors" id="link-errors"></p>
+        </form>
       </section>
 
       <!-- APPROVAZIONI -->
@@ -118,8 +151,8 @@
       </header>
 
       <div class="grid2">
-        <label>ID <input name="id" required pattern="[a-z0-9_\-]+" /></label>
         <label>Nome <input name="name" required /></label>
+        <label class="id-field">Codice (non modificabile) <input name="id" readonly /></label>
         <label>Avatar <input name="avatar" maxlength="4" /></label>
         <label>Stanza <select name="room"></select></label>
         <label>Modalità
@@ -155,7 +188,8 @@
 
       <fieldset>
         <legend>Accessi e rischio</legend>
-        <div class="checks" id="reads-checks"><span class="lbl">Legge le stanze:</span></div>
+        <div class="checks" id="reads-checks"><span class="lbl">Legge le stanze del suo piano:</span></div>
+        <p class="hint" id="reads-linked"></p>
         <label class="inline"><input type="checkbox" name="canTrade" /> Può proporre ordini (simulati)</label>
         <label class="inline"><input type="checkbox" name="requireApproval" /> Ogni ordine richiede la mia approvazione</label>
         <div class="grid3">
@@ -177,6 +211,45 @@
       <p class="errors" id="form-errors"></p>
       <footer class="dlg-foot">
         <button type="button" class="btn danger" id="delete-btn">Elimina</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn ghost" data-close>Annulla</button>
+        <button type="submit" class="btn primary">Salva</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="floor-dialog">
+    <form id="floor-form" class="dlg-form" method="dialog">
+      <header class="dlg-head"><h2 id="floor-title">Piano</h2><button type="button" class="btn ghost" data-close>✕</button></header>
+      <div class="grid2">
+        <label class="span2">Nome del piano <input name="name" required placeholder="es. 2° Piano · Crypto" /></label>
+        <label>Settore <input name="sector" placeholder="es. Criptovalute" /></label>
+        <label>Livello (0 = piano terra) <input name="level" type="number" step="1" /></label>
+        <label class="span2">Descrizione <input name="description" placeholder="Di cosa si occupa questo piano" /></label>
+        <label>Colore <input name="color" type="color" /></label>
+      </div>
+      <p class="errors" id="floor-errors"></p>
+      <footer class="dlg-foot">
+        <button type="button" class="btn danger" id="floor-delete">Elimina piano</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn ghost" data-close>Annulla</button>
+        <button type="submit" class="btn primary">Salva</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="room-dialog">
+    <form id="room-form" class="dlg-form" method="dialog">
+      <header class="dlg-head"><h2 id="room-title">Stanza</h2><button type="button" class="btn ghost" data-close>✕</button></header>
+      <div class="grid2">
+        <label class="span2">Nome della stanza <input name="name" required placeholder="es. Sala Bitcoin" /></label>
+        <label>Piano <select name="floor"></select></label>
+        <label>Colore <input name="color" type="color" /></label>
+        <label class="span2">Descrizione <input name="description" placeholder="Cosa si fa in questa stanza" /></label>
+      </div>
+      <p class="errors" id="room-errors"></p>
+      <footer class="dlg-foot">
+        <button type="button" class="btn danger" id="room-delete">Elimina stanza</button>
         <span class="spacer"></span>
         <button type="button" class="btn ghost" data-close>Annulla</button>
         <button type="submit" class="btn primary">Salva</button>
@@ -214,6 +287,17 @@
         <span class="spacer"></span>
         <button type="submit" class="btn primary" id="save-key">Salva e verifica</button>
       </footer>
+
+      <fieldset class="update-box">
+        <legend>🔄 Aggiornamenti</legend>
+        <p class="hint" id="update-status">Controllo in corso…</p>
+        <p class="hint">L'aggiornamento sostituisce solo il programma: palazzo, agenti, portafoglio e chiave restano come sono.</p>
+        <div class="row">
+          <button type="button" class="btn" id="update-check">Controlla</button>
+          <button type="button" class="btn primary hidden" id="update-apply">Aggiorna ora</button>
+        </div>
+        <p class="errors" id="update-errors"></p>
+      </fieldset>
     </form>
   </dialog>
 

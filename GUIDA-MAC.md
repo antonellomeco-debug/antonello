@@ -105,10 +105,28 @@ Per **chiudere** il programma: clicca sulla finestra del Terminale e premi **con
 
 ## Parte 3 — Primi passi nell'app
 
+- **Il palazzo**: l'ufficio è un palazzo con più **piani**. Ogni piano si occupa di un settore (es. Azioni, Crypto) e ha le sue **stanze** con gli agenti. Con l'**ascensore** a sinistra scegli quale piano guardare, oppure **Tutto il palazzo**.
 - **Prova un agente**: clicca la scrivania del **Quant SMA** → **▶ Esegui**. Vedrai il fumetto sopra l'agente; il risultato finisce in **Bacheca**.
-- **Parla con Orion** (con la chiave inserita): scrivi a destra, per esempio *"Cosa sta succedendo in ufficio?"* oppure *"Crea un agente che segue le banche italiane"*.
+- **Parla con Orion** (con la chiave inserita): scrivi a destra, per esempio *"Cosa sta succedendo nel palazzo?"* oppure *"Crea un agente che segue le banche italiane"*.
 - **Approvazioni**: quando un agente vuole comprare o vendere, compare un pallino rosso. Tu scegli **Fallo per me** o **Scarta**.
 - **È tutto simulato**: il portafoglio parte con 100.000 € finti e nessun ordine va in borsa davvero.
+
+### Creare piani, stanze e farli comunicare
+
+Puoi farlo in due modi.
+
+**Parlando con Orion**, per esempio:
+- *"Crea un piano Crypto con una stanza Bitcoin e una stanza DeFi, e mettici un analista in ognuna"*
+- *"Collega il piano Crypto alla Direzione"* (si scambiano le informazioni nei due sensi)
+- *"Fai arrivare le informazioni del piano Azioni al piano Crypto, ma non il contrario"* (collegamento in un solo senso)
+- *"Scollega il piano Crypto"* oppure *"Spegni il collegamento tra Crypto e Azioni"*
+
+**Dalla sezione 🏗️ Palazzo** (barra a sinistra):
+- **+ Nuovo piano** per aggiungere un piano; **✏️ Modifica** per cambiargli nome, settore, colore o altezza;
+- **+ Stanza** dentro un piano per aggiungere una stanza; clicca una stanza per modificarla o spostarla;
+- in **Collegamenti tra piani** scegli i due piani e la direzione (**↔** nei due sensi, **→** in un solo senso) e premi **Collega**. Con l'interruttore **Attivo/Spento** li fai comunicare solo quando vuoi.
+
+**Come comunicano**: gli agenti leggono sempre la propria stanza e le stanze del proprio piano che scegli nella loro scheda. Se due piani sono **collegati**, gli agenti di un piano leggono anche **tutte le bacheche** dell'altro. Se il collegamento è spento, ogni piano lavora da solo.
 
 ### Quanto costa?
 
@@ -137,11 +155,17 @@ Per **chiudere** il programma: clicca sulla finestra del Terminale e premi **con
 | *"Questa chiave va creata per un solo workspace"* | Crea una nuova chiave scegliendo il workspace **Default** e incollala in ⚙️ Impostazioni. |
 | Una pagina diversa su localhost:3000 | Un altro programma usa la stessa porta. Nel Terminale, dentro la cartella, avvia con: `PORT=3001 npm start` e apri http://localhost:3001 |
 
-## Aggiornare il programma in futuro
+## Aggiornare il programma
 
-Quando ci saranno nuove versioni:
+**Con il pulsante (dalla versione con il palazzo in poi):**
+
+1. Quando c'è una novità compare il pulsante verde **🔄 Nuova versione** in alto (oppure apri **⚙️ Impostazioni → Aggiornamenti → Controlla**).
+2. Premi **Aggiorna ora** e conferma. Il programma scarica la nuova versione, si riavvia da solo e ricarica la pagina.
+3. Il tuo palazzo, gli agenti, il portafoglio e la chiave **restano come sono**: stanno nella cartella `data`, che l'aggiornamento non tocca. Una copia dei file vecchi viene salvata in `data/backup`.
+
+**A mano (serve solo se la tua versione non ha ancora il pulsante "Aggiorna"):**
 
 1. **Chiudi il programma** (control + C nel Terminale, oppure chiudi la finestra → Termina).
 2. Scarica di nuovo lo ZIP (Passo 2) e chiama la nuova cartella `agenti-borsa-nuovo`.
-3. Dalla vecchia cartella copia nella nuova la cartella **`data`** (contiene portafoglio, bacheche e chiave). Se hai creato o modificato agenti, copia anche i loro file dalla cartella **`agents`**.
-4. Rinomina le cartelle in modo che quella nuova si chiami `agenti-borsa`, poi ripeti i Passi 3, 4, 5 e 6.
+3. Dalla vecchia cartella copia nella nuova la cartella **`data`** (contiene portafoglio, bacheche e chiave). Se nella versione vecchia avevi creato o modificato agenti, copia anche la cartella **`agents`**: il programma la importerà da solo al primo avvio.
+4. Rinomina le cartelle in modo che quella nuova si chiami `agenti-borsa` (la vecchia puoi chiamarla `agenti-borsa-vecchio` e cancellarla quando tutto funziona), poi ripeti i Passi 3, 4 e 5 e avvia con l'icona **Avvia Agenti**.

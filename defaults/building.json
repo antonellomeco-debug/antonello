@@ -1,0 +1,17 @@
+{
+  "name": "Il mio palazzo",
+  "floors": [
+    { "id": "piano-terra", "name": "Piano Terra · Direzione", "sector": "Coordinamento", "description": "Sintesi e decisioni per tutto il palazzo", "color": "#a371f7", "level": 0 },
+    { "id": "piano-azioni", "name": "1° Piano · Azioni", "sector": "Azioni e indici", "description": "Ricerca, analisi tecnica, rischio e trading su azioni", "color": "#4f8cff", "level": 1 }
+  ],
+  "rooms": [
+    { "id": "direzione", "floor": "piano-terra", "name": "Direzione", "description": "Sintesi giornaliera e strategia complessiva", "color": "#a371f7" },
+    { "id": "ricerca", "floor": "piano-azioni", "name": "Sala Ricerca", "description": "Macro, indici e contesto di mercato", "color": "#4f8cff" },
+    { "id": "analisi", "floor": "piano-azioni", "name": "Analisi Tecnica", "description": "Segnali da indicatori e strategie quantitative", "color": "#22b07d" },
+    { "id": "rischio", "floor": "piano-azioni", "name": "Risk Room", "description": "Controllo dei rischi del portafoglio", "color": "#e5534b" },
+    { "id": "trading", "floor": "piano-azioni", "name": "Trading Desk", "description": "Decisioni ed esecuzione degli ordini (simulati)", "color": "#d29922" }
+  ],
+  "links": [
+    { "from": "piano-azioni", "to": "piano-terra", "direction": "one-way", "active": true }
+  ]
+}
