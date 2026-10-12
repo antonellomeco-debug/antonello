@@ -273,8 +273,10 @@ function renderBuilding() {
   const keep = { from: lf.from.value, to: lf.to.value };
   lf.from.innerHTML = opts;
   lf.to.innerHTML = opts;
-  if (keep.from) lf.from.value = keep.from;
-  lf.to.value = keep.to || b.floors[1]?.id || b.floors[0]?.id || "";
+  // Mantiene la scelta solo se è ancora valida, e mai lo stesso piano da entrambi i lati.
+  const ids = b.floors.map((f) => f.id);
+  lf.from.value = ids.includes(keep.from) ? keep.from : ids[0] ?? "";
+  lf.to.value = ids.includes(keep.to) && keep.to !== lf.from.value ? keep.to : ids.find((id) => id !== lf.from.value) ?? "";
   lf.classList.toggle("hidden", b.floors.length < 2);
 }
 
@@ -512,6 +514,7 @@ function renderChat() {
     : `<div class="msg assistant" data-who="${esc(state.office.assistant.toUpperCase())}">Ciao! Sono ${esc(state.office.assistant)}, coordino gli agenti dell'ufficio. Chiedimi cosa stanno facendo, fai lavorare qualcuno o descrivimi un nuovo agente da creare.${state.office.llmReady ? "" : "\n\n🔑 Per parlarmi inserisci la chiave di Claude in ⚙️ Impostazioni."}</div>`;
   body.scrollTop = body.scrollHeight;
   $("#chat").classList.toggle("busy", state.chat.busy);
+  $("#chat-reset").disabled = state.chat.busy; // non si può azzerare mentre Orion lavora
   $("#chat-state").textContent = state.chat.busy ? "Sto lavorando…" : "Ti ascolto — scrivi pure";
   $("#chat-chips").innerHTML = t.length ? "" : SUGGESTIONS.map((s) => `<button class="chip" type="button">${esc(s)}</button>`).join("");
   $("#chat-chips").querySelectorAll(".chip").forEach((c) => (c.onclick = () => sendChat(c.textContent)));
@@ -542,7 +545,7 @@ $("#chat-input").addEventListener("keydown", (e) => {
     sendChat(e.target.value);
   }
 });
-$("#chat-reset").onclick = () => api("/api/chat/reset", { method: "POST" });
+$("#chat-reset").onclick = () => api("/api/chat/reset", { method: "POST" }).catch((e) => alert(e.message));
 
 // ---------- impostazioni ----------
 
@@ -614,7 +617,7 @@ async function checkForUpdate({ quiet } = {}) {
     else status.textContent = `Hai l'ultima versione ✅ (${latest}).`;
     const show = u.canUpdate && u.available;
     $("#update-apply").classList.toggle("hidden", !show);
-    $("#update-cta").classList.toggle("hidden", !(show && u.installed)); // il banner solo se c'è davvero una versione nuova
+    $("#update-cta").classList.toggle("hidden", !show);
   } catch (err) {
     if (!quiet) status.textContent = "";
     $("#update-errors").textContent = quiet ? "" : err.message;
@@ -730,10 +733,15 @@ function renderReadsFrom(roomId, selected) {
   const myFloor = floorOfRoom(roomId);
   const sameFloor = B().rooms.filter((r) => r.floor === myFloor && r.id !== roomId);
   checkboxes($("#reads-checks"), "readsFrom", sameFloor.map((r) => [r.id, r.name]), selected);
-  const linked = B().floors.filter((f) => f.id !== myFloor && flowsInto(f.id, myFloor));
-  $("#reads-linked").innerHTML = linked.length
-    ? `🔗 Legge in automatico anche i piani collegati: <b>${linked.map((f) => esc(f.name)).join(", ")}</b>.`
-    : "Nessun piano collegato: legge solo il proprio piano. I collegamenti si gestiscono in 🏗️ Palazzo.";
+  const others = B().floors.filter((f) => f.id !== myFloor);
+  const receives = others.filter((f) => flowsInto(f.id, myFloor)).map((f) => esc(f.name));
+  const sends = others.filter((f) => flowsInto(myFloor, f.id)).map((f) => esc(f.name));
+  $("#reads-linked").innerHTML =
+    (receives.length
+      ? `🔗 Legge in automatico anche le bacheche dei piani collegati: <b>${receives.join(", ")}</b>.`
+      : "Non riceve informazioni da altri piani: legge solo il proprio.") +
+    (sends.length ? ` Le sue note arrivano a: <b>${sends.join(", ")}</b>.` : "") +
+    " I collegamenti si gestiscono in 🏗️ Palazzo.";
 }
 form.room.addEventListener("change", () => {
   const selected = [...form.querySelectorAll('input[name="readsFrom"]:checked')].map((i) => i.value);

@@ -42,7 +42,7 @@ I prezzi arrivano da Yahoo Finance (ticker come `AAPL`, `ENI.MI`, `^GSPC`). Se i
 
 ## Il palazzo: piani, stanze e collegamenti
 
-Il palazzo si trova in `data/building.json`. Si modifica dall'app (sezione **🏗️ Palazzo**) o chiedendo a Orion. Al primo avvio viene copiato da [`defaults/building.json`](defaults/building.json):
+Il palazzo si trova in `data/building.json`. Si modifica dall'app (sezione **🏗️ Palazzo**) o chiedendo a Orion. Al primo avvio di una nuova installazione viene copiato da [`defaults/building.json`](defaults/building.json). Chi arriva dalla versione senza piani (con `rooms.json` e `agents/` nella cartella del programma, oppure con un vecchio `data/state.json`) trova invece tutte le stanze su un unico piano: così gli agenti continuano a leggere le stesse stanze di prima. La cartella `agents/` viene importata e poi rinominata in `agents-importati`.
 
 | Piano | Settore | Stanze |
 |---|---|---|
@@ -94,7 +94,7 @@ Claude esegue le `instructions` usando solo gli strumenti abilitati in `tools`:
 |---|---|
 | `get_quote` | Ultimo prezzo e variazione |
 | `get_indicators` | SMA20/50, RSI14, volatilità, rendimenti 5/20/60 giorni |
-| `read_notes` | Legge la bacheca della propria stanza e di quelle in `readsFrom` |
+| `read_notes` | Legge la propria stanza, le stanze del proprio piano scelte in `readsFrom` e tutte quelle dei piani collegati che mandano informazioni al suo piano |
 | `post_note` | Pubblica nella bacheca della propria stanza |
 | `get_portfolio` | Liquidità, posizioni, P&L |
 | `place_order` | Ordine simulato; richiede `canTrade: true` e rispetta i `limits` |

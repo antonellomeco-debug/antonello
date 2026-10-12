@@ -57,7 +57,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* ---------- palcoscenico 3D ---------- */
 .stage { position: relative; flex: 1; min-height: 360px; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); background: #05060f; }
 .scene, .scene canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-.labels-layer { position: absolute; inset: 0; pointer-events: none; }
+.scene { z-index: 0; }
+/* z-index 0: le etichette 3D restano sotto i pannelli (statistiche, ascensore, elenco agenti). */
+.labels-layer { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
 .labels-layer > div { pointer-events: none; }
 
 .overlay-left { position: absolute; top: 12px; left: 12px; bottom: 64px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; pointer-events: none; }
@@ -182,6 +184,7 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color:
 label.inline { flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
 input, select, textarea { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 7px 9px; }
 textarea { resize: vertical; width: 100%; }
+input[type="color"] { padding: 2px; width: 56px; height: 34px; cursor: pointer; }
 .mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
 .row input { flex: 1; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

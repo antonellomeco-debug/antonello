@@ -7,13 +7,13 @@ import path from "node:path";
 import { runAgent, isRunning } from "./lib/runner.js";
 import { getState, resetState, bus } from "./lib/store.js";
 import { portfolioValue, decide } from "./lib/broker.js";
-import { chat, getTranscript, resetChat, ASSISTANT_NAME } from "./lib/orchestrator.js";
+import { chat, getTranscript, resetChat, isChatBusy, ASSISTANT_NAME } from "./lib/orchestrator.js";
 import { getQuote } from "./lib/market.js";
 import fs from "node:fs";
 import { exec } from "node:child_process";
 import { hasCredentials, keyStatus, verifyKey, cleanKey } from "./lib/claude.js";
 import { updateSettings } from "./lib/settings.js";
-import { checkUpdate, applyUpdate } from "./lib/updater.js";
+import { checkUpdate, applyUpdate, isUpdating, RESTART_CODE } from "./lib/updater.js";
 
 const STARTED_AT = new Date().toISOString();
 
@@ -83,13 +83,37 @@ app.get("/api/update", async (_req, res) => {
     res.status(502).json({ error: e.message });
   }
 });
+// Esegue una modifica e risponde con il risultato, oppure con l'errore spiegato (400).
+const handle = (fn) => (req, res) => {
+  try {
+    res.json(fn(req) ?? { ok: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message, errors: e.errors ?? [e.message] });
+  }
+};
+
+const someoneWorking = () => office.agents().some((a) => isRunning(a.id)) || isChatBusy();
+
 app.post("/api/update", async (_req, res) => {
   try {
-    const busy = office.agents().some((a) => isRunning(a.id));
-    res.json(await applyUpdate({ busy }));
+    const result = await applyUpdate({ busy: someoneWorking() });
+    res.json(result);
+    if (result.restarting) restartWhenIdle();
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
+});
+
+/** Riavvia (start.js fa ripartire il server) appena agenti e Orion hanno finito, al massimo dopo 2 minuti. */
+function restartWhenIdle(waited = 0) {
+  if (!someoneWorking() || waited >= 120_000) return setTimeout(() => process.exit(RESTART_CODE), 500);
+  setTimeout(() => restartWhenIdle(waited + 1000), 1000);
+}
+
+// Durante un aggiornamento non partono nuovi lavori.
+app.use(["/api/chat", "/api/agents/:id/run"], (req, res, next) => {
+  if (req.method === "POST" && isUpdating()) return res.status(503).json({ error: "Aggiornamento in corso: riprova tra un minuto." });
+  next();
 });
 
 app.get("/api/notes", (_req, res) => res.json(getState().notes));
@@ -138,10 +162,7 @@ app.post("/api/chat", async (req, res) => {
     res.status(400).json({ error: e.message });
   }
 });
-app.post("/api/chat/reset", (_req, res) => {
-  resetChat();
-  res.json({ ok: true });
-});
+app.post("/api/chat/reset", handle(() => resetChat()));
 
 app.post("/api/agents/:id/run", async (req, res) => {
   const agent = findAgent(req.params.id);
@@ -152,15 +173,6 @@ app.post("/api/agents/:id/run", async (req, res) => {
   runAgent(agent, office.building(), { task: req.body?.task }).catch(() => {});
   res.json({ ok: true });
 });
-
-// Esegue una modifica e risponde con il risultato, oppure con l'errore spiegato (400).
-const handle = (fn) => (req, res) => {
-  try {
-    res.json(fn(req) ?? { ok: true });
-  } catch (e) {
-    res.status(400).json({ error: e.message, errors: e.errors ?? [e.message] });
-  }
-};
 
 app.post("/api/agents", handle((req) => office.saveAgent({ ...req.body, id: undefined })));
 app.put("/api/agents/:id", handle((req) => office.saveAgent({ ...req.body, id: req.params.id })));
@@ -206,6 +218,7 @@ app.use((err, _req, res, _next) => res.status(500).json({ error: err.message }))
 setInterval(() => {
   const now = Date.now();
   for (const agent of office.agents()) {
+    if (isUpdating()) return;
     if (!agent.enabled || !(agent.everyMinutes > 0) || isRunning(agent.id)) continue;
     const prev = lastRun.has(agent.id) ? Date.parse(lastRun.get(agent.id)) : 0;
     if (now - prev >= agent.everyMinutes * 60_000) {

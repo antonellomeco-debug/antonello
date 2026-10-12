@@ -44,7 +44,11 @@ export class Office3D {
     this.controls.maxPolarAngle = Math.PI * 0.49;
     this.controls.minDistance = 10;
     this.controls.maxDistance = 160;
-    this.renderer.domElement.addEventListener("pointerdown", () => (this.controls.autoRotate = false));
+    this.renderer.domElement.addEventListener("pointerdown", (e) => {
+      this.controls.autoRotate = false;
+      this.fly = null; // l'utente prende il controllo della camera
+      this.downAt = [e.clientX, e.clientY];
+    });
 
     this.addLights();
     this.addStars();
@@ -91,8 +95,13 @@ export class Office3D {
 
   /** building: { floors, rooms, links }, agents: [...] */
   setBuilding(building, agents) {
-    // Rimuove la versione precedente (e le etichette HTML).
-    this.world.traverse((o) => o.isCSS2DObject && o.element.remove());
+    const before = { focused: this.focused, floors: this.floors.size, topY: this.topY };
+    // Rimuove la versione precedente: etichette HTML e memoria della scheda video.
+    this.world.traverse((o) => {
+      if (o.isCSS2DObject) o.element.remove();
+      o.geometry?.dispose();
+      for (const m of [].concat(o.material ?? [])) m.dispose();
+    });
     this.scene.remove(this.world);
     this.world = new THREE.Group();
     this.scene.add(this.world);
@@ -117,8 +126,14 @@ export class Office3D {
     if (!this.initialized) {
       this.initialized = true;
       this.focused = floors.length === 1 ? floors[0].id : null;
-      this.camera.position.copy(this.cameraFor(this.focused).camera);
-      this.controls.target.copy(this.cameraFor(this.focused).target);
+      const view = this.cameraFor(this.focused);
+      this.fitLimits(view);
+      this.camera.position.copy(view.camera);
+      this.controls.target.copy(view.target);
+    } else if (before.focused !== this.focused || (!this.focused && (before.floors !== this.floors.size || before.topY !== this.topY))) {
+      // Il piano guardato è sparito, oppure il palazzo è cambiato in altezza: si rifà l'inquadratura.
+      this.flyTo(this.cameraFor(this.focused));
+      this.onFloorFocus?.(this.focused);
     }
     this.applyFocus();
   }
@@ -427,18 +442,33 @@ export class Office3D {
 
   // ---------- vista: tutto il palazzo o un piano ----------
 
+  /** Distanza a cui un oggetto largo `halfWidth` e alto `halfHeight` entra tutto nell'inquadratura. */
+  fitDistance(halfWidth, halfHeight) {
+    const vfov = THREE.MathUtils.degToRad(this.camera.fov);
+    const hfov = 2 * Math.atan(Math.tan(vfov / 2) * this.camera.aspect);
+    return Math.max(halfWidth / Math.tan(hfov / 2), halfHeight / Math.tan(vfov / 2));
+  }
+
   cameraFor(floorId) {
-    const narrow = this.camera.aspect < 1 ? 1.8 : 1;
     if (floorId && this.floors.has(floorId)) {
       const f = this.floors.get(floorId);
-      const dist = (f.ringRadius + 12) * narrow;
-      // Sotto il piano superiore, così non copre la vista.
-      return { target: new THREE.Vector3(0, f.y - 1, 0), camera: new THREE.Vector3(0, f.y + Math.min(dist * 0.5, FLOOR_GAP * 0.8), dist * 1.2) };
+      const dist = this.fitDistance(f.ringRadius + 9, (f.ringRadius + 9) * 0.55) + 6;
+      // Camera bassa (sotto il piano superiore), così il piano sopra non copre la vista.
+      const up = Math.min(dist * 0.35, FLOOR_GAP * 0.8);
+      return { target: new THREE.Vector3(0, f.y - 1, 0), camera: new THREE.Vector3(0, f.y + up, Math.sqrt(dist * dist - up * up)) };
     }
     const h = this.topY ?? 0;
     const maxR = Math.max(12, ...[...this.floors.values()].map((f) => f.ringRadius));
-    const dist = (maxR + 22 + h * 0.7) * narrow;
-    return { target: new THREE.Vector3(0, h / 2 + 2, 0), camera: new THREE.Vector3(0, h / 2 + dist * 0.38, dist * 1.25) };
+    const dist = this.fitDistance(maxR + 10, h / 2 + 12) + 8;
+    return { target: new THREE.Vector3(0, h / 2 + 2, 0), camera: new THREE.Vector3(0, h / 2 + dist * 0.3, dist * 0.95) };
+  }
+
+  /** Zoom massimo e nebbia proporzionati all'inquadratura (palazzi alti o finestre strette). */
+  fitLimits(view) {
+    const d = view.camera.distanceTo(view.target);
+    this.controls.maxDistance = Math.max(160, d * 1.4);
+    this.scene.fog.near = Math.max(60, d * 0.8);
+    this.scene.fog.far = Math.max(160, d * 2.4);
   }
 
   focusFloor(floorId) {
@@ -465,12 +495,13 @@ export class Office3D {
 
   resetView() {
     this.focusFloor(this.focused);
-    this.controls.autoRotate = true;
+    this.fly.thenRotate = true; // la rotazione automatica riparte quando la camera è arrivata
   }
 
   flyTo(view) {
     this.controls.autoRotate = false;
-    this.fly = view;
+    this.fitLimits(view);
+    this.fly = { ...view, frames: 0 };
   }
 
   /** Mette in risalto il piano scelto: gli altri diventano trasparenti e senza etichette. */
@@ -499,6 +530,8 @@ export class Office3D {
   }
 
   handleClick(e) {
+    // Un trascinamento (per girare il palazzo) non è un clic.
+    if (this.downAt && Math.hypot(e.clientX - this.downAt[0], e.clientY - this.downAt[1]) > 6) return;
     const hit = this.pick(e);
     if (!hit) return;
     const { floorId, agentId, roomId } = hit.userData;
@@ -545,7 +578,11 @@ export class Office3D {
     if (this.fly) {
       this.controls.target.lerp(this.fly.target, 0.07);
       this.camera.position.lerp(this.fly.camera, 0.07);
-      if (this.camera.position.distanceTo(this.fly.camera) < 0.1) this.fly = null;
+      // Arrivati (o dopo ~3 secondi al massimo): la camera torna libera.
+      if (this.camera.position.distanceTo(this.fly.camera) < 0.1 || ++this.fly.frames > 180) {
+        if (this.fly.thenRotate) this.controls.autoRotate = true;
+        this.fly = null;
+      }
     }
     this.controls.update();
     this.renderer.render(this.scene, this.camera);

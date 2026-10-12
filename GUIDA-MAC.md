@@ -126,7 +126,10 @@ Puoi farlo in due modi.
 - **+ Stanza** dentro un piano per aggiungere una stanza; clicca una stanza per modificarla o spostarla;
 - in **Collegamenti tra piani** scegli i due piani e la direzione (**↔** nei due sensi, **→** in un solo senso) e premi **Collega**. Con l'interruttore **Attivo/Spento** li fai comunicare solo quando vuoi.
 
-**Come comunicano**: gli agenti leggono sempre la propria stanza e le stanze del proprio piano che scegli nella loro scheda. Se due piani sono **collegati**, gli agenti di un piano leggono anche **tutte le bacheche** dell'altro. Se il collegamento è spento, ogni piano lavora da solo.
+**Come comunicano**: gli agenti leggono sempre la propria stanza e le stanze del proprio piano che scegli nella loro scheda. Poi dipende dal collegamento:
+- con **↔** i due piani si leggono a vicenda: gli agenti di ciascun piano leggono **tutte le bacheche** dell'altro;
+- con **→** le informazioni vanno in un solo senso: solo il piano di arrivo legge le bacheche di quello di partenza. All'inizio, per esempio, la Direzione legge il piano Azioni, ma non il contrario;
+- se il collegamento è **spento**, i due piani lavorano ciascuno per conto suo.
 
 ### Quanto costa?
 
@@ -159,7 +162,7 @@ Puoi farlo in due modi.
 
 **Con il pulsante (dalla versione con il palazzo in poi):**
 
-1. Quando c'è una novità compare il pulsante verde **🔄 Nuova versione** in alto (oppure apri **⚙️ Impostazioni → Aggiornamenti → Controlla**).
+1. Quando c'è una novità compare il pulsante verde **🔄 Nuova versione** in alto. Puoi anche controllare tu da **⚙️ Impostazioni → Aggiornamenti → Controlla**.
 2. Premi **Aggiorna ora** e conferma. Il programma scarica la nuova versione, si riavvia da solo e ricarica la pagina.
 3. Il tuo palazzo, gli agenti, il portafoglio e la chiave **restano come sono**: stanno nella cartella `data`, che l'aggiornamento non tocca. Una copia dei file vecchi viene salvata in `data/backup`.
 
@@ -167,5 +170,10 @@ Puoi farlo in due modi.
 
 1. **Chiudi il programma** (control + C nel Terminale, oppure chiudi la finestra → Termina).
 2. Scarica di nuovo lo ZIP (Passo 2) e chiama la nuova cartella `agenti-borsa-nuovo`.
-3. Dalla vecchia cartella copia nella nuova la cartella **`data`** (contiene portafoglio, bacheche e chiave). Se nella versione vecchia avevi creato o modificato agenti, copia anche la cartella **`agents`**: il programma la importerà da solo al primo avvio.
+3. Dalla vecchia cartella copia nella nuova:
+   - la cartella **`data`** (contiene portafoglio, bacheche e chiave);
+   - la cartella **`agents`** (contiene i tuoi agenti, anche quelli creati da Orion);
+   - il file **`rooms.json`**.
+
+   Copiali **prima** di avviare la versione nuova. Al primo avvio il programma li importa da solo: trovi tutte le tue stanze su un unico piano, **Piano Borsa**, e gli agenti leggono le stesse stanze di prima. Da lì puoi aggiungere altri piani.
 4. Rinomina le cartelle in modo che quella nuova si chiami `agenti-borsa` (la vecchia puoi chiamarla `agenti-borsa-vecchio` e cancellarla quando tutto funziona), poi ripeti i Passi 3, 4 e 5 e avvia con l'icona **Avvia Agenti**.
