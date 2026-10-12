@@ -268,7 +268,7 @@ app.post("/api/safety/stop", handleAsync(async (req) => {
     log("sicurezza", report.failed.length ? "error" : "warn",
       `STOP: chiuse ${report.closed} posizioni degli agenti` +
         (report.unconfirmed ? `, ${report.unconfirmed} in attesa di conferma` : "") +
-        (report.failed.length ? `; NON chiuse: ${report.failed.map((f) => `${f.symbol} sul conto ${f.accountId} (${f.error})`).join("; ")}` : ""));
+        (report.failed.length ? `; NON chiuse: ${report.failed.map((f) => `${f.symbol} sul conto ${ctrader.account(f.accountId)?.traderLogin ?? f.accountId} (${f.error})`).join("; ")}` : ""));
   }
   return { ...safety.getSafety(), ...report };
 }));

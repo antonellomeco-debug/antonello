@@ -249,17 +249,57 @@ test("perdita del giorno superata: il conto resta fermo anche dopo aver riattiva
 
 test("depositi e prelievi non contano come guadagni o perdite", async () => {
   resetSafety();
-  await ct.accountInfo(demo); // conto collegato sulla connessione
-  safety.checkDailyLoss(demo, safety.getSafety().daily.accounts[String(demo)]?.startEquity ?? 10_000);
-  const start = safety.getSafety().daily.accounts[String(demo)].startEquity;
-  fake.deposit(demo, 500);
-  for (let i = 0; i < 50 && safety.getSafety().daily.accounts[String(demo)].startEquity === start; i++) await new Promise((r) => setTimeout(r, 20));
-  assert.equal(safety.getSafety().daily.accounts[String(demo)].startEquity, start + 500);
-  fake.deposit(demo, -200);
-  for (let i = 0; i < 50 && safety.getSafety().daily.accounts[String(demo)].startEquity === start + 500; i++) await new Promise((r) => setTimeout(r, 20));
-  assert.equal(safety.getSafety().daily.accounts[String(demo)].startEquity, start + 300);
-  fake.deposit(demo, -300); // il finto conto non cambia saldo: si torna al punto di partenza
-  for (let i = 0; i < 50 && safety.getSafety().daily.accounts[String(demo)].startEquity !== start; i++) await new Promise((r) => setTimeout(r, 20));
+  office.setFloorTrading(FLOOR, { mode: "ctrader", accountId: demo });
+  await ct.closeAgentPositions(demo);
+  await broker.monitorAccounts(); // punto di partenza del giorno
+  const before = safety.dailyAccount(demo).lossPct;
+  fake.deposit(demo, -500); // prelievo del 5%: non è una perdita
+  let [r] = await broker.monitorAccounts();
+  assert.equal(r.breached, false);
+  assert.ok(Math.abs(safety.dailyAccount(demo).lossPct - before) < 0.01);
+  fake.deposit(demo, 800); // deposito: non nasconde le perdite
+  [r] = await broker.monitorAccounts();
+  assert.ok(Math.abs(safety.dailyAccount(demo).lossPct - before) < 0.01);
+  assert.equal(safety.dailyAccount(demo).netFlow, 300);
+  fake.deposit(demo, -300);
+});
+
+test("perdita: il blocco ricorda il livello che l'ha fatto scattare", () => {
+  resetSafety();
+  const acc = 8484;
+  safety.checkDailyLoss(acc, 10_000);
+  safety.checkDailyLoss(acc, 9_650); // 3.5%
+  safety.deactivateKill();
+  safety.checkDailyLoss(acc, 9_900); // recupera all'1%
+  assert.throws(() => safety.assertBrokerOrder({ accountId: acc, isLive: false, lots: 0.01, openAgentPositions: 0 }), /3\.50%/);
+  safety.updateLimits({ maxDailyLossPct: 3 }); // salvare senza alzare il limite non sblocca
+  assert.throws(() => safety.assertBrokerOrder({ accountId: acc, isLive: false, lots: 0.01, openAgentPositions: 0 }), /fino a domani/);
+  safety.updateLimits({ maxDailyLossPct: 4 });
+  safety.assertBrokerOrder({ accountId: acc, isLive: false, lots: 0.01, openAgentPositions: 0 });
+  resetSafety();
+});
+
+test("proposte rifiutate subito anche per conto NETTED o perdita del giorno", async () => {
+  resetSafety();
+  const a = agent({ limits: { ...agent().limits, requireApproval: true } });
+  fake.state.accountType = "NETTED";
+  await assert.rejects(broker.submitOrder(a, { symbol: "EURUSD", side: "buy", lots: 0.01 }), /HEDGED/);
+  fake.state.accountType = "HEDGED";
+});
+
+test("chiusura automatica con lo STOP per perdita: riprova finché restano posizioni degli agenti", async () => {
+  resetSafety();
+  safety.updateLimits({ closeOnStop: true });
+  await broker.placeOrder(agent(), { symbol: "EURUSD", side: "buy", lots: 0.01 });
+  // perdita oltre il limite già registrata (es. la prima chiusura non era riuscita): il conto resta bloccato
+  safety.checkDailyLoss(demo, safety.dailyAccount(demo).startEquity * 0.9);
+  safety.deactivateKill();
+  assert.equal(safety.dailyAccount(demo).breached, true);
+  const [r] = await broker.monitorAccounts();
+  assert.equal(r.fresh, false);
+  assert.equal((await ct.positions(demo)).filter((p) => p.label.startsWith("agenti")).length, 0);
+  safety.updateLimits({ maxDailyLossPct: 50 }); // sblocca il conto per i test successivi
+  resetSafety();
 });
 
 test("P&L non disponibile: il controllo della perdita si salta invece di usare dati sbagliati", async () => {

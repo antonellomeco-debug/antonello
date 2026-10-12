@@ -29,6 +29,9 @@ export function startFake({ port = 0, tokenPort = 0, validTokens = new Set(["tok
     sockets: new Set(),
     trendbarWindows: [],
     accountType: "HEDGED",
+    balance: 1_000_000, // in centesimi
+    balanceVersion: 1,
+    cashFlows: [],
     failPnl: false,
     hook: null, // (nome del messaggio) => void, chiamato a ogni richiesta ricevuta
     clients: new Set(), // { authed, send } per ogni connessione
@@ -143,8 +146,14 @@ export function startFake({ port = 0, tokenPort = 0, validTokens = new Set(["tok
             "ProtoOATraderRes",
             {
               ctidTraderAccountId: acc,
-              trader: { ctidTraderAccountId: acc, balance: 1_000_000, depositAssetId: 1, leverageInCents: 3000, moneyDigits: 2, accountType: state.accountType, traderLogin: 5550001, brokerName: "FP Markets" },
+              trader: { ctidTraderAccountId: acc, balance: state.balance, balanceVersion: state.balanceVersion, depositAssetId: 1, leverageInCents: 3000, moneyDigits: 2, accountType: state.accountType, traderLogin: 5550001, brokerName: "FP Markets" },
             },
+            id,
+          );
+        case "ProtoOACashFlowHistoryListReq":
+          return send(
+            "ProtoOACashFlowHistoryListRes",
+            { ctidTraderAccountId: acc, depositWithdraw: state.cashFlows.filter((f) => f.changeBalanceTimestamp >= data.fromTimestamp && f.changeBalanceTimestamp <= data.toTimestamp) },
             id,
           );
         case "ProtoOAReconcileReq":
@@ -257,13 +266,19 @@ export function startFake({ port = 0, tokenPort = 0, validTokens = new Set(["tok
           dropConnections: () => [...state.sockets].forEach((s) => s.destroy()),
           /** Simula un deposito (amount > 0) o un prelievo (amount < 0) sul conto. */
           deposit: (acc, amount) => {
+            state.balance += Math.round(amount * 100);
+            const dw = {
+              operationType: amount > 0 ? "BALANCE_DEPOSIT" : "BALANCE_WITHDRAW",
+              balanceHistoryId: ++state.nextId,
+              balance: state.balance,
+              delta: Math.round(Math.abs(amount) * 100),
+              changeBalanceTimestamp: Date.now(),
+              balanceVersion: ++state.balanceVersion,
+              moneyDigits: 2,
+            };
+            state.cashFlows.push(dw);
             for (const c of state.clients) {
-              if (!c.authed.has(acc)) continue;
-              c.send("ProtoOAExecutionEvent", {
-                ctidTraderAccountId: acc,
-                executionType: "DEPOSIT_WITHDRAW",
-                depositWithdraw: { operationType: amount > 0 ? "BALANCE_DEPOSIT" : "BALANCE_WITHDRAW", balanceHistoryId: ++state.nextId, balance: 1_000_000, delta: Math.round(Math.abs(amount) * 100), changeBalanceTimestamp: Date.now(), moneyDigits: 2 },
-              });
+              if (c.authed.has(acc)) c.send("ProtoOAExecutionEvent", { ctidTraderAccountId: acc, executionType: "DEPOSIT_WITHDRAW", depositWithdraw: dw });
             }
           },
           close: () => new Promise((r) => { [...state.sockets].forEach((s) => s.destroy()); server.close(() => tokenServer.close(r)); }),

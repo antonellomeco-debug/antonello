@@ -277,6 +277,7 @@ legend { padding: 0 6px; color: var(--muted); font-size: 12px; }
 .stop-banner .btn { margin-left: auto; }
 .broker-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 12px; max-width: 980px; }
 .broker-steps input, .safety-grid input, #code-form input { min-width: 0; max-width: 100%; }
+.broker-steps .grid2 > label, .safety-grid .grid2 > label { min-width: 0; }
 .step { display: flex; gap: 14px; align-items: flex-start; }
 .step-n { flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; background: var(--surface-3); color: var(--accent); }
 .step.done .step-n { background: var(--good); color: #062; }

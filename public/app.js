@@ -93,9 +93,8 @@ async function refreshStats() {
   if (!s) return;
   const cells = [
     [s.working, "al lavoro ora"], [s.agents, "agenti"], [s.floors, "piani"], [s.rooms, "stanze"], [s.notes, "note in bacheca"],
-    [s.trades, "ordini eseguiti"], [s.pending, "da approvare"], [`$${fmt(s.costUsd)}`, "spesa API (stima)"],
+    [s.trades + (s.brokerTrades ?? 0), "ordini eseguiti"], [s.pending, "da approvare"], [`$${fmt(s.costUsd)}`, "spesa API (stima)"],
     [state.office.llmReady ? "sì" : "no", "Claude collegato"], [s.scheduled, "programmati"],
-    [s.broker, "cTrader"],
   ];
   $("#stats").innerHTML = cells
     .map(([v, l]) => `<div class="stat ${l === "Claude collegato" ? "clickable" : ""}"><b>${esc(v)}</b><small>${esc(l)}</small></div>`)
@@ -410,7 +409,7 @@ function renderApprovals() {
     $("#approvals-list").innerHTML = `<p class="empty">Nessuna proposta. Quando un agente vuole comprare o vendere, la trovi qui.</p>`;
     return;
   }
-  const label = { pending: "", executed: "✔ Eseguito", rejected: "Scartato", failed: "✖ Non eseguito", executing: "In esecuzione…" };
+  const label = { pending: "", executed: "✔ Eseguito", rejected: "Scartato", failed: "✖ Non eseguito", executing: "In esecuzione…", uncertain: "⚠️ Esito incerto" };
   $("#approvals-list").innerHTML = list
     .map((a) => {
       const o = a.order;
@@ -651,6 +650,7 @@ function renderBroker() {
     : `<p class="empty">Nessun piano.</p>`;
   $("#broker-floors").querySelectorAll("[data-floor-trading]").forEach((sel) => {
     sel.onchange = async () => {
+      sel.blur(); // così dopo l'operazione (o se annulli) la tabella mostra lo stato vero
       const acc = accountById(sel.value);
       if (acc?.isLive && !confirm(`Collegare il piano al CONTO REALE ${accountName(acc)}?\n\nGli agenti di questo piano potranno usare soldi veri (sempre entro i limiti di sicurezza e le approvazioni).`)) {
         return renderBroker();
@@ -820,7 +820,10 @@ async function pressStop() {
     if (r.unconfirmed) msg += `\n${r.unconfirmed} chiusure inviate ma non ancora confermate.`;
     if (r.failed?.length) {
       msg += `\n\n⚠️ NON CHIUSE (chiudile da «Posizioni aperte» o direttamente in cTrader):\n` +
-        r.failed.map((f) => `• ${f.symbol} (conto ${f.accountId}): ${f.error}`).join("\n");
+        r.failed.map((f) => {
+          const a = accountById(f.accountId);
+          return `• ${f.symbol} (conto ${a ? `${a.isLive ? "REALE" : "demo"} ${a.traderLogin ?? f.accountId}` : f.accountId}): ${f.error}`;
+        }).join("\n");
     }
     alert(msg);
   }
