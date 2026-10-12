@@ -267,6 +267,49 @@ legend { padding: 0 6px; color: var(--muted); font-size: 12px; }
 .link-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; max-width: 980px; }
 .link-form .errors { flex-basis: 100%; }
 
+/* ---------- broker e sicurezza ---------- */
+.stop-cta, .stop-btn { background: #3a1016; border-color: var(--bad); color: #ffd6d6; font-weight: 700; letter-spacing: .03em; }
+.stop-cta:hover, .stop-btn:hover { background: #5a141d; border-color: #ff8a8a; }
+.stop-btn { padding: 10px 22px; font-size: 15px; }
+.stop-cta.active, .stop-btn:disabled { background: var(--bad); color: #fff; opacity: 1; animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 18px #ff6b6baa; } }
+.stop-banner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; max-width: 980px; margin-bottom: 14px; padding: 12px 16px; border-radius: 12px; background: #3a1016; border: 1px solid var(--bad); color: #ffd6d6; line-height: 1.45; }
+.stop-banner .btn { margin-left: auto; }
+.broker-steps { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-width: 980px; }
+.step { display: flex; gap: 14px; align-items: flex-start; }
+.step-n { flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; background: var(--surface-3); color: var(--accent); }
+.step.done .step-n { background: var(--good); color: #062; }
+.step-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.step-body h3 { margin: 2px 0 0; }
+.step-body h3 small { color: var(--muted); font-weight: 400; font-size: 12px; }
+.copy-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
+.copy-row code { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; user-select: all; word-break: break-all; }
+.ok-line { color: var(--good) !important; margin: 0; }
+.warn-line { color: var(--warn) !important; }
+.row.wrap { flex-wrap: wrap; }
+.acct { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; border-radius: 99px; padding: 1px 8px; border: 1px solid; vertical-align: middle; }
+.acct.demo { color: #7cc4ff; border-color: #7cc4ff66; background: #7cc4ff14; }
+.acct.live { color: #fff; border-color: var(--bad); background: var(--bad); }
+.acct.paper { color: var(--warn); border-color: #ffc94d66; }
+.where { margin: 2px 0 6px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.live-card { border-color: var(--bad); box-shadow: inset 4px 0 0 var(--bad); }
+#view-broker > * { flex-shrink: 0; } /* nella colonna flessibile le tabelle scorrevoli non devono schiacciarsi */
+.broker-block { max-width: 980px; margin: 10px 0; }
+.broker-block table { max-width: none; margin-bottom: 8px; }
+.floors-trading td:last-child, .floors-trading th:last-child { text-align: left; }
+.floors-trading select { min-width: 260px; max-width: 100%; }
+.floor-dot.inline { display: inline-block; width: 10px; height: 10px; margin-right: 8px; vertical-align: middle; }
+.search-row { max-width: 980px; margin-top: 4px; }
+.symbol-results { display: flex; flex-wrap: wrap; gap: 6px; max-width: 980px; margin: 8px 0; }
+.symbol-results .hint { flex-basis: 100%; }
+.symbol-results .chip b { margin-right: 4px; }
+.safety-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; max-width: 980px; margin: 12px 0; }
+.safety-grid .card { display: flex; flex-direction: column; gap: 10px; }
+.safety-grid h3 { margin: 0; }
+#limits-form { grid-row: span 2; }
+.live-box h3 { color: var(--warn); }
+#today-box table { margin: 0; }
+
 /* ---------- responsive ---------- */
 @media (max-width: 1180px) {
   .app { grid-template-columns: 76px 1fr 320px; }
@@ -296,5 +339,9 @@ legend { padding: 0 6px; color: var(--muted); font-size: 12px; }
   .pnl-card { display: none; } /* su telefono il portafoglio è nella sua sezione */
   .kpis { grid-template-columns: repeat(2, 1fr); }
   .grid2, .grid3 { grid-template-columns: 1fr; }
+  .broker-steps, .safety-grid { grid-template-columns: 1fr; }
+  #limits-form { grid-row: auto; }
+  .broker-block { overflow-x: auto; }
+  .floors-trading select { min-width: 0; width: 100%; }
   .span2 { grid-column: auto; }
 }

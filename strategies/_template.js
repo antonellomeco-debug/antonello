@@ -8,8 +8,13 @@
 //   market     → getQuote(sym), getHistory(sym) → { candles:[{date,open,high,low,close,volume}] },
 //                indicators.{ sma, rsi, volatility, returnPct, summary }
 //   notes      → read(roomId?, limit?), post(testo, tags?)
-//   portfolio  → async () => { cash, total, pnlPct, positions:[...], trades:[...] }
-//   order      → async ({ symbol, side:"buy"|"sell", qty, reason }) — SOLO simulato, rispetta i limiti
+//   trading    → dove opera il piano: { mode: "paper" } oppure { mode: "ctrader", accountId, isLive, label }
+//   portfolio  → async () => simulato: { cash, total, pnlPct, positions:[...] }
+//                             cTrader:  { account:{balance,currency}, positions:[...], myPositions:[positionId] }
+//   order      → async (ordine) — rispetta limiti, approvazioni e Sicurezza:
+//                simulato: { symbol, side:"buy"|"sell", qty, reason }
+//                cTrader:  { symbol, side, lots, stop_loss_pct, take_profit_pct, reason }
+//                          oppure { action:"close", positionId, lots?, reason }
 //   log        → log(messaggio)
 export default async function ({ agent, params, market, notes, portfolio, order, log }) {
   for (const symbol of agent.watchlist) {

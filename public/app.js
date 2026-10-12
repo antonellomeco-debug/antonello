@@ -11,7 +11,7 @@ const when = (iso) => new Date(iso).toLocaleString("it-IT", { day: "2-digit", mo
 const state = {
   office: null, notes: {}, log: [], approvals: [], portfolio: null, stats: null,
   chat: { name: "", busy: false, transcript: [] }, status: {}, view: "office", room: null, editing: null,
-  floorFocus: null,
+  floorFocus: null, broker: null, brokerAccounts: null,
 };
 
 // ---------- utilità sul palazzo ----------
@@ -74,6 +74,7 @@ async function loadAll() {
   [state.notes, state.log, state.approvals, state.chat] = await Promise.all([
     api("/api/notes"), api("/api/log"), api("/api/approvals"), api("/api/chat"),
   ]);
+  await loadBroker();
   renderChat();
   renderView();
   refreshStats();
@@ -94,6 +95,7 @@ async function refreshStats() {
     [s.working, "al lavoro ora"], [s.agents, "agenti"], [s.floors, "piani"], [s.rooms, "stanze"], [s.notes, "note in bacheca"],
     [s.trades, "ordini eseguiti"], [s.pending, "da approvare"], [`$${fmt(s.costUsd)}`, "spesa API (stima)"],
     [state.office.llmReady ? "sì" : "no", "Claude collegato"], [s.scheduled, "programmati"],
+    [s.broker, "cTrader"],
   ];
   $("#stats").innerHTML = cells
     .map(([v, l]) => `<div class="stat ${l === "Claude collegato" ? "clickable" : ""}"><b>${esc(v)}</b><small>${esc(l)}</small></div>`)
@@ -102,6 +104,18 @@ async function refreshStats() {
   const badge = $("#badge-approvals");
   badge.textContent = s.pending;
   badge.classList.toggle("hidden", !s.pending);
+  renderStopControls();
+}
+
+/** Pulsante STOP in alto (quando cTrader è in uso) e avviso se lo STOP è attivo. */
+function renderStopControls() {
+  const s = state.stats;
+  const stopped = s?.stop ?? state.broker?.safety.killSwitch.active;
+  const cta = $("#stop-cta");
+  cta.classList.toggle("hidden", !stopped && s?.broker !== "in uso");
+  cta.textContent = stopped ? "⛔ STOP attivo" : "⛔ STOP";
+  cta.classList.toggle("active", Boolean(stopped));
+  $("#badge-broker").classList.toggle("hidden", !stopped);
 }
 
 async function refreshPortfolio() {
@@ -117,13 +131,17 @@ async function refreshPortfolio() {
 
 // ---------- navigazione ----------
 
+function showView(view) {
+  state.view = view;
+  document.querySelectorAll(".nav[data-view]").forEach((x) => x.classList.toggle("active", x.dataset.view === view));
+  document.querySelectorAll(".view").forEach((v) => v.classList.toggle("hidden", v.id !== `view-${view}`));
+  renderView();
+  if (view === "broker") loadBrokerAccounts();
+}
 document.querySelectorAll(".nav[data-view]").forEach((b) =>
   b.addEventListener("click", () => {
     if (b.dataset.view === "chat") return $("#chat").classList.add("open");
-    state.view = b.dataset.view;
-    document.querySelectorAll(".nav[data-view]").forEach((x) => x.classList.toggle("active", x === b));
-    document.querySelectorAll(".view").forEach((v) => v.classList.toggle("hidden", v.id !== `view-${state.view}`));
-    renderView();
+    showView(b.dataset.view);
   }),
 );
 $("#chat-close").onclick = () => $("#chat").classList.remove("open");
@@ -134,6 +152,7 @@ function renderView() {
   else if (state.view === "notes") renderNotes();
   else if (state.view === "log") renderLog();
   else if (state.view === "portfolio") renderPortfolio();
+  else if (state.view === "broker") renderBroker();
 }
 
 // ---------- ufficio ----------
@@ -396,9 +415,18 @@ function renderApprovals() {
     .map((a) => {
       const o = a.order;
       const pending = a.status === "pending";
-      return `<article class="card ${pending ? "" : "decided"}">
-        <div class="kicker"><span class="${o.side}">${o.side === "buy" ? "Acquisto" : "Vendita"}</span><span class="meta">· ${esc(a.agentName)} · ${when(a.at)}</span></div>
-        <h3>${o.side === "buy" ? "Compra" : "Vendi"} ${o.qty} ${esc(o.symbol)}</h3>
+      const t = a.target;
+      const where = t?.mode === "ctrader"
+        ? `<span class="acct ${t.isLive ? "live" : "demo"}">${t.isLive ? "CONTO REALE" : "demo"}</span> <span class="meta">${esc(t.label)}</span>`
+        : `<span class="acct paper">simulato</span>`;
+      const title = o.action === "close"
+        ? `Chiudi la posizione n. ${esc(o.positionId)}${o.lots ? ` (${fmt(o.lots)} lotti)` : ""}`
+        : `${o.side === "buy" ? "Compra" : "Vendi"} ${o.lots != null ? `${esc(o.lots)} lotti` : esc(o.qty)} ${esc(o.symbol)}`;
+      const extra = [o.stop_loss_pct ? `stop loss ${fmt(o.stop_loss_pct, 1)}%` : "", o.take_profit_pct ? `take profit ${fmt(o.take_profit_pct, 1)}%` : ""].filter(Boolean).join(" · ");
+      return `<article class="card ${pending ? "" : "decided"} ${t?.isLive ? "live-card" : ""}">
+        <div class="kicker"><span class="${o.action === "close" ? "" : o.side}">${o.action === "close" ? "Chiusura" : o.side === "buy" ? "Acquisto" : "Vendita"}</span><span class="meta">· ${esc(a.agentName)} · ${when(a.at)}</span></div>
+        <h3>${title}</h3>
+        <div class="where">${where}${extra ? ` <span class="meta">· ${extra}</span>` : ""}</div>
         <p>${esc(o.reason) || "Nessuna motivazione"}</p>
         <div class="actions">
           ${pending
@@ -496,6 +524,314 @@ $("#reset-btn").onclick = async () => {
   await api("/api/reset", { method: "POST" });
   loadAll();
 };
+
+// ---------- broker cTrader e sicurezza ----------
+
+const accountById = (id) => state.broker?.accounts.find((a) => String(a.ctidTraderAccountId) === String(id));
+const accountName = (a) => `${a.broker || "cTrader"} ${a.traderLogin ?? a.ctidTraderAccountId}`;
+const acctBadge = (isLive) => `<span class="acct ${isLive ? "live" : "demo"}">${isLive ? "REALE" : "demo"}</span>`;
+
+async function loadBroker() {
+  state.broker = await api("/api/broker").catch(() => null);
+  renderStopControls();
+  if (state.view === "broker") renderBroker();
+}
+
+let accountsLoading = false;
+async function loadBrokerAccounts() {
+  if (accountsLoading || !state.broker?.linked) return;
+  accountsLoading = true;
+  if (!state.brokerAccounts) $("#broker-accounts").innerHTML = `<p class="hint">Carico i conti…</p>`;
+  try {
+    state.brokerAccounts = await api("/api/broker/accounts");
+  } catch (err) {
+    state.brokerAccounts = { error: err.message };
+  } finally {
+    accountsLoading = false;
+  }
+  if (state.view === "broker") renderBroker();
+}
+
+/** Non riscrive un modulo mentre l'utente ci sta scrivendo. */
+const editing = (el) => el.contains(document.activeElement) && document.activeElement !== el;
+
+function renderBroker() {
+  const b = state.broker;
+  if (!b) {
+    $("#app-status").innerHTML = `<p class="errors">Non riesco a leggere lo stato del broker.</p>`;
+    return;
+  }
+  const ks = b.safety.killSwitch;
+
+  // STOP
+  $("#stop-banner").classList.toggle("hidden", !ks.active);
+  $("#stop-banner").innerHTML = ks.active
+    ? `<b>⛔ STOP attivo</b> dal ${when(ks.at)} — ${esc(ks.reason)}. Gli agenti non possono aprire né chiudere posizioni e non partono in automatico.
+       <button class="btn good" id="resume-btn">Riattiva gli ordini</button>`
+    : "";
+  $("#stop-btn").textContent = ks.active ? "⛔ STOP attivo" : "⛔ STOP";
+  $("#stop-btn").disabled = ks.active;
+  $("#resume-btn")?.addEventListener("click", resumeOrders);
+
+  // Passo 1: app
+  $("#redirect-uri").textContent = b.redirectUri;
+  $("#app-status").innerHTML = b.configured
+    ? `<p class="ok-line">✔ App salvata (Client ID ${esc(b.clientId)}). Per cambiarla incolla nuove credenziali qui sotto.</p>`
+    : `<p class="hint">Serve una volta sola: cTrader ti dà un <b>Client ID</b> e un <b>Secret</b> per far parlare questo programma con il tuo conto.</p>`;
+  $("#app-howto").open = !b.configured;
+  $("#step-app").classList.toggle("done", b.configured);
+
+  // Passo 2: collegamento
+  const nDemo = b.accounts.filter((a) => !a.isLive).length;
+  const nLive = b.accounts.length - nDemo;
+  $("#link-status").innerHTML = !b.configured
+    ? `<p class="hint">Prima completa il passo 1.</p>`
+    : b.linked
+      ? `<p class="ok-line">✔ Collegato: ${b.accounts.length} conti (${nDemo} demo, ${nLive} reali).${b.scope === "SCOPE_VIEW" ? " ⚠️ Hai concesso solo la lettura: gli ordini non sono consentiti. Premi «Ricollega» e concedi il trading." : ""}</p>`
+      : `<p class="hint">Premi il pulsante: si apre la pagina di cTrader, accedi e premi <b>Allow access</b>. Poi torni qui da solo.</p>`;
+  if (b.lastError) $("#link-status").innerHTML += `<p class="hint warn-line">Ultimo errore: ${esc(b.lastError)}</p>`;
+  $("#ctrader-connect").disabled = !b.configured;
+  $("#ctrader-connect").textContent = b.linked ? "🔗 Ricollega" : "🔗 Collega cTrader";
+  $("#ctrader-refresh").classList.toggle("hidden", !b.linked);
+  $("#ctrader-unlink").classList.toggle("hidden", !b.linked);
+  $("#step-link").classList.toggle("done", b.linked);
+
+  // Conti
+  const infos = Array.isArray(state.brokerAccounts) ? state.brokerAccounts : [];
+  const infoOf = (id) => infos.find((x) => String(x.accountId) === String(id));
+  $("#broker-accounts").innerHTML = !b.linked
+    ? `<p class="empty">Nessun conto collegato.</p>`
+    : `<table><tr><th>Conto</th><th>Tipo</th><th>Saldo</th><th>Leva</th><th>Posizioni</th><th>Dati</th></tr>
+      ${b.accounts.map((a) => {
+        const x = infoOf(a.ctidTraderAccountId);
+        const i = x?.info;
+        return `<tr>
+          <td>${esc(accountName(a))}${i?.accountType && i.accountType !== "HEDGED" ? ` <small class="hint">(${esc(i.accountType)})</small>` : ""}</td>
+          <td>${acctBadge(a.isLive)}</td>
+          <td>${x?.error ? `<span class="down" title="${esc(x.error)}">errore</span>` : i ? `${fmt(i.balance)} ${esc(i.currency)}` : "…"}</td>
+          <td>${i?.leverage ? `1:${fmt(i.leverage, 0)}` : "—"}</td>
+          <td>${x?.positions ? x.positions.length : "—"}</td>
+          <td><input type="radio" name="data-account" value="${a.ctidTraderAccountId}" ${String(b.dataAccountId) === String(a.ctidTraderAccountId) ? "checked" : ""} title="Usa questo conto per prezzi e grafici" /></td>
+        </tr>`;
+      }).join("")}</table>
+      ${state.brokerAccounts?.error ? `<p class="errors">${esc(state.brokerAccounts.error)}</p>` : ""}
+      <button class="btn small" id="reload-accounts">↻ Aggiorna saldi e posizioni</button>`;
+  $("#broker-accounts").querySelectorAll('input[name="data-account"]').forEach((r) => {
+    r.onchange = () => brokerCall("/api/broker/data-account", "PUT", { accountId: Number(r.value) });
+  });
+  $("#reload-accounts")?.addEventListener("click", loadBrokerAccounts);
+  $("#symbol-search").classList.toggle("hidden", !b.linked);
+
+  // Piani
+  const live = b.safety.liveEnabled;
+  $("#broker-floors").innerHTML = b.floors.length
+    ? `<table class="floors-trading"><tr><th>Piano</th><th>Dove opera</th></tr>
+      ${b.floors.slice().reverse().map((f) => {
+        const cur = f.trading?.mode === "ctrader" ? String(f.trading.accountId) : "paper";
+        const missing = cur !== "paper" && !accountById(cur);
+        return `<tr><td><span class="floor-dot inline" style="--c:${esc(f.color)}"></span>${esc(f.name)}</td><td>
+          <select data-floor-trading="${esc(f.id)}">
+            <option value="paper" ${cur === "paper" ? "selected" : ""}>Portafoglio simulato</option>
+            ${b.accounts.map((a) => `<option value="${a.ctidTraderAccountId}" ${cur === String(a.ctidTraderAccountId) ? "selected" : ""} ${a.isLive && !live ? "disabled" : ""}>
+              ${a.isLive ? "⚠️ REALE" : "Demo"} · ${esc(accountName(a))}${a.isLive && !live ? " (bloccato)" : ""}</option>`).join("")}
+            ${missing ? `<option value="${esc(cur)}" selected>Conto ${esc(cur)} (non più disponibile)</option>` : ""}
+          </select></td></tr>`;
+      }).join("")}</table>`
+    : `<p class="empty">Nessun piano.</p>`;
+  $("#broker-floors").querySelectorAll("[data-floor-trading]").forEach((sel) => {
+    sel.onchange = async () => {
+      const acc = accountById(sel.value);
+      if (acc?.isLive && !confirm(`Collegare il piano al CONTO REALE ${accountName(acc)}?\n\nGli agenti di questo piano potranno usare soldi veri (sempre entro i limiti di sicurezza e le approvazioni).`)) {
+        return renderBroker();
+      }
+      await brokerCall(`/api/floors/${encodeURIComponent(sel.dataset.floorTrading)}/trading`, "PUT",
+        sel.value === "paper" ? { mode: "paper" } : { mode: "ctrader", accountId: Number(sel.value) });
+    };
+  });
+
+  // Posizioni
+  const rows = infos.flatMap((x) => (x.positions ?? []).map((p) => ({ ...p, accountId: x.accountId, acc: accountById(x.accountId), currency: x.info?.currency ?? "" })));
+  $("#broker-positions").innerHTML = !b.linked
+    ? `<p class="empty">—</p>`
+    : rows.length
+      ? `<table><tr><th>Strumento</th><th>Conto</th><th>Lato</th><th>Lotti</th><th>Apertura</th><th>Stop loss</th><th>Take profit</th><th>P&L</th><th>Aperta da</th><th></th></tr>
+        ${rows.map((p) => `<tr>
+          <td>${esc(p.symbol)}</td><td>${p.acc ? acctBadge(p.acc.isLive) : ""} ${esc(p.acc?.traderLogin ?? p.accountId)}</td>
+          <td class="${p.side === "buy" ? "up" : "down"}">${p.side === "buy" ? "acquisto" : "vendita"}</td>
+          <td>${fmt(p.lots, 2)}</td><td>${p.price ?? "—"}</td><td>${p.stopLoss ?? "—"}</td><td>${p.takeProfit ?? "—"}</td>
+          <td class="${(p.pnl ?? 0) >= 0 ? "up" : "down"}">${p.pnl == null ? "—" : `${fmt(p.pnl)} ${esc(p.currency)}`}</td>
+          <td>${p.label.startsWith("agenti:") ? `🤖 ${esc(p.label.slice(7))}` : "te (manuale)"}</td>
+          <td><button class="btn small danger" data-close-pos="${p.accountId}|${p.positionId}">Chiudi</button></td>
+        </tr>`).join("")}</table>`
+      : state.brokerAccounts ? `<p class="empty">Nessuna posizione aperta.</p>` : `<p class="hint">Carico…</p>`;
+  $("#broker-positions").querySelectorAll("[data-close-pos]").forEach((btn) => {
+    btn.onclick = async () => {
+      const [acc, pos] = btn.dataset.closePos.split("|");
+      if (!confirm("Chiudere questa posizione a mercato?")) return;
+      btn.disabled = true;
+      await brokerCall(`/api/broker/positions/${acc}/${pos}/close`, "POST", {});
+      loadBrokerAccounts();
+    };
+  });
+
+  // Sicurezza: limiti
+  const lf = $("#limits-form");
+  if (!editing(lf)) {
+    const L = b.safety.limits;
+    for (const k of ["maxLotsPerOrder", "maxOpenPositions", "maxOrdersPerDay", "maxDailyLossPct", "defaultStopLossPct"]) lf[k].value = L[k];
+    lf.requireStopLossLive.checked = L.requireStopLossLive;
+    lf.closeOnStop.checked = L.closeOnStop;
+  }
+
+  // Oggi
+  const day = b.safety.daily;
+  const accDays = Object.entries(day.accounts ?? {});
+  $("#today-box").innerHTML = `<h3>Oggi</h3>
+    ${accDays.length
+      ? `<table><tr><th>Conto</th><th>Ordini</th><th>Valore a inizio giornata</th></tr>
+        ${accDays.map(([id, d]) => {
+          const a = accountById(id);
+          return `<tr><td>${a ? `${acctBadge(a.isLive)} ${esc(a.traderLogin ?? id)}` : esc(id)}</td><td>${d.orders} / ${b.safety.limits.maxOrdersPerDay}</td><td>${d.startEquity == null ? "—" : fmt(d.startEquity)}</td></tr>`;
+        }).join("")}</table>`
+      : `<p class="hint">Ancora nessun ordine sul broker oggi.</p>`}
+    <p class="hint">Il valore dei conti usati dai piani viene controllato ogni minuto.</p>`;
+
+  // Conto reale
+  const liveForm = $("#live-form");
+  if (!editing(liveForm)) {
+    liveForm.innerHTML = live
+      ? `<h3>⚠️ Conto reale SBLOCCATO</h3>
+         <p class="hint">Puoi collegare i piani ai conti reali. Gli agenti operano con soldi veri, entro i limiti qui accanto.</p>
+         <div class="row"><button class="btn" type="submit">🔒 Blocca di nuovo</button></div>
+         <p class="hint">Bloccandolo, i piani collegati a un conto reale tornano al portafoglio simulato.</p>`
+      : `<h3>🔒 Conto reale bloccato</h3>
+         <p class="hint">Finché è bloccato gli agenti possono usare solo conti <b>demo</b>. Sbloccalo solo dopo aver provato a lungo il sistema sul demo.</p>
+         <label>Per sbloccarlo scrivi <b>${esc(b.liveConfirm)}</b> <input name="confirm" autocomplete="off" spellcheck="false" /></label>
+         <div class="row"><button class="btn danger" type="submit">Sblocca il conto reale</button></div>`;
+  }
+
+  // Ultimi ordini sul broker
+  $("#broker-trades").innerHTML = b.trades.length
+    ? `<table><tr><th>Quando</th><th>Agente</th><th>Conto</th><th>Operazione</th><th>Strumento</th><th>Lotti</th><th>Prezzo</th></tr>
+      ${b.trades.map((t) => `<tr title="${esc(t.reason)}"><td>${when(t.at)}</td><td>${esc(t.agentId)}</td><td>${acctBadge(t.isLive)} ${esc(accountById(t.accountId)?.traderLogin ?? t.accountId)}</td>
+        <td class="${t.side === "buy" ? "up" : "down"}">${t.action === "close" ? "chiusura" : t.side === "buy" ? "acquisto" : "vendita"}</td>
+        <td>${esc(t.symbol)}</td><td>${fmt(t.lots)}</td><td>${t.price ?? "—"}</td></tr>`).join("")}</table>`
+    : `<p class="empty">Nessun ordine degli agenti sul broker.</p>`;
+}
+
+/** Chiamata al server per il broker: mostra l'errore e aggiorna lo stato. */
+async function brokerCall(path, method, body, errorsEl = "#link-errors-broker") {
+  $(errorsEl).textContent = "";
+  try {
+    const r = await api(path, { method, body: JSON.stringify(body ?? {}) });
+    await loadBroker();
+    return r;
+  } catch (err) {
+    $(errorsEl).textContent = err.message;
+    if (errorsEl === "#link-errors-broker") alert(err.message);
+    await loadBroker();
+    return null;
+  }
+}
+
+$("#copy-redirect").onclick = async () => {
+  try {
+    await navigator.clipboard.writeText(state.broker.redirectUri);
+    $("#copy-redirect").textContent = "Copiato ✔";
+  } catch {
+    prompt("Copia questo indirizzo:", state.broker.redirectUri);
+  }
+};
+$("#app-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  const r = await brokerCall("/api/broker/credentials", "PUT", { clientId: f.clientId.value, clientSecret: f.clientSecret.value }, "#app-errors");
+  if (r) f.reset();
+});
+$("#ctrader-connect").onclick = async () => {
+  // La finestra si apre subito (altrimenti il browser la blocca), poi riceve l'indirizzo di cTrader.
+  const win = window.open("about:blank", "_blank");
+  try {
+    const { url } = await api("/api/broker/auth", { method: "POST" });
+    if (win) win.location.href = url;
+    else location.href = url;
+  } catch (err) {
+    win?.close();
+    alert(err.message);
+  }
+};
+$("#code-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const r = await brokerCall("/api/broker/code", "POST", { input: e.target.input.value });
+  if (r) {
+    e.target.reset();
+    state.brokerAccounts = null;
+    loadBrokerAccounts();
+  }
+});
+$("#ctrader-refresh").onclick = async () => {
+  await brokerCall("/api/broker/refresh-accounts", "POST");
+  loadBrokerAccounts();
+};
+$("#ctrader-unlink").onclick = async () => {
+  if (!confirm("Scollegare cTrader? I piani collegati a un conto non potranno più fare ordini finché non lo ricolleghi.")) return;
+  await brokerCall("/api/broker/unlink", "POST");
+  state.brokerAccounts = null;
+};
+$("#symbol-search").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const q = e.target.q.value.trim();
+  if (!q) return;
+  $("#symbol-results").innerHTML = `<p class="hint">Cerco…</p>`;
+  try {
+    const list = await api(`/api/broker/search?q=${encodeURIComponent(q)}`);
+    $("#symbol-results").innerHTML = list.length
+      ? `<p class="hint">Clicca un nome per copiarlo (da usare nelle watchlist degli agenti).</p>` +
+        list.map((x) => `<button class="chip" data-sym="${esc(x.symbol)}" title="${esc(x.description)}"><b>${esc(x.symbol)}</b> ${esc(x.description)}</button>`).join("")
+      : `<p class="hint">Nessuno strumento trovato.</p>`;
+    $("#symbol-results").querySelectorAll("[data-sym]").forEach((c) => {
+      c.onclick = () => navigator.clipboard?.writeText(c.dataset.sym).then(() => (c.classList.add("active")));
+    });
+  } catch (err) {
+    $("#symbol-results").innerHTML = `<p class="errors">${esc(err.message)}</p>`;
+  }
+});
+
+async function pressStop() {
+  if (!confirm("⛔ Fermare subito tutti gli ordini degli agenti?\n\nNessun agente potrà aprire o chiudere posizioni finché non riattivi gli ordini.")) return;
+  const closePositions = state.broker?.linked && confirm("Vuoi anche CHIUDERE ADESSO tutte le posizioni aperte dagli agenti sui conti cTrader?\n\nOK = chiudi le posizioni · Annulla = lasciale aperte");
+  const r = await brokerCall("/api/safety/stop", "POST", { closePositions });
+  if (r && closePositions) alert(`Chiuse ${r.closed} posizioni aperte dagli agenti.`);
+  refreshStats();
+  loadBrokerAccounts();
+}
+async function resumeOrders() {
+  if (!confirm("Riattivare gli ordini degli agenti?")) return;
+  await brokerCall("/api/safety/resume", "POST");
+  refreshStats();
+}
+$("#stop-btn").onclick = pressStop;
+$("#stop-cta").onclick = () => (state.broker?.safety.killSwitch.active ? showView("broker") : pressStop());
+
+$("#limits-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  const body = Object.fromEntries(["maxLotsPerOrder", "maxOpenPositions", "maxOrdersPerDay", "maxDailyLossPct", "defaultStopLossPct"].map((k) => [k, f[k].value]));
+  body.requireStopLossLive = f.requireStopLossLive.checked;
+  body.closeOnStop = f.closeOnStop.checked;
+  document.activeElement?.blur();
+  const r = await brokerCall("/api/safety/limits", "PUT", body, "#limits-errors");
+  if (r) $("#limits-errors").textContent = "";
+});
+$("#live-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const live = state.broker.safety.liveEnabled;
+  if (!live && !confirm("Sbloccare il CONTO REALE?\n\nDa ora potrai collegare i piani a conti con soldi veri. Fallo solo dopo aver provato a lungo sul conto demo.")) return;
+  const confirmText = e.target.confirm?.value ?? "";
+  document.activeElement?.blur();
+  await brokerCall("/api/safety/live", "POST", { enabled: !live, confirm: confirmText });
+  loadOffice();
+});
 
 // ---------- chat ----------
 
@@ -720,6 +1056,7 @@ function openEditor(agent) {
   form.onlyWatchlist.checked = agent.limits.onlyWatchlist !== false;
   checkboxes($("#tools-checks"), "tools", state.office.tools.map((t) => [t, t]), agent.tools);
   renderReadsFrom(agent.room, agent.readsFrom);
+  renderTradeTarget(agent.room);
   $("#delete-btn").classList.toggle("hidden", isNew);
   $("#run-btn").disabled = isNew;
   $("#form-errors").textContent = "";
@@ -746,7 +1083,19 @@ function renderReadsFrom(roomId, selected) {
 form.room.addEventListener("change", () => {
   const selected = [...form.querySelectorAll('input[name="readsFrom"]:checked')].map((i) => i.value);
   renderReadsFrom(form.room.value, selected);
+  renderTradeTarget(form.room.value);
 });
+
+/** Dove finiscono gli ordini di un agente: dipende dal piano della sua stanza. */
+function renderTradeTarget(roomId) {
+  const floor = floorById(floorOfRoom(roomId));
+  const t = floor?.trading;
+  const acc = t?.mode === "ctrader" ? accountById(t.accountId) : null;
+  $("#trade-target").innerHTML =
+    t?.mode === "ctrader"
+      ? `Gli ordini vanno sul conto cTrader <b>${esc(acc ? accountName(acc) : t.accountId)}</b>${acc?.isLive ? ' <span class="acct live">CONTO REALE</span>' : ""}: quantità in lotti, con stop loss. Si cambia in 🔌 Broker.`
+      : "Gli ordini vanno sul <b>portafoglio simulato</b>. Per farlo operare su un conto cTrader, collega il suo piano in 🔌 Broker.";
+}
 
 function readForm() {
   let params;
@@ -848,6 +1197,15 @@ events.onmessage = (msg) => {
     case "trade":
       refreshPortfolio();
       refreshStatsSoon();
+      if (ev.trade?.accountId) {
+        loadBroker();
+        if (state.view === "broker") loadBrokerAccounts();
+      }
+      break;
+    case "broker":
+    case "safety":
+      loadBroker();
+      refreshStatsSoon();
       break;
     case "stats":
       refreshStatsSoon();
@@ -868,6 +1226,7 @@ events.onmessage = (msg) => {
       loadOffice().then(() => {
         refreshStats();
         renderChat();
+        loadBroker();
       });
       break;
     case "reset":
@@ -876,6 +1235,12 @@ events.onmessage = (msg) => {
   }
 };
 
-loadAll();
+loadAll().then(() => {
+  if (location.hash === "#broker") {
+    showView("broker");
+    history.replaceState(null, "", location.pathname);
+  }
+});
 setInterval(refreshPortfolio, 60_000);
+setInterval(() => state.view === "broker" && loadBrokerAccounts(), 30_000);
 setTimeout(() => checkForUpdate({ quiet: true }), 3000); // un controllo silenzioso all'apertura

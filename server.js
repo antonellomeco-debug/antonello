@@ -5,8 +5,11 @@ import { office } from "./lib/office.js";
 import { PUBLIC_DIR, STRATEGIES_DIR, ROOT } from "./lib/paths.js";
 import path from "node:path";
 import { runAgent, isRunning } from "./lib/runner.js";
-import { getState, resetState, bus } from "./lib/store.js";
-import { portfolioValue, decide } from "./lib/broker.js";
+import { getState, resetState, bus, log } from "./lib/store.js";
+import { portfolioValue, decide, monitorAccounts } from "./lib/broker.js";
+import * as ctrader from "./lib/ctrader/service.js";
+import { codeFromInput } from "./lib/ctrader/oauth.js";
+import * as safety from "./lib/safety.js";
 import { chat, getTranscript, resetChat, isChatBusy, ASSISTANT_NAME } from "./lib/orchestrator.js";
 import { getQuote } from "./lib/market.js";
 import fs from "node:fs";
@@ -136,7 +139,10 @@ app.get("/api/stats", (_req, res) => {
     scheduled: office.agents().filter((a) => a.enabled && a.everyMinutes > 0).length,
     notes: notes.length,
     trades: st.portfolio.trades.length,
+    brokerTrades: (st.brokerTrades ?? []).length,
     pending: st.approvals.filter((a) => a.status === "pending").length,
+    stop: safety.isStopped(),
+    broker: ctrader.isReady() ? (office.building().floors.some((f) => f.trading?.mode === "ctrader") ? "in uso" : "collegato") : "no",
     costUsd: st.usage.costUsd,
     tokens: st.usage.inputTokens + st.usage.outputTokens,
   });
@@ -150,6 +156,130 @@ app.post("/api/approvals/:id", async (req, res) => {
     res.status(400).json({ error: e.message });
   }
 });
+
+// ---------- broker cTrader e sicurezza ----------
+const REDIRECT_URI = `http://localhost:${PORT}/ctrader/callback`;
+const handleAsync = (fn) => async (req, res) => {
+  try {
+    res.json((await fn(req)) ?? { ok: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+};
+const brokerStatus = () => ({
+  ...ctrader.status(),
+  redirectUri: REDIRECT_URI,
+  safety: safety.getSafety(),
+  liveConfirm: safety.LIVE_CONFIRM,
+  floors: office.building().floors.map((f) => ({ id: f.id, name: f.name, color: f.color, trading: f.trading ?? { mode: "paper" } })),
+  trades: (getState().brokerTrades ?? []).slice(-50).reverse(),
+});
+/** Conti usati da almeno un piano. */
+const accountsInUse = () => [...new Set(office.building().floors.filter((f) => f.trading?.mode === "ctrader").map((f) => String(f.trading.accountId)))];
+
+app.get("/api/broker", (_req, res) => res.json(brokerStatus()));
+app.put("/api/broker/credentials", handle((req) => {
+  ctrader.setCredentials({ clientId: req.body?.clientId, clientSecret: req.body?.clientSecret });
+  return brokerStatus();
+}));
+app.post("/api/broker/auth", handle(() => ({ url: ctrader.startAuth(REDIRECT_URI) })));
+// Il sito di cTrader rimanda qui il browser dopo l'accesso, con il codice nell'indirizzo.
+app.get("/ctrader/callback", async (req, res) => {
+  const page = (title, text, ok) =>
+    `<!doctype html><meta charset="utf-8"><title>${title}</title><body style="font-family:system-ui;background:#0f1420;color:#e8ecf4;display:grid;place-items:center;height:100vh;margin:0">` +
+    `<div style="max-width:520px;text-align:center"><h1>${ok ? "✅" : "⚠️"} ${title}</h1><p>${text}</p><p><a style="color:#7cc4ff" href="/#broker">Torna all'app</a></p></div>`;
+  const escHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  if (req.query.error) return res.status(400).send(page("Accesso annullato", escHtml(req.query.error_description ?? req.query.error), false));
+  try {
+    await ctrader.finishAuth(String(req.query.code ?? ""), REDIRECT_URI);
+    res.redirect("/#broker");
+  } catch (e) {
+    res.status(400).send(page("Collegamento non riuscito", escHtml(e.message), false));
+  }
+});
+// Alternativa: l'utente incolla l'indirizzo (o il codice) della pagina a cui è arrivato dopo l'accesso.
+app.post("/api/broker/code", handleAsync(async (req) => {
+  await ctrader.finishAuth(codeFromInput(req.body?.input), REDIRECT_URI);
+  return brokerStatus();
+}));
+app.post("/api/broker/unlink", handle(() => {
+  ctrader.unlink();
+  return brokerStatus();
+}));
+app.post("/api/broker/refresh-accounts", handleAsync(async () => {
+  await ctrader.refreshAccounts();
+  return brokerStatus();
+}));
+app.put("/api/broker/data-account", handle((req) => {
+  ctrader.setDataAccount(req.body?.accountId);
+  return brokerStatus();
+}));
+// Saldo e posizioni di ogni conto (anche quelli non assegnati a un piano).
+app.get("/api/broker/accounts", handleAsync(async () => {
+  const out = [];
+  for (const a of ctrader.status().accounts) {
+    const id = a.ctidTraderAccountId;
+    try {
+      const [info, positions] = await Promise.all([ctrader.accountInfo(id), ctrader.positions(id)]);
+      out.push({ accountId: id, info, positions });
+    } catch (e) {
+      out.push({ accountId: id, error: e.message });
+    }
+  }
+  return out;
+}));
+app.get("/api/broker/search", handleAsync(async (req) => {
+  const id = req.query.accountId ?? ctrader.dataAccountId();
+  if (!id) throw new Error("Collega prima cTrader.");
+  return ctrader.search(id, String(req.query.q ?? ""));
+}));
+// Chiudere una posizione è sempre permesso all'utente, anche con lo STOP attivo (riduce il rischio).
+app.post("/api/broker/positions/:accountId/:positionId/close", handleAsync(async (req) => {
+  const { accountId, positionId } = req.params;
+  if (!ctrader.account(accountId)) throw new Error("Conto non trovato.");
+  const lots = req.body?.lots ? Number(req.body.lots) : undefined;
+  const r = await ctrader.closePosition(accountId, Number(positionId), lots);
+  log("sicurezza", "info", `Posizione ${positionId} chiusa dall'utente sul conto ${accountId} (${r.lots} lotti)`);
+  bus.emit("event", { type: "trade", trade: { accountId, positionId, action: "close" } });
+  return r;
+}));
+app.put("/api/floors/:id/trading", handle((req) => {
+  const mode = req.body?.mode === "ctrader" ? "ctrader" : "paper";
+  return office.setFloorTrading(req.params.id, mode === "ctrader" ? { mode, accountId: req.body?.accountId } : { mode }, { source: "ui" });
+}));
+
+app.get("/api/safety", (_req, res) => res.json(safety.getSafety()));
+app.put("/api/safety/limits", handle((req) => safety.updateLimits(req.body ?? {})));
+app.post("/api/safety/stop", handleAsync(async (req) => {
+  safety.activateKill("STOP premuto dall'utente");
+  const closed = [];
+  if (req.body?.closePositions && ctrader.isReady()) {
+    for (const id of ctrader.status().accounts.map((a) => String(a.ctidTraderAccountId))) {
+      try {
+        closed.push(...(await ctrader.closeAgentPositions(id)));
+      } catch (e) {
+        log("sicurezza", "error", `Chiusura delle posizioni sul conto ${id} non riuscita: ${e.message}`);
+      }
+    }
+    log("sicurezza", "warn", `STOP: chiuse ${closed.length} posizioni aperte dagli agenti`);
+  }
+  return { ...safety.getSafety(), closed: closed.length };
+}));
+app.post("/api/safety/resume", handle(() => {
+  safety.deactivateKill();
+  return safety.getSafety();
+}));
+app.post("/api/safety/live", handle((req) => {
+  const enabled = Boolean(req.body?.enabled);
+  if (!enabled) {
+    // Bloccando il conto reale, i piani che lo usavano tornano al portafoglio simulato.
+    for (const f of office.building().floors) {
+      if (f.trading?.mode === "ctrader" && ctrader.account(f.trading.accountId)?.isLive) office.setFloorTrading(f.id, { mode: "paper" });
+    }
+  }
+  safety.setLive(enabled, req.body?.confirm);
+  return brokerStatus();
+}));
 
 const chatCtx = office;
 app.get("/api/chat", (_req, res) => res.json(getTranscript()));
@@ -215,10 +345,11 @@ app.get("/api/events", (req, res) => {
 app.use((err, _req, res, _next) => res.status(500).json({ error: err.message }));
 
 // Scheduler: ogni minuto avvia gli agenti con everyMinutes > 0 che sono "scaduti".
+// Con lo STOP attivo non parte nessun agente in automatico (si possono ancora avviare a mano).
 setInterval(() => {
   const now = Date.now();
   for (const agent of office.agents()) {
-    if (isUpdating()) return;
+    if (isUpdating() || safety.isStopped()) return;
     if (!agent.enabled || !(agent.everyMinutes > 0) || isRunning(agent.id)) continue;
     const prev = lastRun.has(agent.id) ? Date.parse(lastRun.get(agent.id)) : 0;
     if (now - prev >= agent.everyMinutes * 60_000) {
@@ -227,6 +358,20 @@ setInterval(() => {
     }
   }
 }, 60_000);
+
+// Controllo dei conti cTrader usati dai piani: perdita del giorno e STOP automatico.
+let monitoring = false;
+const monitor = async () => {
+  if (monitoring || accountsInUse().length === 0) return;
+  monitoring = true;
+  try {
+    await monitorAccounts();
+  } finally {
+    monitoring = false;
+  }
+};
+setInterval(monitor, 60_000);
+setTimeout(monitor, 5_000);
 
 function openBrowser() {
   if (process.env.OPEN_BROWSER === "0") return;
