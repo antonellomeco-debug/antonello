@@ -6,6 +6,7 @@ export default async function ({ agent, params, market, notes, portfolio, order,
   const { fast = 20, slow = 50, orderPct = 5, lots = 0.01, stopLossPct = 2 } = params;
   const { sma } = market.indicators;
   const onBroker = trading?.mode === "ctrader";
+  const same = (a, b) => String(a).toUpperCase().replace(/[^A-Z0-9]/g, "") === String(b).toUpperCase().replace(/[^A-Z0-9]/g, "");
   const pf = await portfolio();
   const lines = [];
 
@@ -16,8 +17,8 @@ export default async function ({ agent, params, market, notes, portfolio, order,
     const prevF = sma(closes.slice(0, -1), fast), prevS = sma(closes.slice(0, -1), slow);
     if (f == null || s == null) continue;
     const held = onBroker
-      ? pf.positions.find((p) => p.symbol.toUpperCase() === symbol.toUpperCase() && pf.myPositions.includes(p.positionId) && p.side === "buy")
-      : pf.positions.find((p) => p.symbol === symbol.toUpperCase());
+      ? pf.positions.find((p) => same(p.symbol, symbol) && pf.myPositions.includes(p.positionId) && p.side === "buy")
+      : pf.positions.find((p) => same(p.symbol, symbol));
     const price = closes.at(-1);
     let action = "attendi";
 

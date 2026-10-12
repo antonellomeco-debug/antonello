@@ -94,14 +94,14 @@ Claude esegue le `instructions` usando solo gli strumenti abilitati in `tools`:
 | Strumento | Cosa fa |
 |---|---|
 | `get_quote` | Ultimo prezzo e variazione (con cTrader: bid/ask del broker) |
-| `get_indicators` | SMA20/50, RSI14, volatilità, rendimenti su 5/20/60 candele; con cTrader anche su candele M1…W1 |
+| `get_indicators` | SMA20/50, RSI14, volatilità annualizzata, rendimenti su 5/20/60 candele (`return5d`… con D1, `return5_H1`… con altri periodi); con cTrader anche su candele M1…W1 |
 | `get_candles` | Ultime candele (con cTrader: periodi M1, M5, M15, M30, H1, H4, D1, W1) |
 | `search_symbols` | Cerca gli strumenti disponibili sul broker cTrader |
 | `read_notes` | Legge la propria stanza, le stanze del proprio piano scelte in `readsFrom` e tutte quelle dei piani collegati che mandano informazioni al suo piano |
 | `post_note` | Pubblica nella bacheca della propria stanza |
 | `get_portfolio` | Liquidità o saldo, posizioni, P&L del conto del suo piano |
 | `place_order` | Ordine sul conto del suo piano: simulato (`qty`) oppure cTrader (`lots`, `stop_loss_pct`, `take_profit_pct`); richiede `canTrade: true` |
-| `close_position` | Chiude (anche in parte) una posizione cTrader aperta dallo stesso agente |
+| `close_position` | Chiude (anche in parte) una posizione cTrader aperta dallo stesso agente; è sempre disponibile per chi ha `place_order` |
 
 `effort` (`low` … `max`) regola quanto a fondo ragiona il modello: più è alto, più l'analisi è accurata e più costa.
 
@@ -113,13 +113,13 @@ Claude esegue le `instructions` usando solo gli strumenti abilitati in `tools`:
   "everyMinutes": 60, "watchlist": ["AAPL", "MSFT"] }
 ```
 
-Le strategie si trovano in [`strategies/`](strategies). Quelle già incluse sono `sma_cross`, `rsi_reversion` e `risk_monitor`. Per scriverne una tua, copia [`strategies/_template.js`](strategies/_template.js): ricevi un `ctx` con dati di mercato, indicatori, bacheche, portafoglio e ordini simulati. Questa modalità non richiede una chiave API e non ha costi.
+Le strategie si trovano in [`strategies/`](strategies). Quelle già incluse sono `sma_cross`, `rsi_reversion` e `risk_monitor`. Per scriverne una tua, copia [`strategies/_template.js`](strategies/_template.js): ricevi un `ctx` con dati di mercato, indicatori, bacheche, il conto del piano (simulato o cTrader) e gli ordini, soggetti ad approvazioni e a Broker → Sicurezza. Questa modalità non richiede una chiave API e non ha costi.
 
 ### Campi comuni
 
 - `everyMinutes`: lo scheduler esegue l'agente ogni N minuti (`0` = solo a mano).
 - `enabled`: se `false`, lo scheduler lo ignora.
-- `limits.maxOrderPct` / `limits.maxPositionPct`: percentuale massima del portafoglio per un singolo ordine e per un singolo titolo.
+- `limits.maxOrderPct` / `limits.maxPositionPct`: percentuale massima del portafoglio per un singolo ordine e per un singolo titolo (solo portafoglio simulato; sui conti cTrader valgono i limiti di Broker → Sicurezza).
 - `limits.onlyWatchlist`: l'agente può operare solo sui titoli della sua watchlist.
 - `limits.requireApproval` (default `true`): ogni ordine finisce in **Approvazioni** e parte solo con il tuo ok. Con `false` l'agente esegue da solo sul conto del suo piano, sempre entro le regole di **Broker → Sicurezza**.
 
@@ -130,7 +130,8 @@ Il collegamento usa la [cTrader Open API](https://help.ctrader.com/open-api/) (p
 - **Dati**: se cTrader è collegato e lo strumento esiste sul conto "Dati", prezzi e candele arrivano dal broker (`source: "ctrader-demo"` / `"ctrader-live"`); altrimenti Yahoo Finance, con fallback a dati demo.
 - **Un conto per piano**: ogni piano ha `trading: { mode: "paper" }` oppure `{ mode: "ctrader", accountId }`. Gli agenti operano sul conto del piano della loro stanza. Le posizioni aperte dagli agenti hanno l'etichetta `agenti:<id>`; un agente può chiudere solo le proprie.
 - **Approvazioni**: ogni proposta ricorda il conto di destinazione; se nel frattempo il piano è passato a un altro conto, l'ordine non parte.
-- **Sicurezza** (`data/safety.json`, modificabile solo dall'interfaccia): STOP, lotti massimi per ordine, posizioni aperte e ordini al giorno per conto, perdita massima del giorno (controllata ogni minuto, attiva lo STOP), stop loss obbligatorio sul conto reale.
+- **Sicurezza** (`data/safety.json`, modificabile solo dall'interfaccia): STOP, lotti massimi per ordine, posizioni aperte e ordini al giorno per conto, perdita massima del giorno (controllata ogni minuto, depositi e prelievi esclusi: attiva lo STOP e blocca quel conto fino al giorno UTC successivo), stop loss predefinito su ogni ordine. Gli ordini di uno stesso conto passano uno alla volta, e STOP, blocco del conto reale e conto del piano si ricontrollano appena prima dell'invio.
+- Solo conti **HEDGED**: sui conti netting gli ordini degli agenti si mescolerebbero con le posizioni dell'utente.
 - **Conto reale**: bloccato finché l'utente non scrive `SOLDI VERI` in Broker → Sicurezza. Orion e gli agenti non possono collegare piani a conti reali né cambiare le regole di sicurezza.
 - Credenziali e token stanno in `data/ctrader.json` (permessi 600). I token si rinnovano da soli.
 

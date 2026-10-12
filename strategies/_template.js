@@ -19,7 +19,7 @@
 export default async function ({ agent, params, market, notes, portfolio, order, log }) {
   for (const symbol of agent.watchlist) {
     const q = await market.getQuote(symbol);
-    log(`${symbol}: ${q.price.toFixed(2)} (${q.changePct.toFixed(2)}%)`);
+    log(`${symbol}: ${q.price} (${q.changePct == null ? "variazione n/d" : `${q.changePct.toFixed(2)}%`})`);
   }
   notes.post("Esempio completato");
   return "ok";

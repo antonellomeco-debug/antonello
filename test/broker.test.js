@@ -28,13 +28,13 @@ after(() => fake.close());
 const { demo, live } = ACCOUNTS;
 const FLOOR = "piano-azioni"; // piano della stanza "trading" nel palazzo iniziale
 const agent = (over = {}) => ({
-  id: "trader", name: "Trader", room: "trading", canTrade: true, watchlist: ["EURUSD", "XAUUSD", "AAPL"],
+  id: "trader", name: "Trader", room: "trading", canTrade: true, watchlist: ["EURUSD", "XAUUSD", "AAPL", "ENI.IT"],
   limits: { requireApproval: false, onlyWatchlist: true, maxOrderPct: 10, maxPositionPct: 20 }, ...over,
 });
 const resetSafety = () => {
   safety.deactivateKill();
   safety.setLive(false);
-  safety.updateLimits({ maxLotsPerOrder: 0.1, maxOpenPositions: 5, maxOrdersPerDay: 20, maxDailyLossPct: 3, requireStopLossLive: true, defaultStopLossPct: 2, closeOnStop: false });
+  safety.updateLimits({ maxLotsPerOrder: 0.1, maxOpenPositions: 5, maxOrdersPerDay: 1000, maxDailyLossPct: 3, requireStopLoss: true, defaultStopLossPct: 2, closeOnStop: false });
 };
 
 test("collegamento al finto cTrader", async () => {
@@ -46,7 +46,7 @@ test("collegamento al finto cTrader", async () => {
 
 test("limiti di sicurezza: valori fuori intervallo rifiutati, frase per il conto reale", () => {
   assert.throws(() => safety.updateLimits({ maxLotsPerOrder: 0 }), /tra 0.01 e 100/);
-  assert.throws(() => safety.updateLimits({ maxDailyLossPct: "abc" }), /non valido/);
+  assert.throws(() => safety.updateLimits({ maxDailyLossPct: "abc" }), /Perdita massima del giorno.*tra 0.5 e 50/);
   assert.throws(() => safety.setLive(true, "soldi"), /SOLDI VERI/);
   safety.setLive(true, " soldi veri ");
   assert.equal(safety.getSafety().liveEnabled, true);
@@ -163,6 +163,113 @@ test("perdita del giorno oltre il limite: STOP automatico", () => {
   assert.equal(safety.isStopped(), true);
   assert.match(safety.getSafety().killSwitch.reason, /perdita del giorno/);
   resetSafety();
+});
+
+test("stop loss arrotondato ai decimali dello strumento (oro a 2 decimali)", async () => {
+  resetSafety();
+  office.setFloorTrading(FLOOR, { mode: "ctrader", accountId: demo });
+  const r = await broker.placeOrder(agent(), { symbol: "XAUUSD", side: "buy", lots: 0.01, stop_loss_pct: 1.37, take_profit_pct: 2.11 });
+  assert.equal(r.status, "filled");
+  const sent = fake.state.received.filter((m) => m.name === "ProtoOANewOrderReq").at(-1).data;
+  assert.equal(sent.relativeStopLoss % 1000, 0);
+  assert.equal(sent.relativeTakeProfit % 1000, 0);
+  await broker.placeOrder(agent(), { action: "close", positionId: r.positionId });
+});
+
+test("stop loss negativo rifiutato; senza stop loss si usa quello predefinito anche sul demo", async () => {
+  resetSafety();
+  await assert.rejects(broker.placeOrder(agent(), { symbol: "EURUSD", side: "buy", lots: 0.01, stop_loss_pct: -2 }), /Stop loss non valido/);
+  await assert.rejects(broker.placeOrder(agent(), { symbol: "EURUSD", side: "buy", lots: 0.01, stop_loss_pct: 80 }), /troppo lontano/);
+  const r = await broker.placeOrder(agent(), { symbol: "EURUSD", side: "buy", lots: 0.01 });
+  const p = (await ct.positions(demo)).find((x) => x.positionId === r.positionId);
+  assert.ok(p.stopLoss > 0);
+  await broker.placeOrder(agent(), { action: "close", positionId: r.positionId });
+});
+
+test("ordini in parallelo: i limiti valgono lo stesso", async () => {
+  resetSafety();
+  await ct.closeAgentPositions(demo);
+  safety.updateLimits({ maxOpenPositions: 2 });
+  const results = await Promise.allSettled(Array.from({ length: 5 }, () => broker.placeOrder(agent(), { symbol: "EURUSD", side: "buy", lots: 0.01 })));
+  assert.equal(results.filter((r) => r.status === "fulfilled").length, 2);
+  assert.match(results.find((r) => r.status === "rejected").reason.message, /Troppe posizioni/);
+  assert.equal((await ct.positions(demo)).filter((p) => p.label.startsWith("agenti")).length, 2);
+  await ct.closeAgentPositions(demo);
+  resetSafety();
+});
+
+test("STOP premuto mentre l'ordine è in viaggio: l'ordine non parte", async () => {
+  resetSafety();
+  safety.updateLimits({ maxLotsPerOrder: 1 }); // ENI.IT: minimo 1 lotto
+  const before = fake.state.received.filter((m) => m.name === "ProtoOANewOrderReq").length;
+  fake.state.hook = (name) => {
+    if (name === "ProtoOASubscribeSpotsReq") safety.activateKill("prova in viaggio");
+  };
+  await assert.rejects(broker.placeOrder(agent(), { symbol: "ENI.IT", side: "buy", lots: 1 }), /STOP attivo/);
+  fake.state.hook = null;
+  assert.equal(fake.state.received.filter((m) => m.name === "ProtoOANewOrderReq").length, before);
+  resetSafety();
+});
+
+test("proposte controllate subito: errori all'agente, chiusure con i dettagli della posizione", async () => {
+  resetSafety();
+  const a = agent({ limits: { ...agent().limits, requireApproval: true } });
+  await assert.rejects(broker.submitOrder(a, { symbol: "EURUSD", side: "buy", qty: 1000 }), /lotti/);
+  await assert.rejects(broker.submitOrder(a, { symbol: "US500", side: "buy", lots: 0.01 }), /watchlist/);
+  await assert.rejects(broker.submitOrder(a, { symbol: "EURUSD", side: "buy", lots: 5 }), /troppo grande/);
+  const r = await broker.placeOrder(agent(), { symbol: "EURUSD", side: "sell", lots: 0.02 });
+  const p = await broker.submitOrder(a, { action: "close", positionId: r.positionId, reason: "basta" });
+  const ap = getState().approvals.find((x) => x.id === p.approvalId);
+  assert.equal(ap.order.symbol, "EURUSD");
+  assert.equal(ap.order.side, "sell");
+  assert.equal(ap.order.positionLots, 0.02);
+  assert.equal((await broker.decide(p.approvalId, true)).status, "executed");
+});
+
+test("conti NETTED: gli agenti non possono operare", async () => {
+  fake.state.accountType = "NETTED";
+  await assert.rejects(broker.placeOrder(agent(), { symbol: "EURUSD", side: "buy", lots: 0.01 }), /HEDGED/);
+  fake.state.accountType = "HEDGED";
+});
+
+test("perdita del giorno superata: il conto resta fermo anche dopo aver riattivato gli ordini", async () => {
+  resetSafety();
+  const acc = 7373;
+  safety.checkDailyLoss(acc, 10_000);
+  assert.equal(safety.checkDailyLoss(acc, 9_600).fresh, true);
+  assert.equal(safety.isStopped(), true);
+  safety.deactivateKill();
+  assert.equal(safety.checkDailyLoss(acc, 9_600).fresh, false);
+  assert.equal(safety.isStopped(), false, "lo STOP non si riaccende da solo dopo che l'utente l'ha tolto");
+  assert.throws(() => safety.assertBrokerOrder({ accountId: acc, isLive: false, lots: 0.01, openAgentPositions: 0 }), /fino a domani/);
+  safety.updateLimits({ maxDailyLossPct: 5 });
+  safety.assertBrokerOrder({ accountId: acc, isLive: false, lots: 0.01, openAgentPositions: 0 });
+  resetSafety();
+});
+
+test("depositi e prelievi non contano come guadagni o perdite", async () => {
+  resetSafety();
+  await ct.accountInfo(demo); // conto collegato sulla connessione
+  safety.checkDailyLoss(demo, safety.getSafety().daily.accounts[String(demo)]?.startEquity ?? 10_000);
+  const start = safety.getSafety().daily.accounts[String(demo)].startEquity;
+  fake.deposit(demo, 500);
+  for (let i = 0; i < 50 && safety.getSafety().daily.accounts[String(demo)].startEquity === start; i++) await new Promise((r) => setTimeout(r, 20));
+  assert.equal(safety.getSafety().daily.accounts[String(demo)].startEquity, start + 500);
+  fake.deposit(demo, -200);
+  for (let i = 0; i < 50 && safety.getSafety().daily.accounts[String(demo)].startEquity === start + 500; i++) await new Promise((r) => setTimeout(r, 20));
+  assert.equal(safety.getSafety().daily.accounts[String(demo)].startEquity, start + 300);
+  fake.deposit(demo, -300); // il finto conto non cambia saldo: si torna al punto di partenza
+  for (let i = 0; i < 50 && safety.getSafety().daily.accounts[String(demo)].startEquity !== start; i++) await new Promise((r) => setTimeout(r, 20));
+});
+
+test("P&L non disponibile: il controllo della perdita si salta invece di usare dati sbagliati", async () => {
+  resetSafety();
+  await broker.placeOrder(agent(), { symbol: "EURUSD", side: "buy", lots: 0.01 });
+  fake.state.failPnl = true;
+  const out = await broker.monitorAccounts();
+  fake.state.failPnl = false;
+  assert.equal(out.length, 0);
+  assert.match(getState().log.at(-1).message, /P&L/);
 });
 
 test("controllo periodico e chiusura delle posizioni degli agenti", async () => {

@@ -77,8 +77,8 @@ test("candele: ordinate, OHLC convertiti, limite di velocità rispettato", async
 test("prezzo: denaro/lettera e prezzo medio", async () => {
   const q = await ct.quote(demo, "EURUSD");
   assert.equal(q.symbol, "EURUSD");
-  assert.ok(q.bid >= 1.085 && q.bid <= 1.0851);
-  assert.equal(q.ask, 1.0852);
+  assert.ok(q.bid >= 1.085 && q.bid <= 1.08501);
+  assert.equal(q.ask, 1.08502);
   assert.equal(q.source, "ctrader-demo");
 });
 

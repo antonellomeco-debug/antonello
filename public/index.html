@@ -167,7 +167,7 @@
               </div>
               <details class="howto" id="code-box">
                 <summary>La pagina finale dà errore o non torna all'app?</summary>
-                <p class="hint">Dopo aver premuto «Allow access», copia l'indirizzo <b>completo</b> dalla barra del browser (inizia con <code>http://localhost</code>) e incollalo qui.</p>
+                <p class="hint">Dopo aver premuto «Allow access», copia l'indirizzo <b>completo</b> dalla barra del browser (inizia con <code>http://localhost</code>) e incollalo qui <b>entro un minuto</b> (il codice scade presto; se è scaduto premi di nuovo «Collega cTrader»).</p>
                 <form class="row" id="code-form">
                   <input name="input" placeholder="http://localhost:3000/ctrader/callback?code=…" spellcheck="false" autocomplete="off" />
                   <button class="btn" type="submit">Conferma</button>
@@ -205,10 +205,10 @@
               <label>Perdita massima del giorno (%) <input name="maxDailyLossPct" type="number" step="0.5" min="0.5" /></label>
               <label>Stop loss predefinito (%) <input name="defaultStopLossPct" type="number" step="0.1" min="0.1" /></label>
             </div>
-            <label class="inline"><input type="checkbox" name="requireStopLossLive" /> Sul conto reale ogni ordine ha sempre uno stop loss</label>
+            <label class="inline"><input type="checkbox" name="requireStopLoss" /> Ogni ordine sul broker ha sempre uno stop loss (se l'agente non lo indica, quello predefinito)</label>
             <label class="inline"><input type="checkbox" name="closeOnStop" /> Quando scatta lo STOP automatico, chiudi anche le posizioni degli agenti</label>
-            <p class="hint">Se la perdita del giorno di un conto supera il limite, scatta lo <b>STOP</b>: nessun nuovo ordine finché non lo disattivi tu.</p>
-            <div class="row"><button class="btn primary" type="submit">Salva limiti</button><p class="errors" id="limits-errors"></p></div>
+            <p class="hint">Se la perdita del giorno di un conto supera il limite, scatta lo <b>STOP</b>. Riattivando gli ordini, su quel conto gli agenti restano comunque fermi fino al giorno dopo (00:00 UTC), a meno che tu alzi il limite.</p>
+            <div class="row wrap"><button class="btn primary" type="submit">Salva limiti</button><span class="hint" id="limits-saved"></span><p class="errors" id="limits-errors"></p></div>
           </form>
           <div class="card" id="today-box"></div>
           <form class="card live-box" id="live-form"></form>

@@ -6,7 +6,7 @@ import { PUBLIC_DIR, STRATEGIES_DIR, ROOT } from "./lib/paths.js";
 import path from "node:path";
 import { runAgent, isRunning } from "./lib/runner.js";
 import { getState, resetState, bus, log } from "./lib/store.js";
-import { portfolioValue, decide, monitorAccounts } from "./lib/broker.js";
+import { portfolioValue, decide, monitorAccounts, settleInFlight, closeAllAgentPositions } from "./lib/broker.js";
 import * as ctrader from "./lib/ctrader/service.js";
 import { codeFromInput } from "./lib/ctrader/oauth.js";
 import * as safety from "./lib/safety.js";
@@ -252,18 +252,25 @@ app.get("/api/safety", (_req, res) => res.json(safety.getSafety()));
 app.put("/api/safety/limits", handle((req) => safety.updateLimits(req.body ?? {})));
 app.post("/api/safety/stop", handleAsync(async (req) => {
   safety.activateKill("STOP premuto dall'utente");
-  const closed = [];
+  const report = { closed: 0, unconfirmed: 0, failed: [] };
   if (req.body?.closePositions && ctrader.isReady()) {
+    await settleInFlight(); // prima finiscono gli ordini già partiti, poi si chiude tutto
     for (const id of ctrader.status().accounts.map((a) => String(a.ctidTraderAccountId))) {
       try {
-        closed.push(...(await ctrader.closeAgentPositions(id)));
+        const r = await closeAllAgentPositions(id);
+        report.closed += r.closed.length;
+        report.unconfirmed += r.unconfirmed.length;
+        report.failed.push(...r.failed.map((f) => ({ accountId: id, symbol: f.symbol, error: f.error })));
       } catch (e) {
-        log("sicurezza", "error", `Chiusura delle posizioni sul conto ${id} non riuscita: ${e.message}`);
+        report.failed.push({ accountId: id, symbol: "tutte le posizioni del conto", error: e.message });
       }
     }
-    log("sicurezza", "warn", `STOP: chiuse ${closed.length} posizioni aperte dagli agenti`);
+    log("sicurezza", report.failed.length ? "error" : "warn",
+      `STOP: chiuse ${report.closed} posizioni degli agenti` +
+        (report.unconfirmed ? `, ${report.unconfirmed} in attesa di conferma` : "") +
+        (report.failed.length ? `; NON chiuse: ${report.failed.map((f) => `${f.symbol} sul conto ${f.accountId} (${f.error})`).join("; ")}` : ""));
   }
-  return { ...safety.getSafety(), closed: closed.length };
+  return { ...safety.getSafety(), ...report };
 }));
 app.post("/api/safety/resume", handle(() => {
   safety.deactivateKill();
@@ -273,8 +280,11 @@ app.post("/api/safety/live", handle((req) => {
   const enabled = Boolean(req.body?.enabled);
   if (!enabled) {
     // Bloccando il conto reale, i piani che lo usavano tornano al portafoglio simulato.
+    // (anche quelli il cui conto non è più nell'elenco: potrebbe essere reale)
     for (const f of office.building().floors) {
-      if (f.trading?.mode === "ctrader" && ctrader.account(f.trading.accountId)?.isLive) office.setFloorTrading(f.id, { mode: "paper" });
+      if (f.trading?.mode !== "ctrader") continue;
+      const acc = ctrader.account(f.trading.accountId);
+      if (!acc || acc.isLive) office.setFloorTrading(f.id, { mode: "paper" });
     }
   }
   safety.setLive(enabled, req.body?.confirm);
@@ -372,6 +382,9 @@ const monitor = async () => {
 };
 setInterval(monitor, 60_000);
 setTimeout(monitor, 5_000);
+
+// control + C o chiusura della finestra: uscita ordinata, così i dati in attesa vengono salvati.
+for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) process.on(sig, () => process.exit(0));
 
 function openBrowser() {
   if (process.env.OPEN_BROWSER === "0") return;

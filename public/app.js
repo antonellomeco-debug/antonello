@@ -420,18 +420,19 @@ function renderApprovals() {
         ? `<span class="acct ${t.isLive ? "live" : "demo"}">${t.isLive ? "CONTO REALE" : "demo"}</span> <span class="meta">${esc(t.label)}</span>`
         : `<span class="acct paper">simulato</span>`;
       const title = o.action === "close"
-        ? `Chiudi la posizione n. ${esc(o.positionId)}${o.lots ? ` (${fmt(o.lots)} lotti)` : ""}`
+        ? `Chiudi ${o.side === "sell" ? "la vendita" : "l'acquisto"} di ${esc(o.lots ?? o.positionLots ?? "")} lotti ${esc(o.symbol)}` +
+          `${o.lots && o.positionLots && o.lots < o.positionLots ? ` (su ${esc(o.positionLots)})` : ""}${o.pnl != null ? ` · P&L attuale ${fmt(o.pnl)}` : ""}`
         : `${o.side === "buy" ? "Compra" : "Vendi"} ${o.lots != null ? `${esc(o.lots)} lotti` : esc(o.qty)} ${esc(o.symbol)}`;
       const extra = [o.stop_loss_pct ? `stop loss ${fmt(o.stop_loss_pct, 1)}%` : "", o.take_profit_pct ? `take profit ${fmt(o.take_profit_pct, 1)}%` : ""].filter(Boolean).join(" · ");
       return `<article class="card ${pending ? "" : "decided"} ${t?.isLive ? "live-card" : ""}">
-        <div class="kicker"><span class="${o.action === "close" ? "" : o.side}">${o.action === "close" ? "Chiusura" : o.side === "buy" ? "Acquisto" : "Vendita"}</span><span class="meta">· ${esc(a.agentName)} · ${when(a.at)}</span></div>
+        <div class="kicker"><span class="${o.action === "close" ? "" : esc(o.side)}">${o.action === "close" ? "Chiusura" : o.side === "buy" ? "Acquisto" : "Vendita"}</span><span class="meta">· ${esc(a.agentName)} · ${when(a.at)}</span></div>
         <h3>${title}</h3>
         <div class="where">${where}${extra ? ` <span class="meta">· ${extra}</span>` : ""}</div>
         <p>${esc(o.reason) || "Nessuna motivazione"}</p>
         <div class="actions">
           ${pending
             ? `<button class="btn good" data-approve="${a.id}">Fallo per me</button><button class="btn ghost" data-reject="${a.id}">Scarta</button>`
-            : `<span class="meta">${label[a.status] ?? a.status}${a.trade ? ` a ${fmt(a.trade.price)}` : ""}${a.error ? ` — ${esc(a.error)}` : ""}</span>`}
+            : `<span class="meta">${approvalOutcome(a, label)}</span>`}
         </div>
       </article>`;
     })
@@ -448,6 +449,15 @@ function renderApprovals() {
       }
     }),
   );
+}
+
+/** Esito di una proposta già decisa (sui conti cTrader il prezzo resta con tutti i decimali). */
+function approvalOutcome(a, label) {
+  if (a.error) return `${label[a.status] ?? esc(a.status)} — ${esc(a.error)}`;
+  if (a.status !== "executed" || !a.trade) return label[a.status] ?? esc(a.status);
+  if (a.trade.status === "accepted") return "Inviato a cTrader, esecuzione non ancora confermata: controlla Broker → Posizioni aperte";
+  const price = a.target?.mode === "ctrader" ? (a.trade.price ?? "—") : fmt(a.trade.price);
+  return `${label.executed}${a.trade.price != null ? ` a ${esc(price)}` : ""}${a.trade.lots != null ? ` · ${esc(a.trade.lots)} lotti` : ""}`;
 }
 
 // ---------- bacheca ----------
@@ -578,7 +588,8 @@ function renderBroker() {
   $("#app-status").innerHTML = b.configured
     ? `<p class="ok-line">✔ App salvata (Client ID ${esc(b.clientId)}). Per cambiarla incolla nuove credenziali qui sotto.</p>`
     : `<p class="hint">Serve una volta sola: cTrader ti dà un <b>Client ID</b> e un <b>Secret</b> per far parlare questo programma con il tuo conto.</p>`;
-  $("#app-howto").open = !b.configured;
+  if (state.brokerConfigured !== b.configured) $("#app-howto").open = !b.configured; // solo quando cambia
+  state.brokerConfigured = b.configured;
   $("#step-app").classList.toggle("done", b.configured);
 
   // Passo 2: collegamento
@@ -606,7 +617,7 @@ function renderBroker() {
         const x = infoOf(a.ctidTraderAccountId);
         const i = x?.info;
         return `<tr>
-          <td>${esc(accountName(a))}${i?.accountType && i.accountType !== "HEDGED" ? ` <small class="hint">(${esc(i.accountType)})</small>` : ""}</td>
+          <td>${esc(accountName(a))}${i?.accountType && i.accountType !== "HEDGED" ? ` <small class="warn-line">(${esc(i.accountType)}: non adatto agli agenti)</small>` : ""}</td>
           <td>${acctBadge(a.isLive)}</td>
           <td>${x?.error ? `<span class="down" title="${esc(x.error)}">errore</span>` : i ? `${fmt(i.balance)} ${esc(i.currency)}` : "…"}</td>
           <td>${i?.leverage ? `1:${fmt(i.leverage, 0)}` : "—"}</td>
@@ -622,9 +633,9 @@ function renderBroker() {
   $("#reload-accounts")?.addEventListener("click", loadBrokerAccounts);
   $("#symbol-search").classList.toggle("hidden", !b.linked);
 
-  // Piani
+  // Piani (non si ricostruisce mentre l'utente ha un menu aperto)
   const live = b.safety.liveEnabled;
-  $("#broker-floors").innerHTML = b.floors.length
+  if (!editing($("#broker-floors"))) $("#broker-floors").innerHTML = b.floors.length
     ? `<table class="floors-trading"><tr><th>Piano</th><th>Dove opera</th></tr>
       ${b.floors.slice().reverse().map((f) => {
         const cur = f.trading?.mode === "ctrader" ? String(f.trading.accountId) : "paper";
@@ -674,12 +685,12 @@ function renderBroker() {
     };
   });
 
-  // Sicurezza: limiti
+  // Sicurezza: limiti (non si riscrivono finché ci sono modifiche non salvate)
   const lf = $("#limits-form");
-  if (!editing(lf)) {
+  if (!lf.dataset.dirty) {
     const L = b.safety.limits;
     for (const k of ["maxLotsPerOrder", "maxOpenPositions", "maxOrdersPerDay", "maxDailyLossPct", "defaultStopLossPct"]) lf[k].value = L[k];
-    lf.requireStopLossLive.checked = L.requireStopLossLive;
+    lf.requireStopLoss.checked = L.requireStopLoss;
     lf.closeOnStop.checked = L.closeOnStop;
   }
 
@@ -688,17 +699,20 @@ function renderBroker() {
   const accDays = Object.entries(day.accounts ?? {});
   $("#today-box").innerHTML = `<h3>Oggi</h3>
     ${accDays.length
-      ? `<table><tr><th>Conto</th><th>Ordini</th><th>Valore a inizio giornata</th></tr>
+      ? `<table><tr><th>Conto</th><th>Ordini</th><th>Inizio giornata</th><th>Adesso</th><th>Perdita</th></tr>
         ${accDays.map(([id, d]) => {
           const a = accountById(id);
-          return `<tr><td>${a ? `${acctBadge(a.isLive)} ${esc(a.traderLogin ?? id)}` : esc(id)}</td><td>${d.orders} / ${b.safety.limits.maxOrdersPerDay}</td><td>${d.startEquity == null ? "—" : fmt(d.startEquity)}</td></tr>`;
-        }).join("")}</table>`
-      : `<p class="hint">Ancora nessun ordine sul broker oggi.</p>`}
-    <p class="hint">Il valore dei conti usati dai piani viene controllato ogni minuto.</p>`;
+          return `<tr class="${d.breached ? "breached" : ""}"><td>${a ? `${acctBadge(a.isLive)} ${esc(a.traderLogin ?? id)}` : esc(id)}</td><td>${d.orders} / ${b.safety.limits.maxOrdersPerDay}</td>
+            <td>${d.startEquity == null ? "—" : fmt(d.startEquity)}</td><td>${d.equity == null ? "—" : fmt(d.equity)}</td>
+            <td class="${(d.lossPct ?? 0) > 0 ? "down" : "up"}">${d.startEquity == null ? "—" : `${fmt(d.lossPct ?? 0)}%`}${d.breached ? " ⛔" : ""}</td></tr>`;
+        }).join("")}</table>
+        ${accDays.some(([, d]) => d.breached) ? `<p class="hint warn-line">⛔ = limite di perdita superato: su quel conto gli agenti non possono aprire posizioni fino a domani (il giorno cambia alle 00:00 UTC), anche se riattivi gli ordini. Per sbloccarlo prima, alza la perdita massima.</p>` : ""}`
+      : `<p class="hint">Ancora nessun ordine o controllo sul broker oggi.</p>`}
+    <p class="hint">Il valore dei conti usati dai piani viene controllato ogni minuto (depositi e prelievi non contano).</p>`;
 
   // Conto reale
   const liveForm = $("#live-form");
-  if (!editing(liveForm)) {
+  if (!editing(liveForm) && !liveForm.dataset.dirty) {
     liveForm.innerHTML = live
       ? `<h3>⚠️ Conto reale SBLOCCATO</h3>
          <p class="hint">Puoi collegare i piani ai conti reali. Gli agenti operano con soldi veri, entro i limiti qui accanto.</p>
@@ -715,7 +729,7 @@ function renderBroker() {
     ? `<table><tr><th>Quando</th><th>Agente</th><th>Conto</th><th>Operazione</th><th>Strumento</th><th>Lotti</th><th>Prezzo</th></tr>
       ${b.trades.map((t) => `<tr title="${esc(t.reason)}"><td>${when(t.at)}</td><td>${esc(t.agentId)}</td><td>${acctBadge(t.isLive)} ${esc(accountById(t.accountId)?.traderLogin ?? t.accountId)}</td>
         <td class="${t.side === "buy" ? "up" : "down"}">${t.action === "close" ? "chiusura" : t.side === "buy" ? "acquisto" : "vendita"}</td>
-        <td>${esc(t.symbol)}</td><td>${fmt(t.lots)}</td><td>${t.price ?? "—"}</td></tr>`).join("")}</table>`
+        <td>${esc(t.symbol)}</td><td>${fmt(t.lots)}</td><td>${t.status === "incerto" ? '<span class="warn-line" title="Connessione interrotta durante l\'invio">esito incerto</span>' : t.status === "accepted" ? `${esc(t.price ?? "—")} <small class="hint">(da confermare)</small>` : esc(t.price ?? "—")}</td></tr>`).join("")}</table>`
     : `<p class="empty">Nessun ordine degli agenti sul broker.</p>`;
 }
 
@@ -801,7 +815,15 @@ async function pressStop() {
   if (!confirm("⛔ Fermare subito tutti gli ordini degli agenti?\n\nNessun agente potrà aprire o chiudere posizioni finché non riattivi gli ordini.")) return;
   const closePositions = state.broker?.linked && confirm("Vuoi anche CHIUDERE ADESSO tutte le posizioni aperte dagli agenti sui conti cTrader?\n\nOK = chiudi le posizioni · Annulla = lasciale aperte");
   const r = await brokerCall("/api/safety/stop", "POST", { closePositions });
-  if (r && closePositions) alert(`Chiuse ${r.closed} posizioni aperte dagli agenti.`);
+  if (r && closePositions) {
+    let msg = `Chiuse ${r.closed} posizioni aperte dagli agenti.`;
+    if (r.unconfirmed) msg += `\n${r.unconfirmed} chiusure inviate ma non ancora confermate.`;
+    if (r.failed?.length) {
+      msg += `\n\n⚠️ NON CHIUSE (chiudile da «Posizioni aperte» o direttamente in cTrader):\n` +
+        r.failed.map((f) => `• ${f.symbol} (conto ${f.accountId}): ${f.error}`).join("\n");
+    }
+    alert(msg);
+  }
   refreshStats();
   loadBrokerAccounts();
 }
@@ -813,18 +835,33 @@ async function resumeOrders() {
 $("#stop-btn").onclick = pressStop;
 $("#stop-cta").onclick = () => (state.broker?.safety.killSwitch.active ? showView("broker") : pressStop());
 
-$("#limits-form").addEventListener("submit", async (e) => {
+const limitsForm = $("#limits-form");
+for (const ev of ["input", "change"]) {
+  limitsForm.addEventListener(ev, () => {
+    limitsForm.dataset.dirty = "1";
+    $("#limits-saved").textContent = "Modifiche non salvate";
+  });
+}
+limitsForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const f = e.target;
   const body = Object.fromEntries(["maxLotsPerOrder", "maxOpenPositions", "maxOrdersPerDay", "maxDailyLossPct", "defaultStopLossPct"].map((k) => [k, f[k].value]));
-  body.requireStopLossLive = f.requireStopLossLive.checked;
+  body.requireStopLoss = f.requireStopLoss.checked;
   body.closeOnStop = f.closeOnStop.checked;
-  document.activeElement?.blur();
-  const r = await brokerCall("/api/safety/limits", "PUT", body, "#limits-errors");
-  if (r) $("#limits-errors").textContent = "";
+  $("#limits-errors").textContent = "";
+  try {
+    await api("/api/safety/limits", { method: "PUT", body: JSON.stringify(body) });
+    delete f.dataset.dirty;
+    $("#limits-saved").textContent = "Limiti salvati ✔";
+    await loadBroker();
+  } catch (err) {
+    $("#limits-errors").textContent = err.message; // i valori scritti restano nel modulo per correggerli
+  }
 });
+$("#live-form").addEventListener("input", (e) => (e.currentTarget.dataset.dirty = "1"));
 $("#live-form").addEventListener("submit", async (e) => {
   e.preventDefault();
+  delete e.currentTarget.dataset.dirty;
   const live = state.broker.safety.liveEnabled;
   if (!live && !confirm("Sbloccare il CONTO REALE?\n\nDa ora potrai collegare i piani a conti con soldi veri. Fallo solo dopo aver provato a lungo sul conto demo.")) return;
   const confirmText = e.target.confirm?.value ?? "";
@@ -1093,7 +1130,7 @@ function renderTradeTarget(roomId) {
   const acc = t?.mode === "ctrader" ? accountById(t.accountId) : null;
   $("#trade-target").innerHTML =
     t?.mode === "ctrader"
-      ? `Gli ordini vanno sul conto cTrader <b>${esc(acc ? accountName(acc) : t.accountId)}</b>${acc?.isLive ? ' <span class="acct live">CONTO REALE</span>' : ""}: quantità in lotti, con stop loss. Si cambia in 🔌 Broker.`
+      ? `Gli ordini vanno sul conto cTrader <b>${esc(acc ? accountName(acc) : t.accountId)}</b>${acc?.isLive ? ' <span class="acct live">CONTO REALE</span>' : ""}: quantità in lotti, con stop loss (se l'agente non lo indica si usa quello predefinito di Broker → Sicurezza). Si cambia in 🔌 Broker.`
       : "Gli ordini vanno sul <b>portafoglio simulato</b>. Per farlo operare su un conto cTrader, collega il suo piano in 🔌 Broker.";
 }
 

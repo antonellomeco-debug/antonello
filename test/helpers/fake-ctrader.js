@@ -13,7 +13,7 @@ const SYMBOLS = [
 ];
 const DETAILS = {
   1: { digits: 5, pipPosition: 4, lotSize: 10_000_000, minVolume: 100_000, stepVolume: 100_000, maxVolume: 10_000_000_000, price: 108_500 },
-  2: { digits: 2, pipPosition: 2, lotSize: 10_000, minVolume: 100, stepVolume: 100, maxVolume: 10_000_000, price: 240_000_000 },
+  2: { digits: 2, pipPosition: 2, lotSize: 10_000, minVolume: 100, stepVolume: 100, maxVolume: 10_000_000, price: 240_037_000 }, // 2400.37
   3: { digits: 1, pipPosition: 0, lotSize: 100, minVolume: 100, stepVolume: 100, maxVolume: 1_000_000, price: 600_000_000 },
   4: { digits: 3, pipPosition: 2, lotSize: 100, minVolume: 100, stepVolume: 100, maxVolume: 1_000_000, price: 1_450_000 },
 };
@@ -28,7 +28,12 @@ export function startFake({ port = 0, tokenPort = 0, validTokens = new Set(["tok
     refreshed: 0,
     sockets: new Set(),
     trendbarWindows: [],
+    accountType: "HEDGED",
+    failPnl: false,
+    hook: null, // (nome del messaggio) => void, chiamato a ogni richiesta ricevuta
+    clients: new Set(), // { authed, send } per ogni connessione
   };
+  const step = (d) => 10 ** Math.max(0, 5 - d.digits); // i prezzi sono multipli di questo valore
 
   const server = net.createServer((socket) => {
     state.sockets.add(socket);
@@ -37,7 +42,12 @@ export function startFake({ port = 0, tokenPort = 0, validTokens = new Set(["tok
     const authed = new Set();
     const send = (name, data, clientMsgId) => socket.write(frame(encodeMessage(name, data, clientMsgId)));
     const err = (code, id, extra = {}) => send("ProtoOAErrorRes", { errorCode: code, description: code, ...extra }, id);
-    socket.on("close", () => state.sockets.delete(socket));
+    const client = { authed, send };
+    state.clients.add(client);
+    socket.on("close", () => {
+      state.sockets.delete(socket);
+      state.clients.delete(client);
+    });
     socket.on("data", (chunk) => {
       buf = Buffer.concat([buf, chunk]);
       const { messages, rest } = unframe(buf);
@@ -45,6 +55,7 @@ export function startFake({ port = 0, tokenPort = 0, validTokens = new Set(["tok
       for (const bytes of messages) {
         const m = decodeMessage(bytes);
         state.received.push(m);
+        state.hook?.(m.name);
         handle(m);
       }
     });
@@ -98,9 +109,10 @@ export function startFake({ port = 0, tokenPort = 0, validTokens = new Set(["tok
           send("ProtoOASubscribeSpotsRes", { ctidTraderAccountId: acc }, id);
           for (const sid of data.symbolId) {
             const p = DETAILS[sid].price;
-            setTimeout(() => send("ProtoOASpotEvent", { ctidTraderAccountId: acc, symbolId: sid, bid: p, ask: p + 20 }), 20);
+            const t = step(DETAILS[sid]);
+            setTimeout(() => send("ProtoOASpotEvent", { ctidTraderAccountId: acc, symbolId: sid, bid: p, ask: p + 2 * t }), 20);
             // un aggiornamento con solo il bid: l'ask deve restare quello di prima
-            setTimeout(() => send("ProtoOASpotEvent", { ctidTraderAccountId: acc, symbolId: sid, bid: p + 10 }), 60);
+            setTimeout(() => send("ProtoOASpotEvent", { ctidTraderAccountId: acc, symbolId: sid, bid: p + t }), 60);
           }
           return;
         case "ProtoOAGetTrendbarsReq": {
@@ -131,13 +143,14 @@ export function startFake({ port = 0, tokenPort = 0, validTokens = new Set(["tok
             "ProtoOATraderRes",
             {
               ctidTraderAccountId: acc,
-              trader: { ctidTraderAccountId: acc, balance: 1_000_000, depositAssetId: 1, leverageInCents: 3000, moneyDigits: 2, accountType: "HEDGED", traderLogin: 5550001, brokerName: "FP Markets" },
+              trader: { ctidTraderAccountId: acc, balance: 1_000_000, depositAssetId: 1, leverageInCents: 3000, moneyDigits: 2, accountType: state.accountType, traderLogin: 5550001, brokerName: "FP Markets" },
             },
             id,
           );
         case "ProtoOAReconcileReq":
           return send("ProtoOAReconcileRes", { ctidTraderAccountId: acc, position: [...state.positions.values()].filter((p) => p.acc === acc).map((p) => p.proto) }, id);
         case "ProtoOAGetPositionUnrealizedPnLReq":
+          if (state.failPnl) return err("INTERNAL_ERROR", id);
           return send(
             "ProtoOAGetPositionUnrealizedPnLRes",
             {
@@ -151,9 +164,13 @@ export function startFake({ port = 0, tokenPort = 0, validTokens = new Set(["tok
           const d = DETAILS[data.symbolId];
           if (data.volume < d.minVolume || data.volume % d.stepVolume) return send("ProtoOAOrderErrorEvent", { ctidTraderAccountId: acc, errorCode: "TRADING_BAD_VOLUME", description: "bad volume" }, id);
           if (data.stopLoss != null || data.takeProfit != null) return send("ProtoOAOrderErrorEvent", { ctidTraderAccountId: acc, errorCode: "TRADING_BAD_STOPS", description: "absolute SL on market" }, id);
+          // Come il server vero: le distanze relative devono rispettare i decimali dello strumento.
+          if ((data.relativeStopLoss ?? 0) % step(d) || (data.relativeTakeProfit ?? 0) % step(d)) {
+            return send("ProtoOAOrderErrorEvent", { ctidTraderAccountId: acc, errorCode: "TRADING_BAD_STOPS", description: "Relative stop loss has invalid precision" }, id);
+          }
           const orderId = ++state.nextId;
           const positionId = ++state.nextId;
-          const price = (data.tradeSide === "BUY" ? d.price + 20 : d.price) / 100000;
+          const price = (data.tradeSide === "BUY" ? d.price + 2 * step(d) : d.price) / 100000;
           const sl = data.relativeStopLoss ? (data.tradeSide === "BUY" ? price - data.relativeStopLoss / 100000 : price + data.relativeStopLoss / 100000) : undefined;
           const tradeData = { symbolId: data.symbolId, volume: data.volume, tradeSide: data.tradeSide, label: data.label, comment: data.comment, openTimestamp: Date.now() };
           const order = { orderId, tradeData, orderType: "MARKET", orderStatus: "ORDER_STATUS_ACCEPTED" };
@@ -238,6 +255,17 @@ export function startFake({ port = 0, tokenPort = 0, validTokens = new Set(["tok
           tokenPort: tokenServer.address().port,
           state,
           dropConnections: () => [...state.sockets].forEach((s) => s.destroy()),
+          /** Simula un deposito (amount > 0) o un prelievo (amount < 0) sul conto. */
+          deposit: (acc, amount) => {
+            for (const c of state.clients) {
+              if (!c.authed.has(acc)) continue;
+              c.send("ProtoOAExecutionEvent", {
+                ctidTraderAccountId: acc,
+                executionType: "DEPOSIT_WITHDRAW",
+                depositWithdraw: { operationType: amount > 0 ? "BALANCE_DEPOSIT" : "BALANCE_WITHDRAW", balanceHistoryId: ++state.nextId, balance: 1_000_000, delta: Math.round(Math.abs(amount) * 100), changeBalanceTimestamp: Date.now(), moneyDigits: 2 },
+              });
+            }
+          },
           close: () => new Promise((r) => { [...state.sockets].forEach((s) => s.destroy()); server.close(() => tokenServer.close(r)); }),
         });
       });

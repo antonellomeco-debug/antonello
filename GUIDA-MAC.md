@@ -172,14 +172,15 @@ Il collegamento è **gratuito**. Si fa una volta sola e richiede una ventina di 
 2. Si apre la pagina di cTrader: entra con il tuo cTrader ID, lascia selezionati i conti e premi **Allow access**.
 3. Torni nell'app da solo: vedrai **✔ Collegato** e l'elenco dei conti con l'etichetta **DEMO** o **REALE**.
 
-> Se dopo *Allow access* il browser mostra una pagina di errore, copia l'indirizzo **completo** dalla barra in alto (inizia con `http://localhost`) e incollalo in **La pagina finale dà errore o non torna all'app?** → **Conferma**.
+> Se dopo *Allow access* il browser mostra una pagina di errore, copia l'indirizzo **completo** dalla barra in alto (inizia con `http://localhost`) e incollalo in **La pagina finale dà errore o non torna all'app?** → **Conferma**. Fallo **entro un minuto**: il codice nell'indirizzo scade presto. Se è scaduto, premi di nuovo **Collega cTrader**.
 
 ### Passo D: scegli dove operano i piani
 
 1. In **Conti**, nella colonna **Dati**, scegli il conto demo: da lì arrivano prezzi e grafici per tutti gli agenti.
 2. In **Dove operano i piani** scegli, per ogni piano, **Portafoglio simulato** oppure il tuo conto **Demo**.
 3. Nelle watchlist degli agenti usa i **nomi del broker** (es. `EURUSD`, `XAUUSD`, `US500`). Per trovarli usa la casella **Cerca uno strumento** (clicca un nome per copiarlo), oppure chiedi a Orion: *"Cambia la watchlist del Trader in EURUSD e XAUUSD"*.
-4. Sui conti cTrader gli ordini si danno in **lotti** (es. 0,01) e hanno uno **stop loss**. Lascia attiva l'opzione **Ogni ordine richiede la mia approvazione** finché non sei sicuro: gli ordini arrivano in **✅ Approvazioni** con l'etichetta *demo* o *CONTO REALE*.
+4. Sui conti cTrader gli ordini si danno in **lotti** (es. 0,01) e hanno uno **stop loss**: se l'agente non lo indica, si usa quello predefinito di Sicurezza (2%). Lascia attiva l'opzione **Ogni ordine richiede la mia approvazione** finché non sei sicuro: gli ordini arrivano in **✅ Approvazioni** con l'etichetta *demo* o *CONTO REALE*.
+5. Usa un conto di tipo **hedging** (quello normale di cTrader, più posizioni per strumento): sui conti *netting* gli agenti non possono operare, perché i loro ordini si mescolerebbero con i tuoi.
 
 Puoi anche chiedere a Orion: *"Fai operare il piano Azioni sul conto demo"*. Orion può usare solo i conti demo.
 
@@ -187,11 +188,11 @@ Puoi anche chiedere a Orion: *"Fai operare il piano Azioni sul conto demo"*. Ori
 
 - **⛔ STOP**: ferma subito tutti gli ordini degli agenti (e gli avvii automatici). Puoi anche chiudere in un colpo tutte le posizioni aperte dagli agenti. Si toglie con **Riattiva gli ordini**. Quando un piano usa cTrader, il pulsante STOP compare anche in alto nell'Ufficio.
 - **Limiti**: lotti massimi per ordine, posizioni aperte massime, ordini massimi al giorno.
-- **Perdita massima del giorno**: ogni minuto il programma controlla il valore dei conti usati dai piani; se la perdita del giorno supera il limite (3% di partenza), scatta lo STOP da solo.
+- **Perdita massima del giorno**: ogni minuto il programma controlla il valore dei conti usati dai piani (depositi e prelievi non contano); se la perdita del giorno supera il limite (3% di partenza), scatta lo STOP da solo. Anche se poi riattivi gli ordini, **su quel conto** gli agenti restano fermi fino al giorno dopo (il giorno cambia a mezzanotte UTC, cioè all'1 o alle 2 di notte in Italia), a meno che tu alzi il limite.
 - **Posizioni aperte**: vedi tutte le posizioni, chi le ha aperte (un agente o tu) e puoi chiuderle con **Chiudi**, anche con lo STOP attivo. Gli agenti possono chiudere solo le posizioni aperte da loro.
 - **Conto reale**: è **bloccato**. Si sblocca solo scrivendo **SOLDI VERI** e confermando. Fallo solo dopo aver provato a lungo il sistema sul demo, e inizia con lotti piccoli. Bloccandolo di nuovo, i piani collegati al conto reale tornano al portafoglio simulato.
 
-> ⚠️ Gli agenti lavorano solo mentre il programma è aperto e il Mac è acceso. Le posizioni invece restano aperte sul broker anche a Mac spento: per questo ogni ordine ha uno **stop loss**. Il trading con leva (CFD, Forex) può farti perdere più velocemente di quanto pensi: questo programma non è una consulenza finanziaria.
+> ⚠️ Gli agenti lavorano solo mentre il programma è aperto e il Mac è acceso. Le posizioni invece restano aperte sul broker anche a Mac spento: per questo lascia attiva l'opzione **Ogni ordine sul broker ha sempre uno stop loss** (è attiva di partenza). Il trading con leva (CFD, Forex) può farti perdere più velocemente di quanto pensi: questo programma non è una consulenza finanziaria.
 
 ---
 
@@ -212,10 +213,13 @@ Puoi anche chiedere a Orion: *"Fai operare il piano Azioni sul conto demo"*. Ori
 | *"Credito di Claude esaurito"* | In console.anthropic.com → **Settings → Billing** aggiungi credito. |
 | *"Il tuo account Anthropic è sospeso"* (o *organization has been disabled*) | Il problema è nell'account Anthropic, non nel programma né nella chiave. Chiedi la riattivazione su **console.anthropic.com/appeal** o scrivi al supporto (**support.anthropic.com**). Nel frattempo gli agenti a regole funzionano lo stesso. |
 | *"Questa chiave va creata per un solo workspace"* | Crea una nuova chiave scegliendo il workspace **Default** e incollala in ⚙️ Impostazioni. |
-| cTrader: *"cTrader ha rifiutato l'accesso"* o *"credenziali"* | Ricopia **Client ID** e **Secret** da openapi.ctrader.com (pulsante Credentials) e premi Salva, poi **Collega cTrader**. |
+| cTrader: *"cTrader ha rifiutato l'accesso"* subito dopo *Allow access* o dopo aver incollato l'indirizzo | Il codice di accesso vale circa un minuto e una sola volta: premi di nuovo **Collega cTrader** e completa l'accesso senza aspettare. Se succede ancora, ricopia **Client ID** e **Secret** da openapi.ctrader.com (pulsante Credentials), premi Salva e riprova. |
 | La pagina di cTrader parla di *redirect URI* | In openapi.ctrader.com, nella tua app, la voce **Redirect URIs** deve contenere esattamente l'indirizzo mostrato nella sezione Broker (premi **Copia**). Se avvii il programma su un'altra porta (es. 3001) l'indirizzo cambia. |
 | *"Hai concesso solo la lettura"* | In 🔌 Broker premi **🔗 Ricollega** e nella pagina di cTrader concedi l'accesso completo (trading). |
-| *"STOP attivo"* | Hai premuto STOP, oppure la perdita del giorno ha superato il limite. Controlla in 🔌 Broker e, se va bene, premi **Riattiva gli ordini**. |
+| *"STOP attivo"* | Hai premuto STOP, oppure la perdita del giorno ha superato il limite. Controlla in 🔌 Broker e, se va bene, premi **Riattiva gli ordini**. Se lo STOP era per la perdita del giorno, su quel conto gli agenti restano fermi fino al giorno dopo (vedi il riquadro **Oggi**). |
+| *"oggi la perdita ha raggiunto…"* | È il limite di perdita del giorno: su quel conto gli ordini ripartono il giorno dopo (00:00 UTC), oppure subito se alzi la **Perdita massima del giorno** in Sicurezza. |
+| *"gli agenti possono operare solo su conti HEDGED"* | Il conto è di tipo netting. Apri (o chiedi al broker) un conto cTrader di tipo **hedging** e collega quello al piano. |
+| *"Relative stop loss has invalid precision"* o *"stop loss non validi"* | Aggiorna il programma (🔄): le versioni nuove arrotondano lo stop loss ai decimali dello strumento. |
 | *"Il conto REALE è bloccato"* | È voluto: il conto reale si sblocca solo da 🔌 Broker → Sicurezza scrivendo SOLDI VERI. |
 | Una pagina diversa su localhost:3000 | Un altro programma usa la stessa porta. Nel Terminale, dentro la cartella, avvia con: `PORT=3001 npm start` e apri http://localhost:3001 |
 
