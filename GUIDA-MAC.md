@@ -109,7 +109,7 @@ Per **chiudere** il programma: clicca sulla finestra del Terminale e premi **con
 - **Prova un agente**: clicca la scrivania del **Quant SMA** → **▶ Esegui**. Vedrai il fumetto sopra l'agente; il risultato finisce in **Bacheca**.
 - **Parla con Orion** (con la chiave inserita): scrivi a destra, per esempio *"Cosa sta succedendo nel palazzo?"* oppure *"Crea un agente che segue le banche italiane"*.
 - **Approvazioni**: quando un agente vuole comprare o vendere, compare un pallino rosso. Tu scegli **Fallo per me** o **Scarta**.
-- **È tutto simulato**: il portafoglio parte con 100.000 € finti e nessun ordine va in borsa davvero.
+- **All'inizio è tutto simulato**: il portafoglio parte con 100.000 € finti e nessun ordine va in borsa davvero. Per usare i prezzi e un conto del tuo broker vedi la **Parte 4**.
 
 ### Creare piani, stanze e farli comunicare
 
@@ -139,6 +139,62 @@ Puoi farlo in due modi.
 
 ---
 
+## Parte 4 — Collegare il broker cTrader (conto demo)
+
+Collegando il tuo conto **cTrader** (per esempio di FP Markets):
+- gli agenti usano i **prezzi e i grafici del broker**, gli stessi a cui si fanno gli ordini (anche a 1 minuto, 5 minuti, 1 ora…);
+- ogni **piano** può operare su un conto diverso: per esempio il piano Forex su un conto demo, il piano Azioni sul portafoglio simulato;
+- il **conto reale resta bloccato** finché non lo sblocchi tu, e ci sono protezioni sempre attive (pulsante STOP, limiti, perdita massima del giorno).
+
+Il collegamento è **gratuito**. Si fa una volta sola e richiede una ventina di minuti, più l'attesa dell'approvazione di cTrader.
+
+### Passo A: apri un conto demo cTrader
+
+1. Nell'area clienti di FP Markets apri un **conto demo** scegliendo la piattaforma **cTrader**.
+2. Riceverai (o creerai) un **cTrader ID**: è l'email e la password con cui entri in cTrader.
+3. Controlla di riuscire a entrare nel conto demo da [app.ctrader.com](https://app.ctrader.com).
+
+> Se nell'area clienti vedi solo MetaTrader 4/5, chiedi al supporto di FP Markets di aprirti un conto **cTrader**: il programma funziona solo con cTrader.
+
+### Passo B: registra il programma su cTrader (una volta sola)
+
+1. Apri il programma e vai nella sezione **🔌 Broker** (barra a sinistra).
+2. Nel riquadro **1 · Registra l'app su cTrader** apri **Come si fa** e segui le istruzioni:
+   - vai su [openapi.ctrader.com/apps](https://openapi.ctrader.com/apps) ed entra con il tuo **cTrader ID**;
+   - premi **Add new app**, scrivi un nome (es. *Agenti borsa*) e invia;
+   - nella voce **Redirect URIs** aggiungi l'indirizzo che vedi nell'app (premi **Copia**): `http://localhost:3000/ctrader/callback`.
+3. Aspetta che lo stato dell'app diventi **Active** (cTrader la approva a mano: possono servire alcuni giorni).
+4. Premi **Credentials**: copia **Client ID** e **Secret** nei due campi dell'app e premi **Salva**.
+
+### Passo C: collega il conto
+
+1. Nel riquadro **2 · Collega il tuo conto** premi **🔗 Collega cTrader**.
+2. Si apre la pagina di cTrader: entra con il tuo cTrader ID, lascia selezionati i conti e premi **Allow access**.
+3. Torni nell'app da solo: vedrai **✔ Collegato** e l'elenco dei conti con l'etichetta **DEMO** o **REALE**.
+
+> Se dopo *Allow access* il browser mostra una pagina di errore, copia l'indirizzo **completo** dalla barra in alto (inizia con `http://localhost`) e incollalo in **La pagina finale dà errore o non torna all'app?** → **Conferma**.
+
+### Passo D: scegli dove operano i piani
+
+1. In **Conti**, nella colonna **Dati**, scegli il conto demo: da lì arrivano prezzi e grafici per tutti gli agenti.
+2. In **Dove operano i piani** scegli, per ogni piano, **Portafoglio simulato** oppure il tuo conto **Demo**.
+3. Nelle watchlist degli agenti usa i **nomi del broker** (es. `EURUSD`, `XAUUSD`, `US500`). Per trovarli usa la casella **Cerca uno strumento** (clicca un nome per copiarlo), oppure chiedi a Orion: *"Cambia la watchlist del Trader in EURUSD e XAUUSD"*.
+4. Sui conti cTrader gli ordini si danno in **lotti** (es. 0,01) e hanno uno **stop loss**. Lascia attiva l'opzione **Ogni ordine richiede la mia approvazione** finché non sei sicuro: gli ordini arrivano in **✅ Approvazioni** con l'etichetta *demo* o *CONTO REALE*.
+
+Puoi anche chiedere a Orion: *"Fai operare il piano Azioni sul conto demo"*. Orion può usare solo i conti demo.
+
+### Le protezioni (sezione 🔌 Broker → 🛡️ Sicurezza)
+
+- **⛔ STOP**: ferma subito tutti gli ordini degli agenti (e gli avvii automatici). Puoi anche chiudere in un colpo tutte le posizioni aperte dagli agenti. Si toglie con **Riattiva gli ordini**. Quando un piano usa cTrader, il pulsante STOP compare anche in alto nell'Ufficio.
+- **Limiti**: lotti massimi per ordine, posizioni aperte massime, ordini massimi al giorno.
+- **Perdita massima del giorno**: ogni minuto il programma controlla il valore dei conti usati dai piani; se la perdita del giorno supera il limite (3% di partenza), scatta lo STOP da solo.
+- **Posizioni aperte**: vedi tutte le posizioni, chi le ha aperte (un agente o tu) e puoi chiuderle con **Chiudi**, anche con lo STOP attivo. Gli agenti possono chiudere solo le posizioni aperte da loro.
+- **Conto reale**: è **bloccato**. Si sblocca solo scrivendo **SOLDI VERI** e confermando. Fallo solo dopo aver provato a lungo il sistema sul demo, e inizia con lotti piccoli. Bloccandolo di nuovo, i piani collegati al conto reale tornano al portafoglio simulato.
+
+> ⚠️ Gli agenti lavorano solo mentre il programma è aperto e il Mac è acceso. Le posizioni invece restano aperte sul broker anche a Mac spento: per questo ogni ordine ha uno **stop loss**. Il trading con leva (CFD, Forex) può farti perdere più velocemente di quanto pensi: questo programma non è una consulenza finanziaria.
+
+---
+
 ## Se qualcosa non funziona
 
 | Cosa vedi | Cosa fare |
@@ -156,6 +212,11 @@ Puoi farlo in due modi.
 | *"Credito di Claude esaurito"* | In console.anthropic.com → **Settings → Billing** aggiungi credito. |
 | *"Il tuo account Anthropic è sospeso"* (o *organization has been disabled*) | Il problema è nell'account Anthropic, non nel programma né nella chiave. Chiedi la riattivazione su **console.anthropic.com/appeal** o scrivi al supporto (**support.anthropic.com**). Nel frattempo gli agenti a regole funzionano lo stesso. |
 | *"Questa chiave va creata per un solo workspace"* | Crea una nuova chiave scegliendo il workspace **Default** e incollala in ⚙️ Impostazioni. |
+| cTrader: *"cTrader ha rifiutato l'accesso"* o *"credenziali"* | Ricopia **Client ID** e **Secret** da openapi.ctrader.com (pulsante Credentials) e premi Salva, poi **Collega cTrader**. |
+| La pagina di cTrader parla di *redirect URI* | In openapi.ctrader.com, nella tua app, la voce **Redirect URIs** deve contenere esattamente l'indirizzo mostrato nella sezione Broker (premi **Copia**). Se avvii il programma su un'altra porta (es. 3001) l'indirizzo cambia. |
+| *"Hai concesso solo la lettura"* | In 🔌 Broker premi **🔗 Ricollega** e nella pagina di cTrader concedi l'accesso completo (trading). |
+| *"STOP attivo"* | Hai premuto STOP, oppure la perdita del giorno ha superato il limite. Controlla in 🔌 Broker e, se va bene, premi **Riattiva gli ordini**. |
+| *"Il conto REALE è bloccato"* | È voluto: il conto reale si sblocca solo da 🔌 Broker → Sicurezza scrivendo SOLDI VERI. |
 | Una pagina diversa su localhost:3000 | Un altro programma usa la stessa porta. Nel Terminale, dentro la cartella, avvia con: `PORT=3001 npm start` e apri http://localhost:3001 |
 
 ## Aggiornare il programma

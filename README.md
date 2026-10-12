@@ -1,4 +1,4 @@
-# 🏢 Ufficio Agenti — borsa (paper trading)
+# 🏢 Ufficio Agenti — borsa (simulazione e broker cTrader)
 
 > 🍎 **Non sei pratico di programmazione? Segui la [guida passo passo per Mac](GUIDA-MAC.md).**
 
@@ -10,9 +10,10 @@ Cosa trovi nell'interfaccia:
 - **Palazzo**: crei e modifichi piani e stanze, e decidi quali piani comunicano tra loro.
 - **Parla con Orion**: chat con il regista. Puoi chiedergli cosa succede, far lavorare gli agenti, oppure **creare e modificare agenti, piani, stanze e collegamenti descrivendoli a parole**.
 - **Approvazioni**: gli agenti *propongono* gli ordini e tu scegli "Fallo per me" o "Scarta".
+- **Broker**: colleghi un conto **cTrader** (demo o reale), scegli su quale conto opera ogni piano e gestisci le protezioni (STOP, limiti, perdita massima del giorno).
 - **Bacheca**, **Portafoglio**, **Attività**.
 
-> ⚠️ **Solo simulazione.** Gli ordini sono eseguiti su un portafoglio virtuale (`paper trading`): nessun ordine reale viene inviato a un broker. Non è una consulenza finanziaria.
+> ⚠️ **Simulazione per default.** Finché non colleghi un piano a un conto cTrader, gli ordini sono eseguiti su un portafoglio virtuale (`paper trading`). Il conto reale è bloccato finché non lo sblocchi tu. Non è una consulenza finanziaria.
 
 ## Avvio
 
@@ -92,12 +93,15 @@ Claude esegue le `instructions` usando solo gli strumenti abilitati in `tools`:
 
 | Strumento | Cosa fa |
 |---|---|
-| `get_quote` | Ultimo prezzo e variazione |
-| `get_indicators` | SMA20/50, RSI14, volatilità, rendimenti 5/20/60 giorni |
+| `get_quote` | Ultimo prezzo e variazione (con cTrader: bid/ask del broker) |
+| `get_indicators` | SMA20/50, RSI14, volatilità, rendimenti su 5/20/60 candele; con cTrader anche su candele M1…W1 |
+| `get_candles` | Ultime candele (con cTrader: periodi M1, M5, M15, M30, H1, H4, D1, W1) |
+| `search_symbols` | Cerca gli strumenti disponibili sul broker cTrader |
 | `read_notes` | Legge la propria stanza, le stanze del proprio piano scelte in `readsFrom` e tutte quelle dei piani collegati che mandano informazioni al suo piano |
 | `post_note` | Pubblica nella bacheca della propria stanza |
-| `get_portfolio` | Liquidità, posizioni, P&L |
-| `place_order` | Ordine simulato; richiede `canTrade: true` e rispetta i `limits` |
+| `get_portfolio` | Liquidità o saldo, posizioni, P&L del conto del suo piano |
+| `place_order` | Ordine sul conto del suo piano: simulato (`qty`) oppure cTrader (`lots`, `stop_loss_pct`, `take_profit_pct`); richiede `canTrade: true` |
+| `close_position` | Chiude (anche in parte) una posizione cTrader aperta dallo stesso agente |
 
 `effort` (`low` … `max`) regola quanto a fondo ragiona il modello: più è alto, più l'analisi è accurata e più costa.
 
@@ -117,7 +121,20 @@ Le strategie si trovano in [`strategies/`](strategies). Quelle già incluse sono
 - `enabled`: se `false`, lo scheduler lo ignora.
 - `limits.maxOrderPct` / `limits.maxPositionPct`: percentuale massima del portafoglio per un singolo ordine e per un singolo titolo.
 - `limits.onlyWatchlist`: l'agente può operare solo sui titoli della sua watchlist.
-- `limits.requireApproval` (default `true`): ogni ordine finisce in **Approvazioni** e parte solo con il tuo ok. Con `false` l'agente esegue da solo, sempre e solo sul portafoglio simulato.
+- `limits.requireApproval` (default `true`): ogni ordine finisce in **Approvazioni** e parte solo con il tuo ok. Con `false` l'agente esegue da solo sul conto del suo piano, sempre entro le regole di **Broker → Sicurezza**.
+
+## Broker cTrader e sicurezza
+
+Il collegamento usa la [cTrader Open API](https://help.ctrader.com/open-api/) (protocollo Protobuf su TLS, porta 5035; accesso OAuth). I passi per l'utente sono nella [guida per Mac](GUIDA-MAC.md#parte-4--collegare-il-broker-ctrader-conto-demo).
+
+- **Dati**: se cTrader è collegato e lo strumento esiste sul conto "Dati", prezzi e candele arrivano dal broker (`source: "ctrader-demo"` / `"ctrader-live"`); altrimenti Yahoo Finance, con fallback a dati demo.
+- **Un conto per piano**: ogni piano ha `trading: { mode: "paper" }` oppure `{ mode: "ctrader", accountId }`. Gli agenti operano sul conto del piano della loro stanza. Le posizioni aperte dagli agenti hanno l'etichetta `agenti:<id>`; un agente può chiudere solo le proprie.
+- **Approvazioni**: ogni proposta ricorda il conto di destinazione; se nel frattempo il piano è passato a un altro conto, l'ordine non parte.
+- **Sicurezza** (`data/safety.json`, modificabile solo dall'interfaccia): STOP, lotti massimi per ordine, posizioni aperte e ordini al giorno per conto, perdita massima del giorno (controllata ogni minuto, attiva lo STOP), stop loss obbligatorio sul conto reale.
+- **Conto reale**: bloccato finché l'utente non scrive `SOLDI VERI` in Broker → Sicurezza. Orion e gli agenti non possono collegare piani a conti reali né cambiare le regole di sicurezza.
+- Credenziali e token stanno in `data/ctrader.json` (permessi 600). I token si rinnovano da soli.
+
+Test: `test/ctrader.test.js` e `test/broker.test.js` usano un finto server cTrader (`test/helpers/fake-ctrader.js`) che parla lo stesso protocollo.
 
 ## Aggiornamenti
 
@@ -138,9 +155,11 @@ server.js           API REST, eventi live (SSE), scheduler
 lib/building.js     palazzo: piani, stanze, collegamenti, chi può leggere cosa
 lib/office.js       stato condiviso e modifiche (usato da interfaccia e Orion)
 lib/config.js       configurazione e validazione degli agenti
-lib/market.js       prezzi (Yahoo Finance + fallback demo)
+lib/market.js       prezzi (cTrader, oppure Yahoo Finance + fallback demo)
 lib/indicators.js   indicatori tecnici
-lib/broker.js       portafoglio virtuale, limiti di rischio, approvazioni
+lib/broker.js       dove opera ogni piano, portafoglio virtuale, ordini su cTrader, approvazioni
+lib/safety.js       STOP, limiti, perdita massima del giorno, blocco del conto reale
+lib/ctrader/        cTrader Open API: protocollo, connessione, accesso OAuth, conti/prezzi/ordini
 lib/runner.js       esecuzione agenti (Claude con strumenti, oppure strategia JS)
 lib/tools.js        strumenti disponibili agli agenti
 lib/orchestrator.js il regista con cui parli in chat
