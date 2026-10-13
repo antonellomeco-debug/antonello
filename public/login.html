@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Accesso · I miei agenti</title>
+  <meta name="theme-color" content="#0b0d16" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Agenti" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+  <link rel="apple-touch-icon" href="/icons/icon-180.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- Pagina pubblica: non usa style.css né app.js (sono protetti dalla password). -->
+  <style>
+    :root {
+      --bg: #0b0d16; --surface: #13162a; --surface-2: #1b1f36; --border: #2a2f4d; --text: #e9ebf6; --muted: #8a90b2;
+      --accent: #6f7dff; --accent-2: #a46bff; --bad: #ff6b6b; --warn: #ffc94d;
+      font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    html { -webkit-tap-highlight-color: transparent; }
+    html, body { min-height: 100%; }
+    body {
+      margin: 0; color: var(--text); background: radial-gradient(ellipse at 50% 20%, #1b1f36, var(--bg) 65%) fixed var(--bg);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; min-height: 100dvh;
+      padding: max(20px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom));
+    }
+    main { width: min(400px, 100%); }
+    .logo { display: block; width: 88px; height: 88px; margin: 0 auto 14px; border-radius: 22px; box-shadow: 0 10px 40px #6f7dff40; }
+    h1 { margin: 0; text-align: center; font-size: 24px; letter-spacing: -.01em; }
+    .lead { margin: 6px 0 22px; text-align: center; color: var(--muted); line-height: 1.45; }
+    form { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+    label { font-size: 14px; color: var(--muted); }
+    .pass { display: flex; gap: 8px; margin-top: 6px; }
+    input {
+      flex: 1; min-width: 0; height: 52px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text); font: inherit; font-size: 17px;
+    }
+    input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .toggle {
+      flex: none; min-width: 52px; height: 52px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--border);
+      background: var(--surface-2); color: var(--text); font: inherit; font-size: 14px; cursor: pointer; touch-action: manipulation;
+    }
+    .enter {
+      height: 54px; border: 0; border-radius: 14px; cursor: pointer; touch-action: manipulation;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; font: inherit; font-size: 17px; font-weight: 600;
+    }
+    .enter:disabled { opacity: .55; cursor: default; }
+    .error { margin: 0; min-height: 1.4em; color: var(--bad); line-height: 1.4; }
+    .caps { margin: -6px 0 0; color: var(--warn); font-size: 13px; }
+    .note { margin: 16px 4px 0; color: var(--muted); font-size: 13px; line-height: 1.5; text-align: center; }
+    .hidden { display: none; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); border: 0; }
+    @media (hover: hover) { .toggle:hover { border-color: var(--accent); } .enter:hover:not(:disabled) { filter: brightness(1.08); } }
+  </style>
+</head>
+<body>
+  <main>
+    <img class="logo" src="/icons/icon-192.png" alt="" width="88" height="88" />
+    <h1>I miei agenti</h1>
+    <p class="lead">Scrivi la password per entrare nel tuo ufficio.</p>
+    <form id="login-form" novalidate>
+      <!-- Nome nascosto: serve solo ai gestori di password per ricordare la password di questa app. -->
+      <input class="sr-only" type="text" name="username" value="Agenti" autocomplete="username" tabindex="-1" aria-hidden="true" readonly />
+      <label for="password">Password
+        <span class="pass">
+          <input id="password" name="password" type="password" autocomplete="current-password" autocapitalize="off"
+            autocorrect="off" spellcheck="false" enterkeyhint="go" required autofocus />
+          <button class="toggle" type="button" id="toggle" aria-pressed="false" aria-label="Mostra la password">👁️ Mostra</button>
+        </span>
+      </label>
+      <p class="caps hidden" id="caps">⇪ Il blocco maiuscole è attivo.</p>
+      <button class="enter" type="submit" id="enter">Entra</button>
+      <p class="error" id="error" role="alert" aria-live="polite"></p>
+    </form>
+    <p class="note">Non ricordi la password? È quella scelta per il server: la trovi nelle impostazioni del servizio, alla voce <b>APP_PASSWORD</b>.</p>
+  </main>
+  <script src="/login.js"></script>
+</body>
+</html>

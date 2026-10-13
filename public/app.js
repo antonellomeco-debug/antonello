@@ -8,11 +8,20 @@ const fmt = (n, d = 2) => (n == null ? "—" : Number(n).toLocaleString("it-IT",
 const time = (iso) => new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
 const when = (iso) => new Date(iso).toLocaleString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 
+// Sessione: se il server non la conosce (versione senza password) l'app funziona come sul Mac.
+const DEFAULT_SESSION = { auth: false, loggedIn: true, cloud: false, updater: true, publicUrl: null, volumeOk: true };
+
 const state = {
   office: null, notes: {}, log: [], approvals: [], portfolio: null, stats: null,
   chat: { name: "", busy: false, transcript: [] }, status: {}, view: "office", room: null, editing: null,
-  floorFocus: null, broker: null, brokerAccounts: null,
+  floorFocus: null, broker: null, brokerAccounts: null, session: { ...DEFAULT_SESSION },
 };
+
+// Telefono (schermo stretto) e schermo touch (niente mouse).
+const phoneMQ = matchMedia("(max-width: 860px)");
+const touchMQ = matchMedia("(hover: none) and (pointer: coarse)");
+// Sezioni che sul telefono stanno dentro "Altro".
+const MORE_VIEWS = ["building", "portfolio", "broker", "log"];
 
 // ---------- utilità sul palazzo ----------
 const B = () => state.office.building;
@@ -34,8 +43,48 @@ let office3d;
 async function api(path, opts = {}) {
   const res = await fetch(path, { headers: { "Content-Type": "application/json" }, ...opts });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(body.error ?? res.statusText), { body });
+  // Sessione scaduta: si torna alla pagina di accesso. (Una password sbagliata per un'operazione delicata
+  // risponde invece con "stepUp": basta mostrare l'errore.)
+  if (res.status === 401 && body.login) goLogin();
+  if (!res.ok) throw Object.assign(new Error(body.error ?? res.statusText), { body, status: res.status });
   return body;
+}
+
+let leaving = false;
+/** Pagina di accesso, con il ritorno al punto in cui si era (solo percorsi di questo sito). */
+function goLogin() {
+  if (leaving) return;
+  leaving = true;
+  location.href = `/login?next=${encodeURIComponent(location.pathname + location.search + location.hash)}`;
+}
+
+/** Chiede al server lo stato della sessione; con un server vecchio (senza /api/session) vale DEFAULT_SESSION. */
+async function loadSession() {
+  try {
+    const res = await fetch("/api/session", { cache: "no-store" });
+    if (res.ok) return (state.session = { ...DEFAULT_SESSION, ...(await res.json()) });
+  } catch {
+    // server non raggiungibile: si riprova più tardi
+    return null;
+  }
+  return (state.session = { ...DEFAULT_SESSION });
+}
+
+/** Mostra o nasconde ciò che dipende dalla sessione: avviso sul volume, Esci, aggiornamenti, app sul telefono. */
+function applySession() {
+  const s = state.session;
+  $("#volume-banner").classList.toggle("hidden", s.volumeOk !== false);
+  $("#more-logout").classList.toggle("hidden", !s.auth);
+  $("#account-box").classList.toggle("hidden", !s.auth);
+  $("#phone-box").classList.toggle("hidden", !s.cloud || !s.publicUrl);
+  $("#phone-url").textContent = s.publicUrl ?? "";
+  $("#update-buttons").classList.toggle("hidden", !s.updater);
+  $("#update-note").classList.toggle("hidden", !s.updater);
+}
+
+async function logout() {
+  await fetch("/api/logout", { method: "POST" }).catch(() => null);
+  location.href = "/login";
 }
 
 // ---------- caricamento ----------
@@ -46,10 +95,19 @@ async function loadOffice() {
   const { building, agents, assistant } = state.office;
   $("#office-sub").textContent =
     `${building.name}: ${agents.length} agenti in ${building.rooms.length} stanze su ${building.floors.length} piani, coordinati da ${assistant}. ` +
-    "Scegli un piano nell'ascensore, trascina per girare, passa sopra un agente per vederne il nome, clicca una scrivania per aprire la scheda.";
+    (touchMQ.matches
+      ? "Scegli un piano nell'ascensore, gira il palazzo con un dito e avvicinati con due; tocca un agente per vederne il nome, tocca il nome per aprire la scheda."
+      : "Scegli un piano nell'ascensore, trascina per girare, passa sopra un agente per vederne il nome, clicca una scrivania per aprire la scheda.");
+  $("#touch-hint").textContent = touchMQ.matches
+    ? "Tocca un agente per il nome, tocca il nome per la scheda"
+    : "Passa sopra un agente per il nome, clicca per la scheda";
   $("#chat-title").textContent = `Parla con ${assistant}`;
+  $("#nav-chat-label").textContent = assistant;
   $("#key-cta").classList.toggle("hidden", state.office.llmReady);
   $("#badge-settings").classList.toggle("hidden", state.office.llmReady);
+  $("#more-settings-badge").classList.toggle("hidden", state.office.llmReady);
+  $("#more-settings-state").textContent = state.office.llmReady ? "Chiave di Claude, orario, dati" : "🔑 Claude non è collegato: inserisci la chiave";
+  syncMoreBadge();
   if (!office3d) {
     office3d = new Office3D($("#scene"), {
       assistantName: assistant,
@@ -59,8 +117,12 @@ async function loadOffice() {
         renderElevator();
       },
     });
+    syncOffice3d();
   }
-  office3d.setBuilding(building, agents);
+  // Il palazzo 3D si ricostruisce solo se è cambiato (non a ogni riallineamento con il server).
+  const shape = JSON.stringify([building, agents.map(({ running, lastRun, ...a }) => a)]);
+  if (shape !== state.officeShape) office3d.setBuilding(building, agents);
+  state.officeShape = shape;
   state.floorFocus = office3d.focused;
   for (const [id, s] of Object.entries(state.status)) office3d.setStatus(id, s.status, s.detail);
   renderElevator();
@@ -91,15 +153,18 @@ async function refreshStats() {
   state.stats = await api("/api/stats").catch(() => null);
   const s = state.stats;
   if (!s) return;
+  // Sul telefono la striscia dei numeri inizia con "da approvare" e "spesa API" (classi stat-pending e stat-cost).
   const cells = [
     [s.working, "al lavoro ora"], [s.agents, "agenti"], [s.floors, "piani"], [s.rooms, "stanze"], [s.notes, "note in bacheca"],
-    [s.trades + (s.brokerTrades ?? 0), "ordini eseguiti"], [s.pending, "da approvare"], [`$${fmt(s.costUsd)}`, "spesa API (stima)"],
-    [state.office.llmReady ? "sì" : "no", "Claude collegato"], [s.scheduled, "programmati"],
+    [s.trades + (s.brokerTrades ?? 0), "ordini eseguiti"], [s.pending, "da approvare", `stat-pending clickable ${s.pending ? "alert" : ""}`],
+    [`$${fmt(s.costUsd)}`, "spesa API (stima)", "stat-cost"],
+    [state.office.llmReady ? "sì" : "no", "Claude collegato", "stat-key clickable"], [s.scheduled, "programmati"],
   ];
   $("#stats").innerHTML = cells
-    .map(([v, l]) => `<div class="stat ${l === "Claude collegato" ? "clickable" : ""}"><b>${esc(v)}</b><small>${esc(l)}</small></div>`)
+    .map(([v, l, cls = ""]) => `<div class="stat ${cls}"><b>${esc(v)}</b><small>${esc(l)}</small></div>`)
     .join("");
-  $("#stats .clickable")?.addEventListener("click", openSettings);
+  $("#stats .stat-key").addEventListener("click", openSettings);
+  $("#stats .stat-pending").addEventListener("click", () => showView("approvals"));
   const badge = $("#badge-approvals");
   badge.textContent = s.pending;
   badge.classList.toggle("hidden", !s.pending);
@@ -118,6 +183,15 @@ function renderStopControls() {
   cta.textContent = stopped ? "⛔ STOP attivo" : "⛔ STOP";
   cta.classList.toggle("active", Boolean(stopped));
   $("#badge-broker").classList.toggle("hidden", !stopped);
+  $("#more-broker-badge").classList.toggle("hidden", !stopped);
+  $("#more-broker-state").textContent = stopped ? "⛔ STOP attivo: gli agenti non fanno ordini" : "Conto cTrader, STOP e limiti";
+  syncMoreBadge();
+}
+
+/** Sul telefono Broker e Impostazioni stanno in "Altro": il loro "!" compare sulla scheda Altro. */
+function syncMoreBadge() {
+  const on = ["#badge-broker", "#badge-settings"].some((id) => !$(id).classList.contains("hidden"));
+  $("#badge-more").classList.toggle("hidden", !on);
 }
 
 async function refreshPortfolio() {
@@ -134,19 +208,40 @@ async function refreshPortfolio() {
 // ---------- navigazione ----------
 
 function showView(view) {
+  // "Parla con Orion" e "Altro" sono sezioni solo del telefono: su computer la chat è sempre a destra.
+  if (!phoneMQ.matches && (view === "chat" || view === "more")) view = "office";
   state.view = view;
-  document.querySelectorAll(".nav[data-view]").forEach((x) => x.classList.toggle("active", x.dataset.view === view));
+  $(".app").dataset.view = view;
+  document.querySelectorAll(".nav[data-view]").forEach((x) =>
+    x.classList.toggle("active", x.dataset.view === view || (x.dataset.view === "more" && MORE_VIEWS.includes(view))),
+  );
   document.querySelectorAll(".view").forEach((v) => v.classList.toggle("hidden", v.id !== `view-${view}`));
   renderView();
+  syncOffice3d();
   if (view === "broker") loadBrokerAccounts();
+  if (view === "chat") $("#chat-body").scrollTop = $("#chat-body").scrollHeight;
+  else if (phoneMQ.matches && document.activeElement?.closest(".chat-form")) document.activeElement.blur(); // chiude la tastiera
 }
-document.querySelectorAll(".nav[data-view]").forEach((b) =>
-  b.addEventListener("click", () => {
-    if (b.dataset.view === "chat") return $("#chat").classList.add("open");
-    showView(b.dataset.view);
-  }),
-);
-$("#chat-close").onclick = () => $("#chat").classList.remove("open");
+document.querySelectorAll(".nav[data-view]").forEach((b) => b.addEventListener("click", () => showView(b.dataset.view)));
+// Righe della sezione "Altro" e pulsanti "‹ Altro" in cima alle sue sezioni.
+document.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => showView(b.dataset.go)));
+$("#more-settings").onclick = () => openSettings();
+$("#more-new-agent").onclick = () => openEditor(null);
+$("#more-install").onclick = () => openInstall();
+$("#more-update").onclick = () => openSettings();
+$("#more-logout").onclick = () => confirm("Uscire? Per rientrare servirà la password.") && logout();
+$("#logout-btn").onclick = () => logout();
+
+/** Il palazzo 3D si disegna solo quando si vede (risparmia batteria su telefono e computer). */
+function syncOffice3d() {
+  office3d?.setActive(state.view === "office" && !document.hidden);
+}
+
+// Finestra allargata (es. telefono girato o finestra del computer ingrandita): niente sezioni solo-telefono.
+phoneMQ.addEventListener("change", () => {
+  if (!phoneMQ.matches && (state.view === "chat" || state.view === "more")) showView("office");
+  syncRoster();
+});
 
 function renderView() {
   if (state.view === "building") renderBuilding();
@@ -161,7 +256,7 @@ function renderView() {
 
 function renderRoster() {
   const agents = state.office.agents;
-  $("#roster-sum").textContent = `▸ Elenco completo dei ${agents.length} agenti`;
+  $("#roster-sum").textContent = `Elenco completo dei ${agents.length} agenti`;
   const room = (id) => `${roomById(id)?.name ?? id} · ${floorById(floorOfRoom(id))?.name ?? ""}`;
   $("#roster-list").innerHTML = agents
     .map((a) => `<div class="roster-row" data-id="${esc(a.id)}">
@@ -176,6 +271,13 @@ function renderRoster() {
 }
 
 $("#reset-view").onclick = () => office3d?.resetView();
+$("#reset-view-phone").onclick = () => office3d?.resetView();
+
+/** Sul telefono l'elenco degli agenti sta sotto il palco ed è sempre aperto (è il modo più comodo per trovarli). */
+function syncRoster() {
+  $("#roster").open = phoneMQ.matches;
+}
+$("#roster-sum").addEventListener("click", (e) => phoneMQ.matches && e.preventDefault());
 
 /** Pulsantiera "ascensore": tutto il palazzo + un pulsante per piano (dal più alto). */
 function renderElevator() {
@@ -522,18 +624,27 @@ function renderPortfolio() {
       <div class="kpi"><small>Investito</small><b>€ ${fmt(p.invested)}</b></div>
     </div>
     <h4>Posizioni</h4>
-    ${p.positions.length ? `<table><tr><th>Titolo</th><th>Q.tà</th><th>Medio</th><th>Prezzo</th><th>Valore</th><th>P&L</th></tr>
-      ${p.positions.map((x) => `<tr><td>${esc(x.symbol)}${x.source === "demo" ? " *" : ""}</td><td>${x.qty}</td><td>${fmt(x.avgPrice)}</td><td>${fmt(x.price)}</td><td>${fmt(x.value)}</td>
-      <td class="${x.pnlPct >= 0 ? "up" : "down"}">${fmt(x.pnlPct)}%</td></tr>`).join("")}</table>` : `<p class="empty">Nessuna posizione aperta.</p>`}
+    ${p.positions.length ? `<table class="stack"><tr><th>Titolo</th><th>Q.tà</th><th>Medio</th><th>Prezzo</th><th>Valore</th><th>P&L</th></tr>
+      ${p.positions.map((x) => `<tr><td data-label="Titolo">${esc(x.symbol)}${x.source === "demo" ? " *" : ""}</td><td data-label="Quantità">${x.qty}</td><td data-label="Prezzo medio">${fmt(x.avgPrice)}</td><td data-label="Prezzo">${fmt(x.price)}</td><td data-label="Valore">${fmt(x.value)}</td>
+      <td data-label="P&L" class="${x.pnlPct >= 0 ? "up" : "down"}">${fmt(x.pnlPct)}%</td></tr>`).join("")}</table>` : `<p class="empty">Nessuna posizione aperta.</p>`}
     <h4>Ultimi ordini</h4>
-    ${p.trades.length ? `<table><tr><th>Quando</th><th>Titolo</th><th>Lato</th><th>Q.tà</th><th>Prezzo</th><th>Agente</th></tr>
-      ${p.trades.slice().reverse().map((t) => `<tr title="${esc(t.reason)}"><td>${when(t.at)}</td><td>${esc(t.symbol)}</td><td class="${t.side === "buy" ? "up" : "down"}">${t.side}</td><td>${t.qty}</td><td>${fmt(t.price)}</td><td>${esc(t.agentId)}</td></tr>`).join("")}</table>` : `<p class="empty">Nessun ordine.</p>`}
+    ${p.trades.length ? `<table class="stack"><tr><th>Quando</th><th>Titolo</th><th>Lato</th><th>Q.tà</th><th>Prezzo</th><th>Agente</th></tr>
+      ${p.trades.slice().reverse().map((t) => `<tr title="${esc(t.reason)}"><td data-label="Quando">${when(t.at)}</td><td data-label="Titolo">${esc(t.symbol)}</td><td data-label="Lato" class="${t.side === "buy" ? "up" : "down"}">${t.side}</td><td data-label="Quantità">${t.qty}</td><td data-label="Prezzo">${fmt(t.price)}</td><td data-label="Agente">${esc(t.agentId)}</td></tr>`).join("")}</table>` : `<p class="empty">Nessun ordine.</p>`}
     <p class="hint">* prezzo da dati demo (mercato non raggiungibile)</p>`;
 }
 
 $("#reset-btn").onclick = async () => {
   if (!confirm("Azzerare portafoglio, bacheche, approvazioni e log?")) return;
-  await api("/api/reset", { method: "POST" });
+  const body = {};
+  if (state.session.auth) {
+    body.password = await askPassword("Per azzerare tutto scrivi la password con cui entri nell'app.");
+    if (body.password == null) return;
+  }
+  try {
+    await api("/api/reset", { method: "POST", body: JSON.stringify(body) });
+  } catch (err) {
+    return alert(err.message);
+  }
   loadAll();
 };
 
@@ -585,8 +696,10 @@ function renderBroker() {
   $("#stop-btn").disabled = ks.active;
   $("#resume-btn")?.addEventListener("click", resumeOrders);
 
-  // Passo 1: app
+  // Passo 1: app (l'indirizzo di ritorno lo decide il server: localhost sul Mac, l'indirizzo https sul server online)
   $("#redirect-uri").textContent = b.redirectUri;
+  $("#redirect-base").textContent = b.redirectUri;
+  $("#code-form").input.placeholder = `${b.redirectUri}?code=…`;
   $("#app-status").innerHTML = b.configured
     ? `<p class="ok-line">✔ App salvata (Client ID ${esc(b.clientId)}). Per cambiarla incolla nuove credenziali qui sotto.</p>`
     : `<p class="hint">Serve una volta sola: cTrader ti dà un <b>Client ID</b> e un <b>Secret</b> per far parlare questo programma con il tuo conto.</p>`;
@@ -614,17 +727,17 @@ function renderBroker() {
   const infoOf = (id) => infos.find((x) => String(x.accountId) === String(id));
   $("#broker-accounts").innerHTML = !b.linked
     ? `<p class="empty">Nessun conto collegato.</p>`
-    : `<table><tr><th>Conto</th><th>Tipo</th><th>Saldo</th><th>Leva</th><th>Posizioni</th><th>Dati</th></tr>
+    : `<table class="stack"><tr><th>Conto</th><th>Tipo</th><th>Saldo</th><th>Leva</th><th>Posizioni</th><th>Dati</th></tr>
       ${b.accounts.map((a) => {
         const x = infoOf(a.ctidTraderAccountId);
         const i = x?.info;
         return `<tr>
-          <td>${esc(accountName(a))}${i?.accountType && i.accountType !== "HEDGED" ? ` <small class="warn-line">(${esc(i.accountType)}: non adatto agli agenti)</small>` : ""}</td>
-          <td>${acctBadge(a.isLive)}</td>
-          <td>${x?.error ? `<span class="down" title="${esc(x.error)}">errore</span>` : i ? `${fmt(i.balance)} ${esc(i.currency)}` : "…"}</td>
-          <td>${i?.leverage ? `1:${fmt(i.leverage, 0)}` : "—"}</td>
-          <td>${x?.positions ? x.positions.length : "—"}</td>
-          <td><input type="radio" name="data-account" value="${a.ctidTraderAccountId}" ${String(b.dataAccountId) === String(a.ctidTraderAccountId) ? "checked" : ""} title="Usa questo conto per prezzi e grafici" /></td>
+          <td data-label="Conto">${esc(accountName(a))}${i?.accountType && i.accountType !== "HEDGED" ? ` <small class="warn-line">(${esc(i.accountType)}: non adatto agli agenti)</small>` : ""}</td>
+          <td data-label="Tipo">${acctBadge(a.isLive)}</td>
+          <td data-label="Saldo">${x?.error ? `<span class="down" title="${esc(x.error)}">errore</span>` : i ? `${fmt(i.balance)} ${esc(i.currency)}` : "…"}</td>
+          <td data-label="Leva">${i?.leverage ? `1:${fmt(i.leverage, 0)}` : "—"}</td>
+          <td data-label="Posizioni">${x?.positions ? x.positions.length : "—"}</td>
+          <td data-label="Prezzi e grafici da qui"><input type="radio" name="data-account" value="${a.ctidTraderAccountId}" ${String(b.dataAccountId) === String(a.ctidTraderAccountId) ? "checked" : ""} title="Usa questo conto per prezzi e grafici" /></td>
         </tr>`;
       }).join("")}</table>
       ${state.brokerAccounts?.error ? `<p class="errors">${esc(state.brokerAccounts.error)}</p>` : ""}
@@ -668,14 +781,14 @@ function renderBroker() {
   $("#broker-positions").innerHTML = !b.linked
     ? `<p class="empty">—</p>`
     : rows.length
-      ? `<table><tr><th>Strumento</th><th>Conto</th><th>Lato</th><th>Lotti</th><th>Apertura</th><th>Stop loss</th><th>Take profit</th><th>P&L</th><th>Aperta da</th><th></th></tr>
+      ? `<table class="stack"><tr><th>Strumento</th><th>Conto</th><th>Lato</th><th>Lotti</th><th>Apertura</th><th>Stop loss</th><th>Take profit</th><th>P&L</th><th>Aperta da</th><th></th></tr>
         ${rows.map((p) => `<tr>
-          <td>${esc(p.symbol)}</td><td>${p.acc ? acctBadge(p.acc.isLive) : ""} ${esc(p.acc?.traderLogin ?? p.accountId)}</td>
-          <td class="${p.side === "buy" ? "up" : "down"}">${p.side === "buy" ? "acquisto" : "vendita"}</td>
-          <td>${fmt(p.lots, 2)}</td><td>${p.price ?? "—"}</td><td>${p.stopLoss ?? "—"}</td><td>${p.takeProfit ?? "—"}</td>
-          <td class="${(p.pnl ?? 0) >= 0 ? "up" : "down"}">${p.pnl == null ? "—" : `${fmt(p.pnl)} ${esc(p.currency)}`}</td>
-          <td>${p.label.startsWith("agenti:") ? `🤖 ${esc(p.label.slice(7))}` : "te (manuale)"}</td>
-          <td><button class="btn small danger" data-close-pos="${p.accountId}|${p.positionId}">Chiudi</button></td>
+          <td data-label="Strumento">${esc(p.symbol)}</td><td data-label="Conto">${p.acc ? acctBadge(p.acc.isLive) : ""} ${esc(p.acc?.traderLogin ?? p.accountId)}</td>
+          <td data-label="Lato" class="${p.side === "buy" ? "up" : "down"}">${p.side === "buy" ? "acquisto" : "vendita"}</td>
+          <td data-label="Lotti">${fmt(p.lots, 2)}</td><td data-label="Apertura">${p.price ?? "—"}</td><td data-label="Stop loss">${p.stopLoss ?? "—"}</td><td data-label="Take profit">${p.takeProfit ?? "—"}</td>
+          <td data-label="P&L" class="${(p.pnl ?? 0) >= 0 ? "up" : "down"}">${p.pnl == null ? "—" : `${fmt(p.pnl)} ${esc(p.currency)}`}</td>
+          <td data-label="Aperta da">${p.label.startsWith("agenti:") ? `🤖 ${esc(p.label.slice(7))}` : "te (manuale)"}</td>
+          <td class="act"><button class="btn small danger" data-close-pos="${p.accountId}|${p.positionId}">Chiudi</button></td>
         </tr>`).join("")}</table>`
       : state.brokerAccounts ? `<p class="empty">Nessuna posizione aperta.</p>` : `<p class="hint">Carico…</p>`;
   $("#broker-positions").querySelectorAll("[data-close-pos]").forEach((btn) => {
@@ -702,12 +815,12 @@ function renderBroker() {
   const accDays = Object.entries(day.accounts ?? {});
   $("#today-box").innerHTML = `<h3>Oggi</h3>
     ${accDays.length
-      ? `<table><tr><th>Conto</th><th>Ordini</th><th>Inizio giornata</th><th>Adesso</th><th>Perdita</th></tr>
+      ? `<table class="stack"><tr><th>Conto</th><th>Ordini</th><th>Inizio giornata</th><th>Adesso</th><th>Perdita</th></tr>
         ${accDays.map(([id, d]) => {
           const a = accountById(id);
-          return `<tr class="${d.breached ? "breached" : ""}"><td>${a ? `${acctBadge(a.isLive)} ${esc(a.traderLogin ?? id)}` : esc(id)}</td><td>${d.orders} / ${b.safety.limits.maxOrdersPerDay}</td>
-            <td>${d.startEquity == null ? "—" : fmt(d.startEquity)}</td><td>${d.equity == null ? "—" : fmt(d.equity)}</td>
-            <td class="${(d.lossPct ?? 0) > 0 ? "down" : "up"}">${d.startEquity == null ? "—" : `${fmt(d.lossPct ?? 0)}%`}${d.breached ? " ⛔" : ""}</td></tr>`;
+          return `<tr class="${d.breached ? "breached" : ""}"><td data-label="Conto">${a ? `${acctBadge(a.isLive)} ${esc(a.traderLogin ?? id)}` : esc(id)}</td><td data-label="Ordini">${d.orders} / ${b.safety.limits.maxOrdersPerDay}</td>
+            <td data-label="Inizio giornata">${d.startEquity == null ? "—" : fmt(d.startEquity)}</td><td data-label="Adesso">${d.equity == null ? "—" : fmt(d.equity)}</td>
+            <td data-label="Perdita" class="${(d.lossPct ?? 0) > 0 ? "down" : "up"}">${d.startEquity == null ? "—" : `${fmt(d.lossPct ?? 0)}%`}${d.breached ? " ⛔" : ""}</td></tr>`;
         }).join("")}</table>
         ${accDays.some(([, d]) => d.breached) ? `<p class="hint warn-line">⛔ = limite di perdita superato: su quel conto gli agenti non possono aprire posizioni fino a domani (il giorno cambia alle 00:00 UTC), anche se riattivi gli ordini. Per sbloccarlo prima, alza la perdita massima.</p>` : ""}`
       : `<p class="hint">Ancora nessun ordine o controllo sul broker oggi.</p>`}
@@ -724,15 +837,16 @@ function renderBroker() {
       : `<h3>🔒 Conto reale bloccato</h3>
          <p class="hint">Finché è bloccato gli agenti possono usare solo conti <b>demo</b>. Sbloccalo solo dopo aver provato a lungo il sistema sul demo.</p>
          <label>Per sbloccarlo scrivi <b>${esc(b.liveConfirm)}</b> <input name="confirm" autocomplete="off" spellcheck="false" /></label>
+         ${state.session.auth ? `<label>e la password con cui entri nell'app <input name="password" type="password" autocomplete="current-password" autocapitalize="off" spellcheck="false" /></label>` : ""}
          <div class="row"><button class="btn danger" type="submit">Sblocca il conto reale</button></div>`;
   }
 
   // Ultimi ordini sul broker
   $("#broker-trades").innerHTML = b.trades.length
-    ? `<table><tr><th>Quando</th><th>Agente</th><th>Conto</th><th>Operazione</th><th>Strumento</th><th>Lotti</th><th>Prezzo</th></tr>
-      ${b.trades.map((t) => `<tr title="${esc(t.reason)}"><td>${when(t.at)}</td><td>${esc(t.agentId)}</td><td>${acctBadge(t.isLive)} ${esc(accountById(t.accountId)?.traderLogin ?? t.accountId)}</td>
-        <td class="${t.side === "buy" ? "up" : "down"}">${t.action === "close" ? "chiusura" : t.side === "buy" ? "acquisto" : "vendita"}</td>
-        <td>${esc(t.symbol)}</td><td>${fmt(t.lots)}</td><td>${t.status === "incerto" ? '<span class="warn-line" title="Connessione interrotta durante l\'invio">esito incerto</span>' : t.status === "accepted" ? `${esc(t.price ?? "—")} <small class="hint">(da confermare)</small>` : esc(t.price ?? "—")}</td></tr>`).join("")}</table>`
+    ? `<table class="stack"><tr><th>Quando</th><th>Agente</th><th>Conto</th><th>Operazione</th><th>Strumento</th><th>Lotti</th><th>Prezzo</th></tr>
+      ${b.trades.map((t) => `<tr title="${esc(t.reason)}"><td data-label="Quando">${when(t.at)}</td><td data-label="Agente">${esc(t.agentId)}</td><td data-label="Conto">${acctBadge(t.isLive)} ${esc(accountById(t.accountId)?.traderLogin ?? t.accountId)}</td>
+        <td data-label="Operazione" class="${t.side === "buy" ? "up" : "down"}">${t.action === "close" ? "chiusura" : t.side === "buy" ? "acquisto" : "vendita"}</td>
+        <td data-label="Strumento">${esc(t.symbol)}</td><td data-label="Lotti">${fmt(t.lots)}</td><td data-label="Prezzo">${t.status === "incerto" ? '<span class="warn-line" title="Connessione interrotta durante l\'invio">esito incerto</span>' : t.status === "accepted" ? `${esc(t.price ?? "—")} <small class="hint">(da confermare)</small>` : esc(t.price ?? "—")}</td></tr>`).join("")}</table>`
     : `<p class="empty">Nessun ordine degli agenti sul broker.</p>`;
 }
 
@@ -870,9 +984,10 @@ $("#live-form").addEventListener("submit", async (e) => {
   delete e.currentTarget.dataset.dirty;
   const live = state.broker.safety.liveEnabled;
   if (!live && !confirm("Sbloccare il CONTO REALE?\n\nDa ora potrai collegare i piani a conti con soldi veri. Fallo solo dopo aver provato a lungo sul conto demo.")) return;
-  const confirmText = e.target.confirm?.value ?? "";
+  const body = { enabled: !live, confirm: e.target.confirm?.value ?? "" };
+  if (!live && state.session.auth) body.password = e.target.password?.value ?? ""; // conferma con la password (sul server online)
   document.activeElement?.blur();
-  await brokerCall("/api/safety/live", "POST", { enabled: !live, confirm: confirmText });
+  await brokerCall("/api/safety/live", "POST", body);
   loadOffice();
 });
 
@@ -903,6 +1018,7 @@ async function sendChat(text) {
   text = text.trim();
   if (!text || state.chat.busy) return;
   $("#chat-input").value = "";
+  growChatInput();
   try {
     await api("/api/chat", { method: "POST", body: JSON.stringify({ message: text }) });
   } catch (err) {
@@ -919,11 +1035,22 @@ $("#chat-form").addEventListener("submit", (e) => {
   sendChat($("#chat-input").value);
 });
 $("#chat-input").addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey) {
+  // Sul telefono Invio va a capo (le tastiere touch non hanno Maiusc+Invio): si invia con ➤.
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing && !touchMQ.matches) {
     e.preventDefault();
     sendChat(e.target.value);
   }
 });
+/** Il campo cresce con il testo (fino al massimo previsto dal foglio di stile, poi scorre). */
+function growChatInput() {
+  const el = $("#chat-input");
+  el.style.height = "";
+  if (el.value) el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
+}
+$("#chat-input").addEventListener("input", growChatInput);
+// I pulsanti della chat non tolgono il cursore al campo: sul telefono la tastiera resta aperta e la pagina non
+// si sposta sotto il dito (altrimenti il tocco su ➤ potrebbe finire altrove).
+for (const el of [$("#chat-form"), $("#chat-chips")]) el.addEventListener("mousedown", (e) => e.target.closest("button") && e.preventDefault());
 $("#chat-reset").onclick = () => api("/api/chat/reset", { method: "POST" }).catch((e) => alert(e.message));
 
 // ---------- impostazioni ----------
@@ -934,6 +1061,8 @@ const settingsForm = $("#settings-form");
 async function openSettings() {
   settingsForm.key.value = "";
   $("#settings-errors").textContent = "";
+  $("#data-errors").textContent = "";
+  $("#data-status").textContent = "";
   checkForUpdate();
   renderSchedule();
   await renderKeyStatus();
@@ -1043,14 +1172,16 @@ async function checkForUpdate({ quiet } = {}) {
   try {
     const u = await api("/api/update");
     state.update = u;
-    const latest = `${u.latest.message} (${u.latest.date ? when(u.latest.date) : u.latest.short})`;
-    if (!u.canUpdate) status.textContent = u.reason;
+    // Sul server online gli aggiornamenti arrivano da soli (canUpdate false): si mostra solo il motivo.
+    const latest = u.latest ? `${u.latest.message} (${u.latest.date ? when(u.latest.date) : u.latest.short})` : "";
+    if (!u.canUpdate) status.textContent = u.reason ?? "Gli aggiornamenti dall'app non sono disponibili.";
     else if (!u.installed) status.textContent = `Non so quale versione hai (scaricata a mano). Ultima versione: ${latest}. Aggiorna per essere sicuro di avere l'ultima.`;
     else if (u.available) status.textContent = `È disponibile una nuova versione: ${latest}.`;
     else status.textContent = `Hai l'ultima versione ✅ (${latest}).`;
-    const show = u.canUpdate && u.available;
+    const show = Boolean(u.canUpdate && u.available && state.session.updater);
     $("#update-apply").classList.toggle("hidden", !show);
     $("#update-cta").classList.toggle("hidden", !show);
+    $("#more-update").classList.toggle("hidden", !show);
   } catch (err) {
     if (!quiet) status.textContent = "";
     $("#update-errors").textContent = quiet ? "" : err.message;
@@ -1086,6 +1217,144 @@ $("#update-apply").onclick = async () => {
   }
 };
 $("#key-cta").onclick = openSettings;
+
+// ---------- dati: copia (esporta) e ripristino (importa) ----------
+
+$("#import-data").onclick = () => $("#import-file").click();
+$("#import-file").addEventListener("change", async (e) => {
+  const file = e.target.files?.[0];
+  e.target.value = ""; // così si può scegliere di nuovo lo stesso file
+  if (!file) return;
+  $("#data-errors").textContent = "";
+  $("#data-status").textContent = "";
+  if (!/\.zip$/i.test(file.name)) return ($("#data-errors").textContent = "Scegli il file .zip creato con «Esporta i dati».");
+  if (file.size > 20 * 1024 * 1024) return ($("#data-errors").textContent = "Il file è troppo grande (massimo 20 MB).");
+  if (!confirm(`Importare «${file.name}»?\n\nAgenti, palazzo, portafoglio e impostazioni di adesso verranno sostituiti da quelli del file (il programma ne salva prima una copia). Poi il programma si riavvia.`)) return;
+  const headers = { "Content-Type": "application/zip" };
+  if (state.session.auth) {
+    const password = await askPassword("Per importare i dati scrivi la password con cui entri nell'app.");
+    if (password == null) return;
+    headers["X-Agenti-Password"] = password;
+  }
+  $("#data-status").textContent = "Invio il file…";
+  try {
+    const before = (await api("/api/version").catch(() => ({}))).startedAt;
+    const r = await api("/api/backup", { method: "POST", headers, body: file });
+    if (!r.restarting) {
+      $("#data-status").textContent = `Dati importati ✅. ${r.message ?? "Riavvia il programma"} per usarli.`;
+      return;
+    }
+    waitForRestart(before);
+  } catch (err) {
+    $("#data-status").textContent = "";
+    $("#data-errors").textContent = err.message;
+  }
+});
+
+/** Dopo l'importazione il server si riavvia: si aspetta che risponda di nuovo, poi si ricarica la pagina. */
+async function waitForRestart(before) {
+  settingsDlg.close();
+  $("#restart-dialog").showModal();
+  let down = false;
+  for (let i = 0; i < 120; i++) {
+    await new Promise((r) => setTimeout(r, 1500));
+    const ok = await fetch("/healthz", { cache: "no-store" }).then((r) => r.ok, () => false);
+    if (!ok) {
+      down = true;
+      continue;
+    }
+    const v = await fetch("/api/version", { cache: "no-store" }).then((r) => (r.ok ? r.json() : {}), () => null);
+    if (down || (v && v.startedAt !== before)) return location.reload();
+  }
+  $("#restart-title").textContent = "Il programma non è ripartito";
+  $("#restart-msg").textContent = "Aspetta ancora un minuto e ricarica la pagina. Sul Mac: chiudi il programma e riaprilo con l'icona «Avvia Agenti».";
+}
+$("#restart-dialog").addEventListener("cancel", (e) => e.preventDefault()); // non si chiude con Esc durante il riavvio
+
+// ---------- password per le operazioni delicate ----------
+
+const passDlg = $("#password-dialog");
+const passForm = $("#password-form");
+/** Chiede la password dell'app; restituisce il testo scritto, oppure null se si annulla. */
+function askPassword(message) {
+  return new Promise((resolve) => {
+    $("#password-msg").textContent = message;
+    $("#password-errors").textContent = "";
+    passForm.password.value = "";
+    passDlg.returnValue = "";
+    passDlg.onclose = () => resolve(passDlg.returnValue === "ok" ? passForm.password.value : null);
+    passDlg.showModal();
+    passForm.password.focus();
+  });
+}
+passForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  if (!passForm.password.value) return ($("#password-errors").textContent = "Scrivi la password.");
+  passDlg.close("ok");
+});
+passDlg.querySelectorAll("[data-close]").forEach((b) => (b.onclick = () => passDlg.close()));
+
+// ---------- app sul telefono: installazione ----------
+
+let installPrompt = null; // Android/Chrome: l'evento che permette di mostrare la finestra "Installa"
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  installPrompt = e;
+  $("#more-install-state").textContent = "Pronta da installare: tocca qui";
+});
+window.addEventListener("appinstalled", () => {
+  installPrompt = null;
+  $("#more-install-state").textContent = "Installata ✅";
+  if ($("#install-dialog").open) renderInstall();
+});
+
+const isInstalled = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const isSecure = () => window.isSecureContext;
+
+function renderInstall() {
+  const s = state.session;
+  const where = s.publicUrl ? `<b>${esc(s.publicUrl)}</b>` : "l'indirizzo dell'app sul server";
+  let html;
+  if (isInstalled()) {
+    html = `<p class="ok-line">✅ L'app è già installata: la trovi tra le app del telefono con il nome «Agenti».</p>`;
+  } else if (installPrompt) {
+    html = `<p>Premi <b>Installa</b>: l'icona «Agenti» comparirà nella schermata Home e l'app si aprirà a tutto schermo, senza la barra del browser.</p>`;
+  } else if (isIOS()) {
+    html = `<p>Su iPhone e iPad si installa da Safari, in pochi tocchi:</p>
+      <ol>
+        <li>tocca <b>Condividi</b> <span class="share">⬆︎</span> (il quadrato con la freccia). Se non lo vedi, tocca prima i tre puntini <b>•••</b> accanto all'indirizzo, poi <b>Condividi</b>;</li>
+        <li>scorri e tocca <b>Aggiungi alla schermata Home</b>;</li>
+        <li>lascia acceso <b>Apri come app web</b> (se c'è) e tocca <b>Aggiungi</b>.</li>
+      </ol>
+      <p class="hint">Non vedi «Aggiungi alla schermata Home»? Apri questa pagina con Safari.${s.auth ? " Nell'app installata ti verrà chiesta la password una volta." : ""}</p>`;
+  } else if (!isSecure()) {
+    html = `<p>Per installarla serve l'indirizzo sicuro dell'app (che inizia con <b>https://</b>): apri ${where} sul telefono.</p>`;
+  } else if (touchMQ.matches) {
+    html = `<p>Apri il menu del browser <b>⋮</b> (in alto a destra) e tocca <b>Installa app</b> oppure <b>Aggiungi a schermata Home</b>.</p>
+      <p class="hint">Se la voce non c'è ancora, usa l'app per qualche secondo e riprova.</p>`;
+  } else {
+    html = `<p>Sul telefono: apri ${where} con Chrome (Android) o Safari (iPhone), entra e tocca <b>☰ Altro → 📲 Installa l'app sul telefono</b>.</p>
+      <p class="hint">Su questo computer, con Chrome o Edge, puoi installarla dall'icona ⊕ nella barra degli indirizzi.</p>`;
+  }
+  $("#install-body").innerHTML = html;
+  $("#install-btn").classList.toggle("hidden", !installPrompt || isInstalled());
+}
+
+function openInstall() {
+  renderInstall();
+  $("#install-dialog").showModal();
+}
+$("#install-btn").onclick = async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  const { outcome } = await installPrompt.userChoice.catch(() => ({}));
+  installPrompt = null;
+  if (outcome === "accepted") $("#install-body").innerHTML = `<p class="ok-line">✅ Fatto: trovi «Agenti» nella schermata Home.</p>`;
+  $("#install-btn").classList.add("hidden");
+};
+$("#install-dialog").querySelectorAll("[data-close]").forEach((b) => (b.onclick = () => $("#install-dialog").close()));
+$("#phone-install").onclick = () => openInstall();
 
 // ---------- editor agente ----------
 
@@ -1263,9 +1532,63 @@ $("#new-agent").onclick = () => openEditor(null);
 
 // ---------- tempo reale ----------
 
-const events = new EventSource("/api/events");
-events.onmessage = (msg) => {
-  const ev = JSON.parse(msg.data);
+// Il server non ripete gli eventi persi: quando il collegamento riparte si ricarica tutto (approvazioni comprese).
+// Sui telefoni il collegamento può morire in silenzio quando l'app va in sottofondo: lo si rifà quando la pagina
+// torna visibile, quando torna la rete e quando per 60 secondi non arriva niente (il server manda un "ping" ogni 25).
+let events = null;
+let lastEventAt = Date.now();
+let everOpened = false;
+let retryTimer = null;
+
+function connectEvents() {
+  clearTimeout(retryTimer);
+  events?.close();
+  lastEventAt = Date.now();
+  const es = (events = new EventSource("/api/events"));
+  es.onopen = () => {
+    lastEventAt = Date.now();
+    if (everOpened) resync(); // riconnessi: si recupera quello che è successo nel frattempo
+    everOpened = true;
+  };
+  es.onmessage = (msg) => {
+    lastEventAt = Date.now();
+    handleEvent(JSON.parse(msg.data));
+  };
+  es.onerror = async () => {
+    if (es !== events) return;
+    // Sessione scaduta? Allora si torna all'accesso invece di riprovare all'infinito.
+    const s = await loadSession();
+    if (s?.auth && !s.loggedIn) return goLogin();
+    // Il browser riprova da solo, tranne quando il server ha risposto con un errore: allora si riprova noi.
+    if (es.readyState === EventSource.CLOSED) retryTimer = setTimeout(connectEvents, 5000);
+  };
+}
+
+let resyncing = null;
+/** Riallinea la pagina con il server (dopo una riconnessione); mai due volte insieme. */
+function resync() {
+  resyncing ??= loadAll()
+    .catch(() => {})
+    .finally(() => (resyncing = null));
+  return resyncing;
+}
+
+/** La pagina torna in primo piano o torna la rete: collegamento nuovo e dati aggiornati (all'apertura). */
+function wakeUp() {
+  if (document.hidden) return;
+  connectEvents();
+}
+document.addEventListener("visibilitychange", () => {
+  syncOffice3d();
+  wakeUp();
+});
+window.addEventListener("pageshow", (e) => e.persisted && wakeUp()); // pagina ripresa dalla cache del browser
+window.addEventListener("online", wakeUp);
+setInterval(() => {
+  if (!document.hidden && Date.now() - lastEventAt > 60_000) connectEvents();
+}, 10_000);
+
+function handleEvent(ev) {
   switch (ev.type) {
     case "status":
       state.status[ev.agentId] = { status: ev.status, detail: ev.detail };
@@ -1332,12 +1655,41 @@ events.onmessage = (msg) => {
   }
 };
 
-loadAll().then(() => {
+// ---------- telefono: tastiera dell'iPhone ----------
+// Sull'iPhone la tastiera copre la pagina senza accorciarla: l'altezza dell'app segue la parte visibile.
+if (window.visualViewport && touchMQ.matches) {
+  const vv = window.visualViewport;
+  const fit = () => {
+    const keyboard = Math.abs(vv.scale - 1) < 0.01 && innerHeight - vv.height > 80;
+    $(".app").classList.toggle("kb", keyboard);
+    if (!keyboard) return;
+    document.documentElement.style.setProperty("--app-h", `${vv.height}px`);
+    window.scrollTo(0, 0);
+    if (state.view === "chat") $("#chat-body").scrollTop = $("#chat-body").scrollHeight;
+  };
+  vv.addEventListener("resize", fit);
+}
+
+// ---------- app installabile: service worker (solo su https o sul computer stesso) ----------
+if ("serviceWorker" in navigator && (location.protocol === "https:" || ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname))) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+}
+
+// ---------- avvio ----------
+
+async function start() {
+  await loadSession();
+  if (state.session.auth && !state.session.loggedIn) return goLogin();
+  applySession();
+  syncRoster();
+  connectEvents();
+  await loadAll();
   if (location.hash === "#broker") {
     showView("broker");
     history.replaceState(null, "", location.pathname);
   }
-});
+}
+start();
 setInterval(refreshPortfolio, 60_000);
 setInterval(refreshStats, 5 * 60_000); // così l'avviso "fuori orario" resta giusto anche a pagina ferma
 setInterval(() => state.view === "broker" && loadBrokerAccounts(), 30_000);
