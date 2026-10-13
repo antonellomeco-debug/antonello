@@ -460,7 +460,7 @@ app.use((err, req, res, next) => {
 // Fuori dall'orario di lavoro (⚙️ Impostazioni) non parte nessun agente in automatico; quando l'orario
 // ricomincia ripartono tutti, come all'apertura del programma.
 let wasWorking = null;
-setInterval(() => {
+function schedulerTick() {
   if (shuttingDown || restartPending) return;
   const now = Date.now();
   const working = isWorkingTime();
@@ -485,6 +485,14 @@ setInterval(() => {
       runAgent(agent, office.building()).catch(() => {});
     }
   }
+}
+setInterval(() => {
+  // Un errore in un giro (es. dati rovinati) si scrive nel registro e non ferma il programma.
+  try {
+    schedulerTick();
+  } catch (err) {
+    log("programma", "error", `Scheduler: ${err.message}`);
+  }
 }, 60_000);
 
 // Controllo dei conti cTrader usati dai piani: perdita del giorno e STOP automatico.
@@ -494,6 +502,8 @@ const monitor = async () => {
   monitoring = true;
   try {
     await monitorAccounts();
+  } catch (err) {
+    log("sicurezza", "error", `Controllo dei conti cTrader non riuscito: ${err.message}`);
   } finally {
     monitoring = false;
   }
@@ -557,7 +567,10 @@ async function shutdown(reason, code = 0) {
 process.on("SIGINT", () => shutdown("Chiusura richiesta"));
 process.on("SIGTERM", () => shutdown("Arresto richiesto dal sistema"));
 // Finestra del Terminale chiusa (Mac): si esce subito, i dati in attesa si salvano comunque all'uscita.
-process.on("SIGHUP", () => process.exit(0));
+process.on("SIGHUP", () => {
+  if (importedAtBoot) confirmImportWorked(); // finestra del Terminale chiusa: i dati importati funzionavano
+  process.exit(0);
+});
 
 function openBrowser() {
   if (process.env.OPEN_BROWSER === "0" || CLOUD) return;
@@ -568,8 +581,9 @@ function openBrowser() {
 // All'avvio: dati importati e ordini rimasti a metà da una chiusura improvvisa.
 if (importedAtBoot) log("programma", "info", `Dati della copia importata messi al loro posto (${importedAtBoot} file).`);
 recoverInterruptedApprovals();
-// Dopo un'importazione: se il programma resta acceso 30 secondi (o si chiude in modo ordinato), i dati nuovi vanno bene.
-if (importedAtBoot) setTimeout(confirmImportWorked, 30_000).unref();
+// Dopo un'importazione: se il programma resta acceso due minuti e mezzo (più di un giro dello scheduler e del controllo
+// dei conti) o si chiude in modo ordinato, i dati nuovi vanno bene.
+if (importedAtBoot) setTimeout(confirmImportWorked, 150_000).unref();
 
 // Express 5 passa anche l'eventuale errore di avvio (es. porta occupata) a questa callback.
 const server = app.listen(PORT, HOST, (err) => {

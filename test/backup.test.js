@@ -131,6 +131,30 @@ test("se il programma non riparte dopo l'importazione, al riavvio tornano i dati
   assert.equal(fs.existsSync(backup.APPLIED_MARK), false);
 });
 
+test("importazione rifiutata: impostazioni, cTrader, portafoglio o file troppo annidati con la forma sbagliata", () => {
+  const ok = { "building.json": { floors: [], rooms: [], links: [] } };
+  const bad = (files, re) => assert.throws(() => backup.readBackup(zipOf({ ...ok, ...files })), re);
+  bad({ "settings.json": { schedule: { days: 1 } } }, /settings\.json non ha/);
+  bad({ "settings.json": { schedule: { start: "7:30" } } }, /settings\.json non ha/);
+  bad({ "settings.json": { anthropicApiKey: 12345 } }, /settings\.json non ha/);
+  bad({ "ctrader.json": { accounts: null } }, /ctrader\.json non ha/);
+  bad({ "ctrader.json": { token: "abc" } }, /ctrader\.json non ha/);
+  bad({ "state.json": { portfolio: { positions: { AAPL: null } } } }, /state\.json non ha/);
+  bad({ "agents/a.json": `{"params":${"[".repeat(200)}${"]".repeat(200)}}` }, /agents\/a\.json non ha/);
+  assert.doesNotThrow(() => backup.readBackup(zipOf({ ...ok, "settings.json": { schedule: { days: [1, 2], start: "07:30", end: "22:30", fridayClose: { enabled: true, time: "21:45" } } } })));
+});
+
+test("ritorno ai dati di prima: si tolgono anche i file arrivati solo con l'importazione", () => {
+  backup.confirmImportWorked();
+  fs.rmSync(path.join(dataDir, "ctrader.json"), { force: true });
+  backup.importZip(zipOf({ "building.json": { name: "Con cTrader rotto", floors: [], rooms: [], links: [] }, "ctrader.json": { clientId: "nuovo" } }));
+  backup.applyStagedImport();
+  assert.equal(read("ctrader.json").clientId, "nuovo");
+  backup.applyStagedImport(); // nessuna conferma: il programma si era fermato
+  assert.equal(fs.existsSync(path.join(dataDir, "ctrader.json")), false, "ctrader.json non c'era prima: tolto");
+  assert.notEqual(read("building.json").name, "Con cTrader rotto");
+});
+
 test("preparazione interrotta (manca PRONTO): ignorata", () => {
   fs.mkdirSync(backup.STAGING_DIR, { recursive: true });
   fs.writeFileSync(path.join(backup.STAGING_DIR, "building.json"), '{"name":"a metà"}');

@@ -258,12 +258,33 @@ test("troppi tentativi: dietro il proxy 5 errori per indirizzo in 15 minuti, poi
   assert.match(limited.json.error, /^Troppi tentativi: riprova tra \d+ minut[oi]$/);
   assert.ok(limited.json.retryAfter > 0 && limited.json.retryAfter <= 900);
   assert.equal(limited.headers["retry-after"], String(limited.json.retryAfter));
-  // Un altro indirizzo non è bloccato; dopo 10 errori in tutto ogni tentativo aspetta (qui 1 secondo).
+  // Un altro indirizzo non è bloccato; dopo 10 errori in tutto si aspetta un po' prima del tentativo dopo
+  // (qui 1 secondo), senza file d'attesa: la risposta arriva subito con il tempo da aspettare.
   for (let i = 0; i < 5; i++) assert.equal((await from(`198.51.100.${i}`, "ancora-sbagliata")).status, 401);
   const t0 = Date.now();
-  const owner = await from("192.0.2.77", PASSWORD);
-  assert.equal(owner.status, 200, "il proprietario entra comunque");
-  assert.ok(Date.now() - t0 >= 900, `attesa dopo 10 errori (${Date.now() - t0} ms)`);
+  const wait = await from("192.0.2.77", PASSWORD);
+  assert.equal(wait.status, 429);
+  assert.ok(Date.now() - t0 < 500, "risposta immediata");
+  assert.match(wait.json.error, /^Troppi tentativi: riprova tra \d+ second[oi]$/);
+  await new Promise((r) => setTimeout(r, wait.json.retryAfter * 1000 + 50));
+  assert.equal((await from("192.0.2.77", PASSWORD)).status, 200, "passata l'attesa il proprietario entra");
+  await s.stop();
+});
+
+test("raffica da tanti indirizzi: nessuna richiesta resta appesa e il proprietario entra dopo una breve attesa", async () => {
+  const s = await start({ ...CLOUD_ENV, TRUST_PROXY: "1" });
+  const from = (ip, password) => s.req("POST", "/api/login", json({ password }, { "x-forwarded-for": ip }));
+  const t0 = Date.now();
+  const flood = await Promise.all(Array.from({ length: 50 }, (_, i) => from(`203.0.113.${100 + i}`, `raffica-${i}`)));
+  assert.ok(Date.now() - t0 < 5000, `tutte le risposte entro pochi secondi (${Date.now() - t0} ms)`);
+  assert.ok(flood.filter((r) => r.status === 401).length <= 10, "al massimo 10 password controllate prima delle attese");
+  let owner = await from("192.0.2.88", PASSWORD);
+  for (let i = 0; owner.status === 429 && i < 5; i++) {
+    assert.ok(owner.json.retryAfter <= 30);
+    await new Promise((r) => setTimeout(r, owner.json.retryAfter * 1000 + 50));
+    owner = await from("192.0.2.88", PASSWORD);
+  }
+  assert.equal(owner.status, 200);
   await s.stop();
 });
 
