@@ -6,7 +6,7 @@ Un **palazzo** virtuale in 3D di agenti che analizzano i mercati. Il palazzo ha 
 
 Cosa trovi nell'interfaccia:
 
-- **Ufficio**: il palazzo in 3D. Con l'ascensore scegli un piano o tutto il palazzo; trascini per girare. Clicchi una scrivania per aprire la scheda dell'agente, clicchi il nome di una stanza per avvicinarti. In alto ci sono i numeri dell'ufficio e il valore del portafoglio.
+- **Ufficio**: il palazzo in 3D. Con l'ascensore scegli un piano o tutto il palazzo; trascini per girare. L'etichetta di un agente (nome e stato) compare passando il mouse sopra di lui; i fumetti con le note appaiono da soli sul piano in primo piano. Clicchi una scrivania per aprire la scheda dell'agente, clicchi il nome di una stanza per avvicinarti. In alto ci sono i numeri dell'ufficio e il valore del portafoglio.
 - **Palazzo**: crei e modifichi piani e stanze, e decidi quali piani comunicano tra loro.
 - **Parla con Orion**: chat con il regista. Puoi chiedergli cosa succede, far lavorare gli agenti, oppure **creare e modificare agenti, piani, stanze e collegamenti descrivendoli a parole**.
 - **Approvazioni**: gli agenti *propongono* gli ordini e tu scegli "Fallo per me" o "Scarta".

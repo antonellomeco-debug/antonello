@@ -46,7 +46,7 @@ async function loadOffice() {
   const { building, agents, assistant } = state.office;
   $("#office-sub").textContent =
     `${building.name}: ${agents.length} agenti in ${building.rooms.length} stanze su ${building.floors.length} piani, coordinati da ${assistant}. ` +
-    "Scegli un piano nell'ascensore, trascina per girare, clicca una scrivania per aprire la scheda.";
+    "Scegli un piano nell'ascensore, trascina per girare, passa sopra un agente per vederne il nome, clicca una scrivania per aprire la scheda.";
   $("#chat-title").textContent = `Parla con ${assistant}`;
   $("#key-cta").classList.toggle("hidden", state.office.llmReady);
   $("#badge-settings").classList.toggle("hidden", state.office.llmReady);
