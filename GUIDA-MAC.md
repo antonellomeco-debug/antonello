@@ -158,19 +158,28 @@ Il collegamento è **gratuito**. Si fa una volta sola e richiede una ventina di 
 
 ### Passo B: registra il programma su cTrader (una volta sola)
 
-1. Apri il programma e vai nella sezione **🔌 Broker** (barra a sinistra).
-2. Nel riquadro **1 · Registra l'app su cTrader** apri **Come si fa** e segui le istruzioni:
-   - vai su [openapi.ctrader.com/apps](https://openapi.ctrader.com/apps) ed entra con il tuo **cTrader ID**;
-   - premi **Add new app**, scrivi un nome (es. *Agenti borsa*) e invia;
-   - nella voce **Redirect URIs** aggiungi l'indirizzo che vedi nell'app (premi **Copia**): `http://localhost:3000/ctrader/callback`.
-3. Aspetta che lo stato dell'app diventi **Active** (cTrader la approva a mano: possono servire alcuni giorni).
-4. Premi **Credentials**: copia **Client ID** e **Secret** nei due campi dell'app e premi **Salva**.
+1. **Trova il tuo cTrader ID**: è l'email (o il nome utente) e la password con cui entri **nell'app cTrader**, che può essere diversa dall'accesso all'area clienti di FP Markets. Entra in cTrader (es. [app.ctrader.com](https://app.ctrader.com)) e controlla che si veda il tuo conto **demo**. Se non ricordi la password puoi reimpostarla da [id-app.fpmarkets.com](https://id-app.fpmarkets.com/login) → *Forgot password?*.
+2. Vai su [openapi.ctrader.com/apps](https://openapi.ctrader.com/apps) e accedi con il **cTrader ID**.
+3. Premi **Add new app** e compila:
+   - **Application name**: es. *Agenti borsa personale*;
+   - **Description**: scrivi bene a cosa serve, così l'approvano prima. Per esempio: *Strumento personale, non commerciale, usato solo da me sul mio computer per leggere i prezzi e gestire il mio conto demo cTrader di FP Markets (in futuro il mio conto reale). Nessun altro utente.*
+   - se chiede anche nome dell'azienda o sito web, scrivi il tuo nome e cognome (e un sito qualsiasi tuo, oppure lascia vuoto se è facoltativo).
+4. **Redirect URIs**: la prima riga già presente (quella con *playground*) **lasciala com'è**. Premi **Add redirect URI** (o *+ Add redirect URL*) e incolla esattamente l'indirizzo che trovi nell'app, sezione 🔌 Broker → **Copia**: `http://localhost:3000/ctrader/callback` (senza spazi né barra finale). Se il modulo non ha questa voce, la aggiungi dopo con **Edit** (punto 7).
+5. Premi **Save**. L'app compare nell'elenco con lo stato **Submitted** (inviata).
+6. **Aspetta l'approvazione**: la fa a mano il personale di cTrader. Di solito servono **da 1 a 3 giorni lavorativi**. Ti arriva un'email all'indirizzo del cTrader ID (guarda anche nello spam): o conferma l'approvazione o chiede altre informazioni, e in quel caso rispondi. Quando è approvata lo stato diventa **Active**.
+7. Quando è **Active**, premi **Edit** sulla riga della tua app e controlla che fra i **Redirect URIs** ci sia `http://localhost:3000/ctrader/callback`; se manca aggiungilo e premi **Save**.
+8. Nella colonna **Credentials** premi **View**: copia **Client ID** (un numero, un trattino basso e lettere) e **Secret** nei due campi della sezione 🔌 Broker dell'app e premi **Salva**.
+
+> Client ID e Secret si vedono anche prima dell'approvazione, ma **funzionano solo quando lo stato è Active**: prima, collegando, vedresti l'errore *"l'app cTrader non è ancora stata approvata"*.
+> Il **Secret** è come una password: non mandarlo a nessuno e non metterlo in foto o chat.
+> Crea **una sola app**: basta per tutti i conti.
 
 ### Passo C: collega il conto
 
 1. Nel riquadro **2 · Collega il tuo conto** premi **🔗 Collega cTrader**.
 2. Si apre la pagina di cTrader: entra con il tuo cTrader ID, lascia selezionati i conti e premi **Allow access**.
 3. Torni nell'app da solo: vedrai **✔ Collegato** e l'elenco dei conti con l'etichetta **DEMO** o **REALE**.
+4. Se in futuro apri un altro conto (es. il conto reale), premi **🔗 Ricollega** e spunta anche quello: i conti nuovi non vengono aggiunti da soli.
 
 > Se dopo *Allow access* il browser mostra una pagina di errore, copia l'indirizzo **completo** dalla barra in alto (inizia con `http://localhost`) e incollalo in **La pagina finale dà errore o non torna all'app?** → **Conferma**. Fallo **entro un minuto**: il codice nell'indirizzo scade presto. Se è scaduto, premi di nuovo **Collega cTrader**.
 

@@ -140,11 +140,12 @@
               <details class="howto" id="app-howto">
                 <summary>Come si fa</summary>
                 <ol>
-                  <li>Apri <a href="https://openapi.ctrader.com/apps" target="_blank" rel="noopener">openapi.ctrader.com/apps</a> e accedi con il tuo <b>cTrader ID</b> (lo stesso con cui entri in cTrader).</li>
-                  <li>Premi <b>Add new app</b>, scrivi un nome (es. "Agenti borsa") e invia. L'approvazione da parte di cTrader può richiedere qualche giorno.</li>
-                  <li>Nell'app, alla voce <b>Redirect URIs</b>, aggiungi questo indirizzo (premi Copia e incollalo):
-                    <span class="copy-row"><code id="redirect-uri"></code><button type="button" class="btn small" id="copy-redirect">Copia</button></span></li>
-                  <li>Quando lo stato è <b>Active</b>, premi <b>Credentials</b>: copia <b>Client ID</b> e <b>Secret</b> nei campi qui sotto e premi Salva.</li>
+                  <li>Apri <a href="https://openapi.ctrader.com/apps" target="_blank" rel="noopener">openapi.ctrader.com/apps</a> e accedi con il tuo <b>cTrader ID</b> (email e password con cui entri nell'app cTrader).</li>
+                  <li>Premi <b>Add new app</b>: dai un nome (es. "Agenti borsa personale") e una <b>descrizione</b> chiara, es. <i>«Strumento personale, non commerciale, usato solo da me sul mio computer per leggere i prezzi e gestire il mio conto demo cTrader»</i>: aiuta a farla approvare prima.</li>
+                  <li>In <b>Redirect URIs</b> lascia la prima riga (playground) e con <b>Add redirect URI</b> aggiungi esattamente questo indirizzo (premi Copia e incollalo):
+                    <span class="copy-row"><code id="redirect-uri"></code><button type="button" class="btn small" id="copy-redirect">Copia</button></span> Poi premi <b>Save</b>.</li>
+                  <li>Lo stato sarà <b>Submitted</b>: cTrader la approva a mano, di solito in 1–3 giorni lavorativi, e ti scrive un'email (guarda anche nello spam).</li>
+                  <li>Quando lo stato è <b>Active</b>, nella colonna <b>Credentials</b> premi <b>View</b>: copia <b>Client ID</b> e <b>Secret</b> nei campi qui sotto e premi Salva. (Prima dell'approvazione non funzionano.)</li>
                 </ol>
               </details>
               <form class="grid2" id="app-form" autocomplete="off">
