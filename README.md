@@ -100,6 +100,7 @@ Claude esegue le `instructions` usando solo gli strumenti abilitati in `tools`:
 | `get_candles` | Ultime candele (con cTrader: periodi M1, M5, M15, M30, H1, H4, D1, W1) |
 | `search_symbols` | Cerca gli strumenti disponibili sul broker cTrader |
 | `get_calendar` | Calendario economico (Forex Factory) con giorno e ora italiana, impatto, previsione, dato precedente e dato uscito; filtri per periodo (`oggi`, `domani`, `ieri`, `settimana`, `7giorni`), valute e impatto minimo |
+| `web_search` | Cerca su internet notizie e informazioni aggiornate, con le fonti (la ricerca la fanno i server di Claude: 10 $ ogni 1.000 ricerche più i token dei risultati, al massimo 5 ricerche per lavoro) |
 | `read_notes` | Legge la propria stanza, le stanze del proprio piano scelte in `readsFrom` e tutte quelle dei piani collegati che mandano informazioni al suo piano |
 | `post_note` | Pubblica nella bacheca della propria stanza |
 | `get_portfolio` | Liquidità o saldo, posizioni, P&L del conto del suo piano |
@@ -135,6 +136,10 @@ Le strategie si trovano in [`strategies/`](strategies). Quelle già incluse sono
 ### Calendario economico
 
 `lib/calendar.js` scarica il calendario di Forex Factory al massimo una volta ogni ora e lo salva in `data/calendar.json`, così resta disponibile anche se la fonte per un po' non risponde (lo strumento lo segnala con un `avviso`). Fonti, in ordine: la copia pubblica su GitHub del progetto QuarkFX (tre settimane, con i dati usciti), la stessa su jsDelivr, il file ufficiale `ff_calendar_thisweek.json`. Gli orari sono convertiti in ora italiana.
+
+### Notizie dal web
+
+Lo strumento `web_search` (anche per Orion) usa la ricerca web di Anthropic: la eseguono i server di Claude, quindi non serve un altro abbonamento né un'altra chiave. Un agente con `web_search` tra i suoi strumenti e un `everyMinutes` trova e pubblica da solo le notizie (per esempio sull'oro) senza che l'utente le incolli. Ogni ricerca costa 1 centesimo di dollaro più i token dei risultati e viene sommata nella stima dei costi. Se l'organizzazione Anthropic ha disattivato la ricerca web, l'errore spiega come riattivarla (platform.claude.com/settings/capabilities). Le ricerche lunghe possono fermarsi a metà (`stop_reason: "pause_turn"`): il programma rimanda la conversazione così com'è e la ricerca riprende. Test: `test/websearch.test.js`, con un finto server dell'API di Claude.
 
 ## Broker cTrader e sicurezza
 
@@ -177,7 +182,7 @@ lib/ctrader/        cTrader Open API: protocollo, connessione, accesso OAuth, co
 lib/runner.js       esecuzione agenti (Claude con strumenti, oppure strategia JS)
 lib/schedule.js     orario di lavoro degli agenti, chiusura del venerdì, giorno e ora italiana
 lib/calendar.js     calendario economico (Forex Factory) con cache in data/calendar.json
-lib/tools.js        strumenti disponibili agli agenti
+lib/tools.js        strumenti disponibili agli agenti (compresa la ricerca web di Claude)
 lib/orchestrator.js il regista con cui parli in chat
 lib/claude.js       client Claude condiviso, verifica della chiave, errori in italiano
 lib/updater.js      aggiornamento dall'app
