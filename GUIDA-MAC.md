@@ -1,5 +1,7 @@
 # 🍎 Come avviare il programma sul Mac (guida per principianti)
 
+> ☁️📱 Vuoi il programma **sempre acceso**, anche con il Mac spento, e **sull'iPhone**? Segui la [guida Railway + iPhone](GUIDA-CLOUD.md).
+
 Non serve saper programmare. Ti servono solo il Mac e una connessione internet.
 La prima volta ci vogliono circa 10 minuti; dalla seconda volta basta un doppio clic.
 

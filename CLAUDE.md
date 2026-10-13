@@ -14,6 +14,8 @@ le decisioni prese e a che punto siamo. Aggiornalo quando cambia qualcosa di imp
   l'unione nel ramo predefinito.
   Ogni push su quel ramo arriva quindi all'utente: pubblica solo codice provato (`npm test` verde).
 - Broker: **FP Markets**, piattaforma **cTrader**, per ora **conto demo**. Budget per i servizi ~10 €/mese.
+- Ha scelto di far girare il programma 24/7 su **Railway** (piano Hobby, ~5 $/mese) e di usarlo da **iPhone**
+  come app installata (guida: `GUIDA-CLOUD.md`). Dopo il passaggio il Mac non deve più girare con gli stessi dati.
 
 ## Il progetto
 
@@ -64,6 +66,29 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   ricerche (`usage.server_tool_use.web_search_requests`, sommato in `addUsage`). Se l'organizzazione l'ha
   disattivata, `friendlyError` rimanda a platform.claude.com/settings/capabilities. Test: `test/websearch.test.js`
   (finto server dell'API di Claude via `ANTHROPIC_BASE_URL`).
+
+## Server (Railway) e telefono (13 ottobre 2026)
+
+- Stesso codice per Mac e server. Modalità server = indirizzo pubblico risolto in `lib/env.js` (`PUBLIC_URL`, poi
+  `RAILWAY_PUBLIC_DOMAIN`, poi `RENDER_EXTERNAL_URL`); dati in `AGENTI_DATA_DIR`, poi `RAILWAY_VOLUME_MOUNT_PATH`,
+  poi `data/`. Sul Mac (nessuna variabile) tutto come prima, senza password.
+- Accesso: `APP_PASSWORD` (≥ 10 caratteri) obbligatoria in modalità server o con `HOST` non locale, altrimenti
+  pagina 503 «imposta la password» (solo `/healthz` risponde). `lib/auth.js` (scrypt, sessioni 60 giorni in
+  `data/auth.json`, rallentamento dei tentativi), `lib/guard.js` (Host/Origin, CSP con hash dell'importmap: niente
+  script inline né `onclick=` in `public/`). Password chiesta di nuovo per sblocco conto reale, azzeramento, import.
+- cTrader: redirect `<PUBLIC_URL>/ctrader/callback` (l'utente deve aggiungerlo su openapi.ctrader.com) e `state`
+  monouso; non ancora verificato che cTrader rimandi `state` (se no, ritorno senza sessione impossibile: fare il
+  collegamento dal browser del computer).
+- Dati: esporta/importa zip (`lib/backup.js`, applicato all'avvio da `lib/boot.js`, riavvio con codice 75).
+  Railway Hobby non fa backup dei volumi: consigliare l'esportazione settimanale.
+- Railway: dal 2026 `railway.json` è ignorato nei progetti nuovi → healthcheck `/healthz`, restart Always, Serverless
+  spento, `PORT=3000`, `RAILWAY_DEPLOYMENT_DRAINING_SECONDS=15` si impostano a mano (guida). Il `Dockerfile` imposta
+  `HOST=0.0.0.0`, `UPDATER=off`, `TRUST_PROXY=1`, gira come root (volume montato come root). Ogni push sul ramo
+  principale ridistribuisce il server: CI in `.github/workflows/test.yml` (opzione **Wait for CI**).
+- Telefono/PWA: `public/manifest.webmanifest`, `public/icons/`, `public/sw.js` (solo pagina offline), `login.html`
+  + `login.js`; barra a 5 schede ≤ 860 px, sezione «Altro», tocco per il nome degli agenti, 3D fermo fuori vista.
+- Prove dell'interfaccia sul "telefono": Playwright con `devices["iPhone 13"]`; con password usare
+  `PUBLIC_URL=http://127.0.0.1:<porta>` (cookie non Secure su http).
 
 ## Piano Gold (XAUUSD) per Orion
 
