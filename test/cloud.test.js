@@ -126,3 +126,35 @@ test("ordine approvato interrotto da una chiusura improvvisa: alla riapertura 'e
   assert.deepEqual(st.approvals.map((a) => a.status), ["uncertain", "pending", "executed"]);
   assert.match(st.approvals[0].error, /controlla le posizioni/);
 });
+
+test("dati rovinati nei file: orario, limiti di sicurezza, cTrader e portafoglio tornano validi (il programma non si ferma)", () => {
+  const dir = tempDir("forma-");
+  fs.writeFileSync(path.join(dir, "settings.json"), JSON.stringify({ anthropicApiKey: 123, schedule: { days: 1, start: "99:99", fridayClose: "no" } }));
+  fs.writeFileSync(path.join(dir, "safety.json"), JSON.stringify({ limits: { maxDailyLossPct: "abc", maxLotsPerOrder: 1e6, defaultStopLossPct: -5, requireStopLoss: "no", maxOpenPositions: 3 }, daily: "x" }));
+  fs.writeFileSync(path.join(dir, "ctrader.json"), JSON.stringify({ accounts: null, token: "x", clientId: 5 }));
+  fs.writeFileSync(path.join(dir, "state.json"), JSON.stringify({ portfolio: {}, notes: { r1: null }, approvals: [null, { id: "a" }] }));
+  const code = `
+    const { getSchedule } = await import("./lib/schedule.js");
+    const safety = await import("./lib/safety.js");
+    const { getState } = await import("./lib/store.js");
+    const ct = await import("./lib/ctrader/service.js");
+    const { keyStatus } = await import("./lib/claude.js");
+    console.log(JSON.stringify({ sched: getSchedule(), limits: safety.getSafety().limits, st: getState(), ready: ct.isReady(), key: keyStatus() }));`;
+  const r = spawnSync(process.execPath, ["--input-type=module", "-e", code], { cwd: ROOT, env: { PATH: process.env.PATH, AGENTI_DATA_DIR: dir, MARKET_MODE: "demo" }, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  const o = JSON.parse(r.stdout.trim().split("\n").at(-1));
+  assert.deepEqual(o.sched.days, [1, 2, 3, 4, 5]);
+  assert.equal(o.sched.start, "07:30");
+  assert.equal(o.sched.fridayClose.time, "21:45");
+  assert.equal(o.limits.maxDailyLossPct, 3, "valore non numerico: quello di partenza");
+  assert.equal(o.limits.maxLotsPerOrder, 0.1, "fuori dai limiti ammessi: quello di partenza");
+  assert.equal(o.limits.defaultStopLossPct, 2);
+  assert.equal(o.limits.requireStopLoss, true);
+  assert.equal(o.limits.maxOpenPositions, 3, "i valori giusti restano");
+  assert.equal(o.ready, false);
+  assert.equal(o.key.ready, false);
+  assert.deepEqual(o.st.portfolio.positions, {});
+  assert.deepEqual(o.st.portfolio.trades, []);
+  assert.deepEqual(o.st.notes.r1, []);
+  assert.deepEqual(o.st.approvals.map((a) => a.id), ["a"]);
+});

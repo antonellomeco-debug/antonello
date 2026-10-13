@@ -1595,6 +1595,7 @@ function connectEvents() {
     const s = await loadSession();
     if (es !== events) return; // nel frattempo è partito un collegamento nuovo: questo non serve più
     if (s?.auth && !s.loggedIn) return goLogin();
+    if (s) applySession();
     // Il browser riprova da solo, tranne quando il server ha risposto con un errore: allora si riprova noi.
     if (es.readyState === EventSource.CLOSED) retryTimer = setTimeout(connectEvents, 5000);
   };
@@ -1716,7 +1717,9 @@ if ("serviceWorker" in navigator && location.protocol === "https:") {
 // ---------- avvio ----------
 
 async function start() {
-  await loadSession();
+  // Se il server non risponde (es. si sta aggiornando) si riprova: senza sapere se serve la password l'app
+  // non chiederebbe la conferma per le operazioni delicate.
+  for (let i = 0; !(await loadSession()); i++) await new Promise((r) => setTimeout(r, Math.min(2000 * (i + 1), 10_000)));
   if (state.session.auth && !state.session.loggedIn) return goLogin();
   applySession();
   syncRoster();
