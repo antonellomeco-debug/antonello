@@ -1,6 +1,7 @@
 # 🏢 Ufficio Agenti — borsa (simulazione e broker cTrader)
 
 > 🍎 **Non sei pratico di programmazione? Segui la [guida passo passo per Mac](GUIDA-MAC.md).**
+> ☁️📱 **Programma sempre acceso e app sul telefono: [guida Railway + iPhone](GUIDA-CLOUD.md).**
 
 Un **palazzo** virtuale in 3D di agenti che analizzano i mercati. Il palazzo ha più **piani**: ogni piano gestisce un settore (es. Azioni, Crypto) e contiene **stanze**, isole sospese attorno a una colonna centrale. In cima c'è il **regista** (Orion). Ogni agente siede alla sua scrivania, lavora da solo (su richiesta o a intervalli) e pubblica i risultati nella **bacheca** della stanza. Gli altri agenti leggono quelle bacheche, così il lavoro passa da una stanza all'altra. I piani **collegati** si scambiano informazioni.
 
@@ -18,7 +19,7 @@ Cosa trovi nell'interfaccia:
 
 ## Avvio
 
-Serve [Node.js](https://nodejs.org) 20 o più recente.
+Serve [Node.js](https://nodejs.org) 22.
 
 ```bash
 npm install
@@ -38,6 +39,7 @@ Variabili facoltative:
 - `ASSISTANT_NAME` (default Orion)
 - `ASSISTANT_MODEL` (default claude-opus-5-5)
 - `CALENDAR_URLS` (fonti del calendario economico separate da virgole; servono ai test) e `CALENDAR_TTL_MIN` (default 60: ogni quanto riscaricarlo)
+- `APP_PASSWORD` (chiede una password per entrare; obbligatoria sul server, vedi sotto)
 
 La spesa API mostrata nell'ufficio è una stima calcolata dai token usati.
 
@@ -155,6 +157,18 @@ Il collegamento usa la [cTrader Open API](https://help.ctrader.com/open-api/) (p
 
 Test: `test/ctrader.test.js` e `test/broker.test.js` usano un finto server cTrader (`test/helpers/fake-ctrader.js`) che parla lo stesso protocollo.
 
+## Sul server (Railway)
+
+Lo stesso programma gira anche su un server, sempre acceso, e si usa dal telefono come app installata (PWA). I passi per l'utente sono nella [guida Railway + iPhone](GUIDA-CLOUD.md); il `Dockerfile` prepara l'immagine (Node 22, `HOST=0.0.0.0`, `UPDATER=off`, `TRUST_PROXY=1`, `CMD node start.js`).
+
+- **Modalità server**: si attiva quando c'è un indirizzo pubblico: `PUBLIC_URL`, altrimenti `https://` + `RAILWAY_PUBLIC_DOMAIN` (Railway), altrimenti `RENDER_EXTERNAL_URL`. I dati stanno in `AGENTI_DATA_DIR`, altrimenti nel volume di Railway (`RAILWAY_VOLUME_MOUNT_PATH`), altrimenti in `data/`. Senza volume l'app mostra un avviso.
+- **Password** (`lib/auth.js`): obbligatoria in modalità server o con `HOST` non locale; `APP_PASSWORD` di almeno 10 caratteri (scrypt). Senza, ogni pagina tranne `/healthz` mostra come impostarla. Sessioni di 60 giorni rinnovate a ogni uso, salvate (solo l'impronta) in `data/auth.json`; cambiando la password le vecchie sessioni decadono. Tentativi sbagliati rallentati (e limitati per indirizzo con `TRUST_PROXY`). Le operazioni delicate (sblocco del conto reale, azzeramento, importazione dei dati) chiedono di nuovo la password.
+- **Protezioni** (`lib/guard.js`): controllo di `Host` e `Origin`, Content-Security-Policy, HSTS su https, niente cache per `/api`. Pubblici solo `/login`, `/login.js`, `/healthz`, `/api/session`, `/api/login`, `/api/logout`, manifest, icone, service worker e pagina offline.
+- **cTrader**: l'indirizzo di ritorno diventa `<PUBLIC_URL>/ctrader/callback` (va aggiunto tra i Redirect URIs dell'app su openapi.ctrader.com). Il collegamento usa un parametro `state` monouso: il ritorno funziona anche senza sessione (app installata sull'iPhone, che ha cookie separati da Safari) solo se `state` coincide.
+- **Dati** (`lib/backup.js`): ⚙️ Impostazioni → 💾 Dati esporta uno zip (`GET /api/backup`: agenti, palazzo, stato, impostazioni, sicurezza, cTrader) e lo reimporta (`POST /api/backup`, solo file noti, applicato al riavvio da `lib/boot.js`, con copia di sicurezza in `data/backup/`). Serve anche a portare i dati dal Mac al server.
+- **Robustezza**: `GET /healthz`; allo spegnimento (SIGTERM) niente nuovi lavori, attesa fino a 8 s degli ordini già inviati e salvataggio (su Railway impostare `RAILWAY_DEPLOYMENT_DRAINING_SECONDS=15`); file scritti in modo atomico; approvazioni rimaste "in esecuzione" segnate come incerte all'avvio. Aggiornamenti dall'app disattivati (`UPDATER=off`): arrivano con un nuovo deploy dal ramo principale. I test girano su GitHub Actions (`.github/workflows/test.yml`), così Railway può aspettarli (**Wait for CI**).
+- **Telefono**: barra in basso a 5 schede, sezione «Altro», finestre a tutto schermo, palazzo 3D leggero e fermo quando non si vede, tocco per il nome degli agenti; `manifest.webmanifest`, icone in `public/icons/`, `sw.js` (solo pagina offline, niente copie di app e API).
+
 ## Aggiornamenti
 
 **⚙️ Impostazioni → Aggiornamenti → Aggiorna ora** fa tutto in automatico:
@@ -164,7 +178,7 @@ Test: `test/ctrader.test.js` e `test/broker.test.js` usano un finto server cTrad
 3. esegue `npm install` se sono cambiate le librerie;
 4. si riavvia da solo.
 
-La cartella `data/` non viene mai toccata. Il riavvio automatico funziona quando il programma è avviato con `npm start` (cioè `start.js`) o con l'icona sulla Scrivania. Se la cartella è un checkout git, l'aggiornamento dall'app è disattivato: usa `git pull`.
+La cartella `data/` non viene mai toccata. Il riavvio automatico funziona quando il programma è avviato con `npm start` (cioè `start.js`) o con l'icona sulla Scrivania. Se la cartella è un checkout git, l'aggiornamento dall'app è disattivato: usa `git pull`. Sul server l'aggiornamento dall'app è spento: le versioni nuove arrivano da GitHub.
 
 ## Struttura
 
@@ -185,7 +199,13 @@ lib/calendar.js     calendario economico (Forex Factory) con cache in data/calen
 lib/tools.js        strumenti disponibili agli agenti (compresa la ricerca web di Claude)
 lib/orchestrator.js il regista con cui parli in chat
 lib/claude.js       client Claude condiviso, verifica della chiave, errori in italiano
-lib/updater.js      aggiornamento dall'app
+lib/updater.js      aggiornamento dall'app (spento sul server)
+lib/env.js          modalità Mac o server: indirizzo pubblico, cartella dei dati, password
+lib/auth.js         accesso con password e sessioni
+lib/guard.js        protezioni: Host, Origin, intestazioni di sicurezza, pagina «imposta la password»
+lib/backup.js       esporta e importa i dati (zip); lib/boot.js li applica all'avvio
+lib/files.js        scrittura atomica dei file
+lib/models.js       modelli e prezzi indicativi di Claude
 lib/store.js        stato persistente (data/state.json)
 lib/settings.js     impostazioni salvate dall'app (data/settings.json)
 lib/paths.js        percorsi del progetto
@@ -194,6 +214,7 @@ public/             interfaccia
 defaults/           palazzo e agenti di partenza
 strategies/         strategie JavaScript
 scripts/            icona di avvio per Mac
+Dockerfile          immagine per il server (Railway)
 data/               i tuoi dati (creata al primo avvio, mai toccata dagli aggiornamenti)
 ```
 
