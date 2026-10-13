@@ -137,17 +137,19 @@ Puoi farlo in due modi.
 - con **→** le informazioni vanno in un solo senso: solo il piano di arrivo legge le bacheche di quello di partenza. All'inizio, per esempio, la Direzione legge il piano Azioni, ma non il contrario;
 - se il collegamento è **spento**, i due piani lavorano ciascuno per conto suo.
 
-### Orario di lavoro e calendario economico
+### Orario di lavoro, calendario economico e notizie
 
 - **Orario di lavoro** (⚙️ Impostazioni → 🕒 Orario di lavoro degli agenti): scegli i giorni e le ore in cui gli agenti programmati lavorano (ora italiana) e premi **Salva orario**. Quando l'orario ricomincia, gli agenti programmati ripartono tutti, come quando apri il programma. Fuori orario nell'Ufficio vedi la scritta **⏸ Fuori orario**; Orion risponde comunque e con **▶** puoi far lavorare un agente a mano.
 - **Chiusura del venerdì**: con la casella attiva, il venerdì dall'ora scelta (di partenza le 21:45) il programma chiude le posizioni aperte dagli agenti sui conti cTrader, così nessuna resta aperta nel weekend. Lo trovi scritto in **📜 Attività**.
 - **Giorno e ora**: ogni agente, quando comincia un lavoro, sa che giorno della settimana è e che ora è in Italia. Anche Orion.
 - **Calendario economico**: gli agenti con lo strumento **get_calendar** (si spunta nella scheda dell'agente, oppure lo chiedi a Orion) leggono da soli il calendario della settimana: orari italiani, importanza, previsioni e, appena esce, il dato uscito. Si aggiorna da solo da internet al massimo una volta all'ora. Puoi anche chiedere a Orion: *"Quali dati importanti escono oggi?"*
+- **Notizie automatiche**: gli agenti con lo strumento **web_search** cercano da soli su internet le notizie (per esempio sull'oro) e le pubblicano in bacheca con il nome della fonte: non devi più incollarle tu. Anche Orion sa cercare: chiedigli *"Che notizie ci sono oggi sull'oro?"*. Ogni ricerca costa circa 1 centesimo: un agente che cerca le notizie ogni ora costa circa 7–8 € al mese.
 
 ### Quanto costa?
 
 - Il programma è gratis. Gli agenti **a regole** sono gratis.
 - Gli agenti **LLM** e la chat con Orion usano il credito di Claude: di solito da pochi centesimi a qualche decina di centesimi per ogni lavoro. La **spesa stimata** è sempre visibile in alto nell'ufficio.
+- La **ricerca sul web** (strumento web_search) costa circa 1 centesimo in più per ogni ricerca, già compreso nella spesa stimata.
 - Consiglio: nella console di Anthropic imposta un **limite di spesa mensile**.
 
 ---
@@ -235,6 +237,7 @@ Puoi anche chiedere a Orion: *"Fai operare il piano Azioni sul conto demo"*. Ori
 | *"La chiave non funziona più (scaduta o disattivata)"* | Crea una nuova chiave in console.anthropic.com (scadenza **Never**) e incollala in ⚙️ Impostazioni. |
 | *"Credito di Claude esaurito"* | In console.anthropic.com → **Settings → Billing** aggiungi credito. |
 | *"Il tuo account Anthropic è sospeso"* (o *organization has been disabled*) | Il problema è nell'account Anthropic, non nel programma né nella chiave. Chiedi la riattivazione su **console.anthropic.com/appeal** o scrivi al supporto (**support.anthropic.com**). Nel frattempo gli agenti a regole funzionano lo stesso. |
+| *"La ricerca web è disattivata sul tuo account Anthropic"* | Apri **platform.claude.com/settings/capabilities** (con lo stesso account della chiave), attiva **Web search** e riprova. Se non vedi l'interruttore, l'account non è tuo: chiedi a chi lo amministra. |
 | *"Questa chiave va creata per un solo workspace"* | Crea una nuova chiave scegliendo il workspace **Default** e incollala in ⚙️ Impostazioni. |
 | cTrader: *"cTrader ha rifiutato l'accesso"* subito dopo *Allow access* o dopo aver incollato l'indirizzo | Il codice di accesso vale circa un minuto e una sola volta: premi di nuovo **Collega cTrader** e completa l'accesso senza aspettare. Se succede ancora, ricopia **Client ID** e **Secret** da openapi.ctrader.com (pulsante Credentials), premi Salva e riprova. |
 | La pagina di cTrader parla di *redirect URI* | In openapi.ctrader.com, nella tua app, la voce **Redirect URIs** deve contenere esattamente l'indirizzo mostrato nella sezione Broker (premi **Copia**). Se avvii il programma su un'altra porta (es. 3001) l'indirizzo cambia. |

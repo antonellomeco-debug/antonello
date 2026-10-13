@@ -58,14 +58,22 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   orari UTC), la stessa su jsDelivr, file ufficiale `nfs.faireconomy.media/ff_calendar_thisweek.json` (orari di
   New York con il fuso). Dal container sono bloccati jsDelivr e faireconomy: si prova solo la copia su GitHub
   (con `NODE_USE_ENV_PROXY=1`).
+- Notizie dal web: strumento `web_search` (agenti e Orion) = ricerca web di Anthropic eseguita dai server di Claude
+  (`WEB_SEARCH_TOOL` in `lib/tools.js`, tipo `web_search_20250305` per andare con tutti i modelli, `max_uses` 5).
+  `stop_reason: "pause_turn"` → si rimanda la conversazione così com'è (runner e Orion). Costo: 10 $ ogni 1.000
+  ricerche (`usage.server_tool_use.web_search_requests`, sommato in `addUsage`). Se l'organizzazione l'ha
+  disattivata, `friendlyError` rimanda a platform.claude.com/settings/capabilities. Test: `test/websearch.test.js`
+  (finto server dell'API di Claude via `ANTHROPIC_BASE_URL`).
 
 ## Piano Gold (XAUUSD) per Orion
 
 - L'utente ha una pagina (artifact claude.ai "Piano Gold per Orion") con i messaggi da incollare a Orion:
   1–5 costruiscono il piano Gold (7 stanze, 33 agenti, quasi tutti `claude-haiku-5-5`; solo il Capo Trader
   propone ordini), A automatizza la routine, B (facoltativo) toglie l'approvazione al Capo Trader sul demo,
-  C usa il calendario automatico e il nuovo giorno/ora. Gli agenti del piano stanno in `data/agents/` dell'utente:
-  si cambiano solo tramite Orion o dall'interfaccia.
+  C usa il calendario automatico e il nuovo giorno/ora, D dà `web_search` alla Rassegna Notizie (ogni ora),
+  a Sentiment e Posizionamento (2 volte al giorno) e a Fed e Tassi, e alza a 20 la lettura di gold-agenda per il
+  Capo Trader e il Capo Fondamentale (le notizie orarie spingerebbero fuori CALENDARIO OGGI e LIVELLI).
+  Gli agenti del piano stanno in `data/agents/` dell'utente: si cambiano solo tramite Orion o dall'interfaccia.
 
 ## A che punto siamo (13 ottobre 2026)
 
