@@ -1,0 +1,11 @@
+# File che non entrano nell'immagine Docker: dati personali, librerie (si installano nell'immagine), git.
+.git
+.github
+.claude
+node_modules
+data
+test
+.env
+.env.*
+*.log
+npm-debug.log*

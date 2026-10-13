@@ -1,12 +1,14 @@
 // Server: API REST + eventi in tempo reale (SSE) + scheduler degli agenti.
+// Per primo: mette al loro posto i dati di una copia importata dall'app, prima che vengano caricati.
+import { importedAtBoot } from "./lib/boot.js";
 import express from "express";
 import { ALL_TOOLS, ID_PATTERN } from "./lib/config.js";
 import { office } from "./lib/office.js";
 import { PUBLIC_DIR, STRATEGIES_DIR, ROOT } from "./lib/paths.js";
 import path from "node:path";
 import { runAgent, isRunning } from "./lib/runner.js";
-import { getState, resetState, bus, log } from "./lib/store.js";
-import { portfolioValue, decide, monitorAccounts, settleInFlight, closeAgentPositionsEverywhere } from "./lib/broker.js";
+import { getState, resetState, bus, log, persistNow } from "./lib/store.js";
+import { portfolioValue, decide, monitorAccounts, settleInFlight, closeAgentPositionsEverywhere, stopNewOrders, recoverInterruptedApprovals } from "./lib/broker.js";
 import * as ctrader from "./lib/ctrader/service.js";
 import { codeFromInput } from "./lib/ctrader/oauth.js";
 import * as safety from "./lib/safety.js";
@@ -16,33 +18,50 @@ import fs from "node:fs";
 import { exec } from "node:child_process";
 import { hasCredentials, keyStatus, verifyKey, cleanKey } from "./lib/claude.js";
 import { updateSettings } from "./lib/settings.js";
-import { checkUpdate, applyUpdate, isUpdating, RESTART_CODE } from "./lib/updater.js";
+import { checkUpdate, applyUpdate, isUpdating, installedVersion, RESTART_CODE } from "./lib/updater.js";
 import { isWorkingTime, scheduleStatus, updateSchedule, isFridayCloseTime, romeParts, resumeText } from "./lib/schedule.js";
+import { PORT, HOST, PUBLIC_URL, CLOUD, AUTH_ENABLED, FAIL_CLOSED, CONFIG_PROBLEMS, TRUST_PROXY, UPDATER_ON, VOLUME_OK, REDIRECT_URI } from "./lib/env.js";
+import { securityHeaders, failClosed, hostCheck, originCheck } from "./lib/guard.js";
+import * as auth from "./lib/auth.js";
+import { exportZip, importZip, backupFileName } from "./lib/backup.js";
 
 const STARTED_AT = new Date().toISOString();
-
-const PORT = Number(process.env.PORT ?? 3000);
-// Solo questo computer può aprire l'app (HOST=0.0.0.0 per renderla visibile in rete locale).
-const HOST = process.env.HOST ?? "127.0.0.1";
-const URL_APP = `http://localhost:${PORT}`;
+const URL_APP = PUBLIC_URL ?? `http://localhost:${PORT}`;
+const SUPERVISED = process.env.SUPERVISED === "1"; // avviato da start.js, che lo fa ripartire (codice 75)
 const app = express();
+app.disable("x-powered-by");
+// Dietro il proxy del servizio di hosting (TRUST_PROXY, vedi lib/env.js e Dockerfile): indirizzo vero e https.
+if (TRUST_PROXY != null) app.set("trust proxy", TRUST_PROXY);
 
-// Protezione dai siti web aperti nello stesso browser:
-// - DNS rebinding: con l'indirizzo locale accettiamo solo richieste rivolte a localhost/127.0.0.1;
-// - CSRF: le richieste che modificano qualcosa devono arrivare da questa stessa pagina.
-const LOOPBACK = HOST === "127.0.0.1" || HOST === "localhost" || HOST === "::1";
-const LOCAL_HOSTS = new Set([`localhost:${PORT}`, `127.0.0.1:${PORT}`, `[::1]:${PORT}`]);
-app.use((req, res, next) => {
-  const host = req.headers.host ?? "";
-  if (LOOPBACK && !LOCAL_HOSTS.has(host)) return res.status(403).send("Accesso consentito solo da questo computer.");
-  const origin = req.get("origin");
-  if (req.method !== "GET" && req.method !== "HEAD" && origin && origin.replace(/^https?:\/\//, "") !== host) {
-    return res.status(403).json({ error: "Richiesta da un altro sito bloccata." });
-  }
-  next();
+let shuttingDown = false; // in chiusura (nuova versione, riavvio): non parte più niente
+let restartPending = false; // riavvio in arrivo (dati importati): non partono nuovi lavori
+
+// Ordine delle protezioni: intestazioni di sicurezza → controllo di salute → configurazione insicura →
+// indirizzo giusto (Host) → richieste da altri siti (Origin) → accesso con password → tutto il resto.
+app.use(securityHeaders);
+// Controllo di salute per il servizio di hosting: sempre raggiungibile (senza accesso, con qualsiasi Host).
+app.get("/healthz", (_req, res) => res.status(shuttingDown ? 503 : 200).json(shuttingDown ? { ok: false, closing: true } : { ok: true }));
+app.use(failClosed);
+app.use(hostCheck);
+app.use(originCheck);
+
+// ---------- accesso con password (solo sul server o con APP_PASSWORD) ----------
+app.get("/api/session", (req, res) =>
+  res.json({ auth: AUTH_ENABLED, loggedIn: auth.isLoggedIn(req), cloud: Boolean(PUBLIC_URL), updater: UPDATER_ON, publicUrl: PUBLIC_URL, volumeOk: VOLUME_OK }),
+);
+app.post("/api/login", express.json({ limit: "4kb" }), auth.login);
+app.post("/api/logout", auth.logout);
+app.get("/login", (req, res) => {
+  if (auth.isLoggedIn(req)) return res.redirect(302, auth.safeNext(req.query.next));
+  res.sendFile(path.join(PUBLIC_DIR, "login.html"), (err) => err && !res.headersSent && res.status(404).send("Pagina di accesso non trovata."));
 });
+// Il ritorno da cTrader è permesso anche senza accesso se porta lo "state" dell'ultimo «Collega cTrader»:
+// sull'iPhone l'app sulla schermata Home e Safari non condividono i cookie.
+app.use(auth.requireSession({ allow: (req) => req.method === "GET" && req.path === "/ctrader/callback" && ctrader.pendingStateMatches(String(req.query.state ?? "")) }));
+
 app.use(express.json({ limit: "1mb" }));
-app.use(express.static(PUBLIC_DIR));
+// sw.js (app installabile sul telefono) va sempre ricontrollato, così le nuove versioni arrivano subito.
+app.use(express.static(PUBLIC_DIR, { setHeaders: (res, file) => path.basename(file) === "sw.js" && res.setHeader("Cache-Control", "no-cache") }));
 app.use("/vendor/three", express.static(path.join(ROOT, "node_modules", "three")));
 
 const lastRun = new Map();
@@ -79,7 +98,7 @@ app.delete("/api/settings", (_req, res) => {
 });
 
 // ---------- aggiornamenti ----------
-app.get("/api/version", (_req, res) => res.json({ startedAt: STARTED_AT }));
+app.get("/api/version", (_req, res) => res.json({ startedAt: STARTED_AT, version: installedVersion()?.short ?? null }));
 app.get("/api/update", async (_req, res) => {
   try {
     res.json(await checkUpdate());
@@ -110,23 +129,26 @@ app.post("/api/update", async (_req, res) => {
 
 /** Riavvia (start.js fa ripartire il server) appena agenti e Orion hanno finito, al massimo dopo 2 minuti. */
 function restartWhenIdle(waited = 0) {
-  if (!someoneWorking() || waited >= 120_000) return setTimeout(() => process.exit(RESTART_CODE), 500);
+  if (!someoneWorking() || waited >= 120_000) return setTimeout(() => shutdown("Riavvio", RESTART_CODE), 500);
   setTimeout(() => restartWhenIdle(waited + 1000), 1000);
 }
 
-// Durante un aggiornamento non partono nuovi lavori.
+// Durante un aggiornamento o un riavvio non partono nuovi lavori.
 app.use(["/api/chat", "/api/agents/:id/run"], (req, res, next) => {
-  if (req.method === "POST" && isUpdating()) return res.status(503).json({ error: "Aggiornamento in corso: riprova tra un minuto." });
+  if (req.method !== "POST") return next();
+  if (shuttingDown || restartPending) return res.status(503).json({ error: "Il programma si sta riavviando: riprova tra un minuto." });
+  if (isUpdating()) return res.status(503).json({ error: "Aggiornamento in corso: riprova tra un minuto." });
   next();
 });
 
 app.get("/api/notes", (_req, res) => res.json(getState().notes));
 app.get("/api/log", (_req, res) => res.json(getState().log));
-app.get("/api/portfolio", async (_req, res, next) => {
-  try { res.json(await portfolioValue()); } catch (e) { next(e); }
+// Prezzi da Yahoo o cTrader: il loro errore (già in italiano) arriva all'utente.
+app.get("/api/portfolio", async (_req, res) => {
+  try { res.json(await portfolioValue()); } catch (e) { res.status(502).json({ error: e.message }); }
 });
-app.get("/api/quote/:symbol", async (req, res, next) => {
-  try { res.json(await getQuote(req.params.symbol)); } catch (e) { next(e); }
+app.get("/api/quote/:symbol", async (req, res) => {
+  try { res.json(await getQuote(req.params.symbol)); } catch (e) { res.status(502).json({ error: e.message }); }
 });
 
 app.get("/api/stats", (_req, res) => {
@@ -168,7 +190,7 @@ app.post("/api/approvals/:id", async (req, res) => {
 });
 
 // ---------- broker cTrader e sicurezza ----------
-const REDIRECT_URI = `http://localhost:${PORT}/ctrader/callback`;
+// REDIRECT_URI (lib/env.js): <PUBLIC_URL>/ctrader/callback sul server, http://localhost:<porta>/ctrader/callback sul Mac.
 const handleAsync = (fn) => async (req, res) => {
   try {
     res.json((await fn(req)) ?? { ok: true });
@@ -193,16 +215,21 @@ app.put("/api/broker/credentials", handle((req) => {
   return brokerStatus();
 }));
 app.post("/api/broker/auth", handle(() => ({ url: ctrader.startAuth(REDIRECT_URI) })));
-// Il sito di cTrader rimanda qui il browser dopo l'accesso, con il codice nell'indirizzo.
+// Il sito di cTrader rimanda qui il browser dopo l'accesso, con il codice (e lo "state") nell'indirizzo.
+// Senza accesso all'app (es. Safari sull'iPhone, mentre l'app è sulla schermata Home) passa solo con lo
+// "state" giusto, e invece di aprire l'app mostra una pagina che dice di tornarci.
 app.get("/ctrader/callback", async (req, res) => {
+  const loggedIn = auth.isLoggedIn(req);
   const page = (title, text, ok) =>
-    `<!doctype html><meta charset="utf-8"><title>${title}</title><body style="font-family:system-ui;background:#0f1420;color:#e8ecf4;display:grid;place-items:center;height:100vh;margin:0">` +
+    `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title><body style="font-family:system-ui;background:#0f1420;color:#e8ecf4;display:grid;place-items:center;min-height:100vh;margin:0;padding:16px;box-sizing:border-box">` +
     `<div style="max-width:520px;text-align:center"><h1>${ok ? "✅" : "⚠️"} ${title}</h1><p>${text}</p><p><a style="color:#7cc4ff" href="/#broker">Torna all'app</a></p></div>`;
   const escHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   if (req.query.error) return res.status(400).send(page("Accesso annullato", escHtml(req.query.error_description ?? req.query.error), false));
   try {
-    await ctrader.finishAuth(String(req.query.code ?? ""), REDIRECT_URI);
-    res.redirect("/#broker");
+    const state = req.query.state != null ? String(req.query.state) : undefined;
+    await ctrader.finishAuth(String(req.query.code ?? ""), REDIRECT_URI, { state });
+    if (loggedIn) return res.redirect("/#broker");
+    res.send(page("cTrader collegato: torna all'app", "Il collegamento è fatto. Puoi chiudere questa pagina e tornare all'app (dalla schermata Home, se l'hai installata): in 🔌 Broker trovi i tuoi conti.", true));
   } catch (e) {
     res.status(400).send(page("Collegamento non riuscito", escHtml(e.message), false));
   }
@@ -277,7 +304,9 @@ app.post("/api/safety/resume", handle(() => {
   safety.deactivateKill();
   return safety.getSafety();
 }));
-app.post("/api/safety/live", handle((req) => {
+// Sbloccare il conto reale richiede di nuovo la password dell'app (sul server): un cookie rubato non basta.
+const liveStepUp = auth.requireStepUp({ when: (req) => Boolean(req.body?.enabled), password: (req) => req.body?.password });
+app.post("/api/safety/live", liveStepUp, handle((req) => {
   const enabled = Boolean(req.body?.enabled);
   if (!enabled) {
     // Bloccando il conto reale, i piani che lo usavano tornano al portafoglio simulato.
@@ -336,24 +365,75 @@ app.delete("/api/rooms/:id", handle((req) => office.deleteRoom(req.params.id)));
 app.put("/api/links", handle((req) => office.setLink(req.body ?? {})));
 app.delete("/api/links", handle((req) => office.deleteLink(String(req.query.from ?? ""), String(req.query.to ?? ""))));
 
-app.post("/api/reset", (_req, res) => {
+app.post("/api/reset", auth.requireStepUp({ password: (req) => req.body?.password }), (_req, res) => {
   resetState();
   res.json({ ok: true });
 });
 
+// ---------- copia dei dati (⚙️ Impostazioni): scarica e importa ----------
+app.get("/api/backup", (_req, res) => {
+  persistNow(); // nella copia anche le ultime modifiche ancora in memoria
+  res.set({ "Content-Type": "application/zip", "Content-Disposition": `attachment; filename=${backupFileName()}` });
+  res.send(exportZip());
+});
+app.post(
+  "/api/backup",
+  auth.requireStepUp({ password: (req) => auth.headerPassword(req.get("x-agenti-password")) }),
+  // Qualsiasi tipo: i browser chiamano lo .zip in modi diversi (application/zip, x-zip-compressed, vuoto…).
+  express.raw({ type: () => true, limit: "20mb" }),
+  (req, res) => {
+    if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: "Scegli il file .zip con la copia dei dati." });
+    let r;
+    try {
+      r = importZip(req.body);
+    } catch (e) {
+      return res.status(400).json({ error: e.message });
+    }
+    log("programma", "warn", `Importata una copia dei dati (${r.files} file). I dati di prima sono salvati in ${r.copy}. ` + (SUPERVISED ? "Il programma si riavvia." : "Riavvia il programma per usarli."));
+    if (!SUPERVISED) return res.json({ ok: true, restarting: false, message: "Riavvia il programma", files: r.files });
+    res.json({ ok: true, restarting: true, files: r.files });
+    restartPending = true;
+    restartWhenIdle();
+  },
+);
+
+// ---------- eventi in tempo reale (SSE) ----------
+const MAX_STREAMS = 10;
+const PING_MS = Number(process.env.SSE_PING_MS) || 25_000;
+let streams = 0;
 app.get("/api/events", (req, res) => {
-  res.set({ "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
+  if (streams >= MAX_STREAMS) return res.status(503).json({ error: "Troppe finestre aperte sull'app: chiudine qualcuna e ricarica la pagina." });
+  streams++;
+  res.set({ "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" });
   res.flushHeaders();
   const send = (ev) => res.write(`data: ${JSON.stringify(ev)}\n\n`);
-  const ping = setInterval(() => res.write(": ping\n\n"), 25_000);
+  // Un messaggio vero ogni 25 secondi: il telefono capisce se la diretta si è interrotta (es. dopo lo standby).
+  const ping = setInterval(() => {
+    if (!auth.sessionAlive(req)) return res.end(); // uscito o sessione scaduta
+    send({ type: "ping", at: new Date().toISOString() });
+  }, PING_MS);
   bus.on("event", send);
-  req.on("close", () => {
+  res.on("close", () => {
+    streams--;
     clearInterval(ping);
     bus.off("event", send);
   });
 });
 
-app.use((err, _req, res, _next) => res.status(500).json({ error: err.message }));
+// Errori non previsti: il dettaglio va nel registro, all'utente un messaggio semplice.
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  const status = Number(err.status ?? err.statusCode) || 500;
+  if (status >= 500) {
+    log("server", "error", `Errore interno su ${req.method} ${req.path}: ${err.message}`);
+    return res.status(500).json({ error: "Errore interno del programma: riprova tra poco. Se continua, guarda il registro 📜 Attività." });
+  }
+  const error =
+    status === 413 ? "I dati inviati sono troppo grandi." :
+    err.type === "entity.parse.failed" ? "Richiesta non valida (dati illeggibili)." :
+    err.expose && err.message ? err.message : "Richiesta non valida.";
+  res.status(status).json({ error });
+});
 
 // Scheduler: ogni minuto avvia gli agenti con everyMinutes > 0 che sono "scaduti".
 // Con lo STOP attivo non parte nessun agente in automatico (si possono ancora avviare a mano).
@@ -361,6 +441,7 @@ app.use((err, _req, res, _next) => res.status(500).json({ error: err.message }))
 // ricomincia ripartono tutti, come all'apertura del programma.
 let wasWorking = null;
 setInterval(() => {
+  if (shuttingDown || restartPending) return;
   const now = Date.now();
   const working = isWorkingTime();
   if (working !== wasWorking) {
@@ -388,7 +469,7 @@ setInterval(() => {
 // Controllo dei conti cTrader usati dai piani: perdita del giorno e STOP automatico.
 let monitoring = false;
 const monitor = async () => {
-  if (monitoring || accountsInUse().length === 0) return;
+  if (shuttingDown || monitoring || accountsInUse().length === 0) return;
   monitoring = true;
   try {
     await monitorAccounts();
@@ -405,7 +486,7 @@ let fridayClosing = false;
 let fridayDone = ""; // giorno (ora italiana) in cui non è rimasta nessuna posizione degli agenti da chiudere
 let fridayFailures = 0;
 async function fridayClose() {
-  if (fridayClosing || !isFridayCloseTime() || !ctrader.isReady()) return;
+  if (shuttingDown || fridayClosing || !isFridayCloseTime() || !ctrader.isReady()) return;
   const day = romeParts().date;
   if (fridayDone === day) return;
   fridayClosing = true;
@@ -431,21 +512,55 @@ async function fridayClose() {
 }
 setInterval(() => fridayClose().catch((e) => log("sicurezza", "error", `Chiusura del venerdì non riuscita: ${e.message}`)), 60_000);
 
-// control + C o chiusura della finestra: uscita ordinata, così i dati in attesa vengono salvati.
-for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) process.on(sig, () => process.exit(0));
+// ---------- chiusura ordinata ----------
+// control + C, o il servizio di hosting che ferma il programma per una nuova versione (SIGTERM): non partono
+// più agenti né ordini, si aspettano (al massimo 8 secondi) gli ordini già inviati a cTrader, si salva e si esce.
+const SHUTDOWN_WAIT_MS = 8_000;
+async function shutdown(reason, code = 0) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  stopNewOrders();
+  console.log(`\n  ⏹  ${reason}: chiudo il programma…`);
+  const timeout = new Promise((r) => setTimeout(() => r(false), SHUTDOWN_WAIT_MS).unref());
+  const settled = await Promise.race([settleInFlight().then(() => true, () => true), timeout]);
+  if (!settled) log("sicurezza", "warn", "Chiusura del programma: un ordine verso cTrader non ha risposto in tempo. Alla riapertura controlla le posizioni in 🔌 Broker.");
+  try {
+    persistNow();
+  } catch (e) {
+    console.log(`${new Date().toISOString()} [error] programma: salvataggio alla chiusura non riuscito (${e.message})`);
+  }
+  server.closeAllConnections?.();
+  process.exit(code);
+}
+process.on("SIGINT", () => shutdown("Chiusura richiesta"));
+process.on("SIGTERM", () => shutdown("Arresto richiesto dal sistema"));
+// Finestra del Terminale chiusa (Mac): si esce subito, i dati in attesa si salvano comunque all'uscita.
+process.on("SIGHUP", () => process.exit(0));
 
 function openBrowser() {
-  if (process.env.OPEN_BROWSER === "0") return;
+  if (process.env.OPEN_BROWSER === "0" || CLOUD) return;
   const cmd = process.platform === "darwin" ? `open ${URL_APP}` : process.platform === "win32" ? `start "" ${URL_APP}` : null;
   if (cmd) exec(cmd, () => {});
 }
 
+// All'avvio: dati importati e ordini rimasti a metà da una chiusura improvvisa.
+if (importedAtBoot) log("programma", "info", `Dati della copia importata messi al loro posto (${importedAtBoot} file).`);
+recoverInterruptedApprovals();
+
 // Express 5 passa anche l'eventuale errore di avvio (es. porta occupata) a questa callback.
-app.listen(PORT, HOST, (err) => {
+const server = app.listen(PORT, HOST, (err) => {
   if (err) return onListenError(err);
+  if (CLOUD) {
+    // Sul server: righe semplici per il registro del servizio di hosting.
+    console.log(`Ufficio agenti avviato su ${URL_APP} (porta ${PORT}).`);
+    if (FAIL_CLOSED) console.log(`ATTENZIONE: app non protetta, mostro solo la pagina di configurazione. ${CONFIG_PROBLEMS.join(" ")}`);
+    if (!VOLUME_OK) console.log("ATTENZIONE: i dati non sono in un volume: spariranno alla prossima versione. Collega un volume al servizio.");
+    return;
+  }
   console.log("");
   console.log("  ✅ Ufficio agenti avviato!");
   console.log(`  👉 Apri nel browser: ${URL_APP}`);
+  if (FAIL_CLOSED) console.log(`  ⚠️  ${CONFIG_PROBLEMS.join(" ")} Imposta APP_PASSWORD (almeno 10 caratteri) oppure togli HOST.`);
   console.log("");
   console.log("  Lascia aperta questa finestra finché usi il programma.");
   console.log("  Per chiuderlo: premi control + C oppure chiudi la finestra.");
@@ -455,7 +570,8 @@ app.listen(PORT, HOST, (err) => {
 });
 
 function onListenError(err) {
-  if (err.code === "EADDRINUSE") {
+  // Sul Mac la porta occupata vuol dire "il programma è già aperto"; sul server è un errore vero.
+  if (err.code === "EADDRINUSE" && !CLOUD) {
     console.log(`\n  ℹ️  Il programma è già aperto (porta ${PORT} occupata). Apro il browser su ${URL_APP}\n`);
     openBrowser();
     setTimeout(() => process.exit(0), 500);

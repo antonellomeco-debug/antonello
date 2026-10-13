@@ -46,6 +46,25 @@ test("accesso OAuth: URL corretto, codice scambiato, conti elencati", async () =
   assert.equal(mode, 0o600);
 });
 
+test("accesso OAuth: lo state del ritorno deve essere quello dell'ultima richiesta e vale una volta sola", async () => {
+  const state = new URL(ct.startAuth(REDIRECT)).searchParams.get("state");
+  assert.match(state, /^[A-Za-z0-9_-]{20,}$/, "lo state è un codice casuale");
+  assert.equal(ct.pendingStateMatches(state), true);
+  assert.equal(ct.pendingStateMatches("sbagliato"), false);
+  const other = new URL(ct.startAuth(REDIRECT)).searchParams.get("state");
+  assert.notEqual(other, state, "ogni «Collega cTrader» ha uno state nuovo");
+  assert.equal(ct.pendingStateMatches(state), false, "lo state vecchio non vale più");
+  await assert.rejects(ct.finishAuth("code-ok", REDIRECT, { state }), /non corrisponde/);
+  assert.equal(ct.pendingStateMatches(other), false, "dopo un tentativo lo state è consumato");
+  const fresh = new URL(ct.startAuth(REDIRECT)).searchParams.get("state");
+  const st = await ct.finishAuth("code-ok", REDIRECT, { state: fresh });
+  assert.equal(st.linked, true);
+  await assert.rejects(ct.finishAuth("code-ok", REDIRECT, { state: fresh }), /non corrisponde|già stato usato/);
+  // incollando l'indirizzo a mano (senza state) il collegamento resta possibile
+  ct.startAuth(REDIRECT);
+  assert.equal((await ct.finishAuth("code-ok", REDIRECT)).linked, true);
+});
+
 test("informazioni sul conto: saldo, valuta, leva", async () => {
   const info = await ct.accountInfo(demo);
   assert.equal(info.balance, 10000);
