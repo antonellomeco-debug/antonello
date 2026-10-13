@@ -2,9 +2,17 @@
 <html lang="it">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
   <title>I miei agenti</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🪐</text></svg>" />
+  <!-- App installabile sul telefono (manifest, icone, colori della barra di stato) -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#0b0d16" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Agenti" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+  <link rel="apple-touch-icon" href="/icons/icon-180.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
@@ -16,45 +24,52 @@
   </script>
 </head>
 <body>
-  <div class="app">
-    <!-- barra di navigazione (laterale su desktop, in basso su telefono) -->
+  <div class="app" data-view="office">
+    <!-- barra di navigazione (laterale su desktop; in basso su telefono, con 5 schede: le altre sezioni sono in "Altro") -->
     <nav class="rail" aria-label="Sezioni">
       <div class="logo" title="Ufficio Agenti">🪐</div>
       <button class="nav active" data-view="office" title="Ufficio"><span>🏢</span><em>Ufficio</em></button>
-      <button class="nav mobile-only" data-view="chat" title="Parla"><span>💬</span><em>Parla</em></button>
-      <button class="nav" data-view="building" title="Palazzo: piani, stanze e collegamenti"><span>🏗️</span><em>Palazzo</em></button>
+      <button class="nav mobile-only" data-view="chat" title="Parla con Orion"><span>💬</span><em id="nav-chat-label">Orion</em></button>
+      <button class="nav desktop-only" data-view="building" title="Palazzo: piani, stanze e collegamenti"><span>🏗️</span><em>Palazzo</em></button>
       <button class="nav" data-view="approvals" title="Approvazioni"><span>✅</span><em>Approvazioni</em><b class="badge hidden" id="badge-approvals"></b></button>
       <button class="nav" data-view="notes" title="Bacheca"><span>📝</span><em>Bacheca</em></button>
-      <button class="nav" data-view="portfolio" title="Portafoglio"><span>💼</span><em>Portafoglio</em></button>
-      <button class="nav" data-view="broker" title="Broker e sicurezza"><span>🔌</span><em>Broker</em><b class="badge hidden" id="badge-broker">!</b></button>
-      <button class="nav" data-view="log" title="Attività"><span>📜</span><em>Attività</em></button>
-      <button class="nav settings-nav" id="open-settings" title="Impostazioni"><span>⚙️</span><em>Impostazioni</em><b class="badge hidden" id="badge-settings">!</b></button>
+      <button class="nav desktop-only" data-view="portfolio" title="Portafoglio"><span>💼</span><em>Portafoglio</em></button>
+      <button class="nav desktop-only" data-view="broker" title="Broker e sicurezza"><span>🔌</span><em>Broker</em><b class="badge hidden" id="badge-broker">!</b></button>
+      <button class="nav desktop-only" data-view="log" title="Attività"><span>📜</span><em>Attività</em></button>
+      <button class="nav settings-nav desktop-only" id="open-settings" title="Impostazioni"><span>⚙️</span><em>Impostazioni</em><b class="badge hidden" id="badge-settings">!</b></button>
+      <button class="nav mobile-only" data-view="more" title="Altre sezioni"><span>☰</span><em>Altro</em><b class="badge hidden" id="badge-more">!</b></button>
     </nav>
 
     <main class="main">
+      <div class="sys-banner hidden" id="volume-banner" role="alert">⚠️ I dati non sono salvati in modo permanente: aggiungi un volume nelle impostazioni del servizio<span class="hide-phone"> (altrimenti a ogni aggiornamento del server agenti, palazzo e portafoglio ripartono da zero)</span>.</div>
       <!-- UFFICIO 3D -->
       <section class="view" id="view-office">
-        <header class="page-head">
-          <div>
-            <h1>I miei agenti IA</h1>
+        <header class="page-head office-head">
+          <div class="head-text">
+            <h1>I miei agenti<span class="hide-phone"> IA</span></h1>
             <p class="sub" id="office-sub"></p>
             <p class="sub schedule-line hidden" id="schedule-line"></p>
+            <p class="sub touch-hint phone-only" id="touch-hint"></p>
           </div>
           <div class="head-actions">
             <button class="btn stop-cta hidden" id="stop-cta" title="Ferma subito tutti gli ordini degli agenti">⛔ STOP</button>
-            <button class="btn update-cta hidden" id="update-cta">🔄 Nuova versione</button>
-            <button class="btn key-cta hidden" id="key-cta">🔑 Collega Claude</button>
-            <button class="btn" id="reset-view">⟲ Vista</button>
-            <button class="btn primary" id="new-agent">+ Nuovo agente</button>
+            <button class="btn update-cta hidden" id="update-cta" title="Nuova versione">🔄<span class="hide-phone"> Nuova versione</span></button>
+            <button class="btn key-cta hidden" id="key-cta" title="Collega Claude">🔑<span class="hide-phone"> Collega Claude</span></button>
+            <button class="btn desktop-only" id="reset-view">⟲ Vista</button>
+            <button class="btn primary desktop-only" id="new-agent">+ Nuovo agente</button>
           </div>
         </header>
-        <div class="stage">
-          <div class="scene" id="scene"></div>
-          <div class="overlay-left">
-            <div class="stats" id="stats"></div>
-            <nav class="elevator" id="elevator" aria-label="Piani"></nav>
+        <!-- Su computer l'elenco degli agenti sta sopra il palco 3D; su telefono sotto, sempre aperto. -->
+        <div class="stage-wrap">
+          <div class="stage">
+            <div class="scene" id="scene"></div>
+            <div class="overlay-left">
+              <div class="stats" id="stats"></div>
+              <nav class="elevator" id="elevator" aria-label="Piani"></nav>
+            </div>
+            <div class="pnl-card" id="pnl-card"></div>
+            <button class="stage-btn mobile-only" id="reset-view-phone" title="Rimetti la vista" aria-label="Rimetti la vista">⟲</button>
           </div>
-          <div class="pnl-card" id="pnl-card"></div>
           <details class="roster" id="roster">
             <summary id="roster-sum">Elenco completo degli agenti</summary>
             <div class="roster-list" id="roster-list"></div>
@@ -64,6 +79,7 @@
 
       <!-- PALAZZO: piani, stanze, collegamenti -->
       <section class="view hidden" id="view-building">
+        <button class="btn ghost back-btn mobile-only" data-go="more">‹ Altro</button>
         <header class="page-head">
           <div>
             <h1 id="building-title">Il palazzo</h1>
@@ -112,6 +128,7 @@
 
       <!-- PORTAFOGLIO -->
       <section class="view hidden" id="view-portfolio">
+        <button class="btn ghost back-btn mobile-only" data-go="more">‹ Altro</button>
         <header class="page-head">
           <div><h1>Portafoglio</h1><p class="sub">Simulato (paper trading): nessun ordine reale. Saldo, posizioni e ordini dei conti cTrader sono nella sezione 🔌 Broker.</p></div>
           <button class="btn danger" id="reset-btn">Azzera tutto</button>
@@ -121,6 +138,7 @@
 
       <!-- BROKER E SICUREZZA -->
       <section class="view hidden" id="view-broker">
+        <button class="btn ghost back-btn mobile-only" data-go="more">‹ Altro</button>
         <header class="page-head">
           <div>
             <h1>🔌 Broker e sicurezza</h1>
@@ -169,9 +187,9 @@
               </div>
               <details class="howto" id="code-box">
                 <summary>La pagina finale dà errore o non torna all'app?</summary>
-                <p class="hint">Dopo aver premuto «Allow access», copia l'indirizzo <b>completo</b> dalla barra del browser (inizia con <code>http://localhost</code>) e incollalo qui <b>entro un minuto</b> (il codice scade presto; se è scaduto premi di nuovo «Collega cTrader»).</p>
+                <p class="hint">Dopo aver premuto «Allow access», copia l'indirizzo <b>completo</b> dalla barra del browser (inizia con <code id="redirect-base"></code>) e incollalo qui <b>entro un minuto</b> (il codice scade presto; se è scaduto premi di nuovo «Collega cTrader»).</p>
                 <form class="row" id="code-form">
-                  <input name="input" placeholder="http://localhost:3000/ctrader/callback?code=…" spellcheck="false" autocomplete="off" />
+                  <input name="input" placeholder="Indirizzo completo, con ?code=…" spellcheck="false" autocomplete="off" />
                   <button class="btn" type="submit">Conferma</button>
                 </form>
               </details>
@@ -222,8 +240,25 @@
 
       <!-- ATTIVITÀ -->
       <section class="view hidden" id="view-log">
+        <button class="btn ghost back-btn mobile-only" data-go="more">‹ Altro</button>
         <header class="page-head"><div><h1>Attività</h1><p class="sub">Registro di tutto ciò che fanno gli agenti.</p></div></header>
         <div class="log" id="log-list"></div>
+      </section>
+
+      <!-- ALTRO (solo telefono): le sezioni che non stanno nella barra in basso -->
+      <section class="view hidden" id="view-more">
+        <header class="page-head"><div><h1>Altro</h1></div></header>
+        <div class="more-list">
+          <button class="more-row" data-go="building"><span class="ico">🏗️</span><span class="txt"><b>Palazzo</b><small>Piani, stanze e collegamenti</small></span><span class="chev">›</span></button>
+          <button class="more-row" data-go="portfolio"><span class="ico">💼</span><span class="txt"><b>Portafoglio</b><small>Il portafoglio simulato</small></span><span class="chev">›</span></button>
+          <button class="more-row" data-go="broker"><span class="ico">🔌</span><span class="txt"><b>Broker e sicurezza</b><small id="more-broker-state">Conto cTrader, STOP e limiti</small></span><b class="pill hidden" id="more-broker-badge">STOP</b><span class="chev">›</span></button>
+          <button class="more-row" data-go="log"><span class="ico">📜</span><span class="txt"><b>Attività</b><small>Tutto quello che fanno gli agenti</small></span><span class="chev">›</span></button>
+          <button class="more-row" id="more-settings"><span class="ico">⚙️</span><span class="txt"><b>Impostazioni</b><small id="more-settings-state">Chiave di Claude, orario, dati</small></span><b class="pill hidden" id="more-settings-badge">!</b><span class="chev">›</span></button>
+          <button class="more-row" id="more-new-agent"><span class="ico">➕</span><span class="txt"><b>Nuovo agente</b><small>Crea un agente e scegli la sua stanza</small></span><span class="chev">›</span></button>
+          <button class="more-row" id="more-install"><span class="ico">📲</span><span class="txt"><b>Installa l'app sul telefono</b><small id="more-install-state">L'icona «Agenti» nella schermata Home</small></span><span class="chev">›</span></button>
+          <button class="more-row hidden" id="more-update"><span class="ico">🔄</span><span class="txt"><b>Nuova versione</b><small>È disponibile un aggiornamento</small></span><span class="chev">›</span></button>
+          <button class="more-row hidden" id="more-logout"><span class="ico">🚪</span><span class="txt"><b>Esci</b><small>Al prossimo accesso ti chiederà la password</small></span><span class="chev">›</span></button>
+        </div>
       </section>
     </main>
 
@@ -236,7 +271,6 @@
           <small id="chat-state">Ti ascolto — scrivi pure</small>
         </div>
         <button class="btn ghost small" id="chat-reset" title="Nuova conversazione">↺</button>
-        <button class="btn ghost small mobile-only" id="chat-close" title="Chiudi">✕</button>
       </header>
       <div class="chat-body" id="chat-body"></div>
       <div class="chips" id="chat-chips"></div>
@@ -417,14 +451,77 @@
       <fieldset class="update-box">
         <legend>🔄 Aggiornamenti</legend>
         <p class="hint" id="update-status">Controllo in corso…</p>
-        <p class="hint">L'aggiornamento sostituisce solo il programma: palazzo, agenti, portafoglio e chiave restano come sono.</p>
-        <div class="row">
+        <p class="hint" id="update-note">L'aggiornamento sostituisce solo il programma: palazzo, agenti, portafoglio e chiave restano come sono.</p>
+        <div class="row" id="update-buttons">
           <button type="button" class="btn" id="update-check">Controlla</button>
           <button type="button" class="btn primary hidden" id="update-apply">Aggiorna ora</button>
         </div>
         <p class="errors" id="update-errors"></p>
       </fieldset>
+
+      <fieldset class="update-box" id="data-box">
+        <legend>💾 Dati</legend>
+        <p class="hint">Salva una copia di agenti, palazzo, portafoglio e impostazioni in un file, oppure riprendi una copia salvata (per esempio per portare i dati dal Mac al server). Importando, i dati di adesso vengono sostituiti: prima il programma ne salva comunque una copia.</p>
+        <div class="row wrap">
+          <a class="btn" id="export-data" href="/api/backup" download>⬇️ Esporta i dati</a>
+          <button type="button" class="btn" id="import-data">⬆️ Importa i dati</button>
+          <input type="file" id="import-file" accept=".zip,application/zip" hidden />
+        </div>
+        <p class="hint" id="data-status"></p>
+        <p class="errors" id="data-errors"></p>
+      </fieldset>
+
+      <fieldset class="update-box hidden" id="phone-box">
+        <legend>📲 App sul telefono</legend>
+        <p class="hint">Sul telefono apri <b id="phone-url"></b>, entra con la password e poi tocca <b>☰ Altro → 📲 Installa l'app sul telefono</b>.</p>
+        <div class="row"><button type="button" class="btn" id="phone-install">Come si installa</button></div>
+      </fieldset>
+
+      <fieldset class="update-box hidden" id="account-box">
+        <legend>🔐 Accesso</legend>
+        <p class="hint">Per entrare nell'app serve la password. Se usi un computer o un telefono non tuo, alla fine premi Esci.</p>
+        <div class="row"><button type="button" class="btn" id="logout-btn">🚪 Esci</button></div>
+      </fieldset>
     </form>
+  </dialog>
+
+  <!-- Conferma con la password per le operazioni delicate (solo quando l'app chiede la password) -->
+  <dialog id="password-dialog" class="small-dlg">
+    <form id="password-form" class="dlg-form" method="dialog">
+      <header class="dlg-head"><h2>🔒 Conferma con la password</h2></header>
+      <p class="hint" id="password-msg"></p>
+      <label>La tua password
+        <input type="password" name="password" autocomplete="current-password" autocapitalize="off" spellcheck="false" />
+      </label>
+      <p class="errors" id="password-errors"></p>
+      <footer class="dlg-foot">
+        <span class="spacer"></span>
+        <button type="button" class="btn ghost" data-close>Annulla</button>
+        <button type="submit" class="btn primary">Conferma</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Come installare l'app sul telefono -->
+  <dialog id="install-dialog" class="small-dlg">
+    <form class="dlg-form" method="dialog">
+      <header class="dlg-head"><h2>📲 Installa l'app</h2><button type="button" class="btn ghost" data-close aria-label="Chiudi">✕</button></header>
+      <div class="install-body" id="install-body"></div>
+      <footer class="dlg-foot">
+        <span class="spacer"></span>
+        <button type="button" class="btn ghost" data-close>Chiudi</button>
+        <button type="button" class="btn primary hidden" id="install-btn">📲 Installa</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Riavvio dopo l'importazione dei dati -->
+  <dialog id="restart-dialog" class="small-dlg">
+    <div class="dlg-form restart-box">
+      <div class="orb" aria-hidden="true"></div>
+      <h2 id="restart-title">Riavvio in corso…</h2>
+      <p class="hint" id="restart-msg">I dati sono stati importati. Il programma si riavvia e la pagina si ricarica da sola.</p>
+    </div>
   </dialog>
 
   <script type="module" src="app.js"></script>

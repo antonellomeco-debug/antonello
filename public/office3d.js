@@ -7,6 +7,8 @@ import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer
 
 const FLOOR_GAP = 15;
 const DESK_SPACING = 3;
+// Telefoni e schermi piccoli: grafica più leggera (meno batteria e meno calore).
+const LOW_POWER = matchMedia("(pointer: coarse)").matches || Math.min(innerWidth, screen.width || innerWidth) <= 860;
 
 export class Office3D {
   constructor(container, { onAgentClick, onFloorFocus, assistantName }) {
@@ -17,7 +19,7 @@ export class Office3D {
     this.agentObjs = new Map(); // id -> { head, ring, monitor, el, label, talk, status, floorId }
     this.clickables = [];
     this.floors = new Map(); // floorId -> { group, y, labels: { floor, rooms: [] }, islands: [] }
-    this.hovered = null; // agente sotto il mouse: è l'unico con l'etichetta visibile
+    this.hovered = null; // agente sotto il mouse (o toccato sul telefono): è l'unico con l'etichetta visibile
     this.flows = []; // sferette che viaggiano lungo i collegamenti
     this.focused = null; // id del piano in primo piano, null = tutto il palazzo
     this.clock = new THREE.Clock();
@@ -29,10 +31,11 @@ export class Office3D {
     this.camera = new THREE.PerspectiveCamera(42, 1, 0.1, 500);
     this.camera.position.set(0, 24, 34);
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    this.renderer.shadowMap.enabled = true;
+    this.renderer = new THREE.WebGLRenderer({ antialias: !LOW_POWER });
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, LOW_POWER ? 1.5 : 2));
+    this.renderer.shadowMap.enabled = !LOW_POWER;
     container.append(this.renderer.domElement);
+    this.watchContext();
 
     this.labels = new CSS2DRenderer();
     this.labels.domElement.className = "labels-layer";
@@ -49,6 +52,7 @@ export class Office3D {
       this.controls.autoRotate = false;
       this.fly = null; // l'utente prende il controllo della camera
       this.downAt = [e.clientX, e.clientY];
+      this.lastPointer = e.pointerType; // "mouse", "touch" o "pen": con il dito non c'è il "passare sopra"
     });
 
     this.addLights();
@@ -60,18 +64,68 @@ export class Office3D {
     this.pointer = new THREE.Vector2();
     this.renderer.domElement.addEventListener("click", (e) => this.handleClick(e));
     this.renderer.domElement.addEventListener("pointermove", (e) => this.handleHover(e));
-    container.addEventListener("pointerleave", () => this.hoverAgent(null));
+    // Con il dito "pointerleave" arriva alla fine di ogni tocco: nasconderebbe subito l'etichetta appena mostrata.
+    container.addEventListener("pointerleave", (e) => e.pointerType === "mouse" && this.hoverAgent(null));
 
     new ResizeObserver(() => this.resize()).observe(container);
     this.resize();
-    this.renderer.setAnimationLoop(() => this.tick());
+    this.setActive(true);
+  }
+
+  /** Accende o spegne il disegno continuo (spento quando l'ufficio non si vede: altra sezione, pagina nascosta). */
+  setActive(on) {
+    on = Boolean(on);
+    if (on === this.active) return;
+    this.active = on;
+    this.renderer.setAnimationLoop(on && !this.contextLost ? () => this.tick() : null);
+    if (on) this.resize(); // la finestra può essere cambiata mentre era spento
+  }
+
+  /** Il telefono può togliere la scheda video alla pagina (es. app in sottofondo): si aspetta che la restituisca. */
+  watchContext() {
+    const canvas = this.renderer.domElement;
+    canvas.addEventListener("webglcontextlost", (e) => {
+      e.preventDefault(); // permette al browser di restituire il contesto
+      this.contextLost = true;
+      this.renderer.setAnimationLoop(null);
+      this.armLostNotice();
+    });
+    canvas.addEventListener("webglcontextrestored", () => {
+      this.contextLost = false;
+      clearTimeout(this.lostTimer);
+      this.lostNotice?.remove();
+      this.lostNotice = null;
+      if (this.active) this.renderer.setAnimationLoop(() => this.tick()); // three.js ricarica da solo forme e materiali
+    });
+    document.addEventListener("visibilitychange", () => this.contextLost && this.armLostNotice());
+  }
+
+  /** Se dopo qualche secondo (a pagina visibile) il contesto non torna, propone di ricaricare la pagina. */
+  armLostNotice() {
+    clearTimeout(this.lostTimer);
+    if (document.hidden || this.lostNotice) return;
+    this.lostTimer = setTimeout(() => {
+      if (!this.contextLost || this.lostNotice) return;
+      const box = document.createElement("div");
+      box.className = "gl-lost";
+      const p = document.createElement("p");
+      p.textContent = "La vista 3D si è interrotta (succede quando il telefono mette l'app in pausa).";
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn primary";
+      btn.textContent = "↻ Ricarica la pagina";
+      btn.addEventListener("click", () => location.reload());
+      box.append(p, btn);
+      this.container.append(box);
+      this.lostNotice = box;
+    }, 4000);
   }
 
   addLights() {
     this.scene.add(new THREE.AmbientLight(0x8890ff, 0.6));
     const key = new THREE.DirectionalLight(0xffffff, 1.5);
     key.position.set(25, 80, 20);
-    key.castShadow = true;
+    key.castShadow = !LOW_POWER;
     key.shadow.mapSize.set(2048, 2048);
     Object.assign(key.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, far: 200 });
     this.scene.add(key);
@@ -79,7 +133,7 @@ export class Office3D {
   }
 
   addStars() {
-    const n = 1800;
+    const n = LOW_POWER ? 600 : 1800;
     const pos = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
       const r = 90 + Math.random() * 120;
@@ -407,12 +461,12 @@ export class Office3D {
     el.querySelector(".av").textContent = agent.avatar;
     el.querySelector(".nm").textContent = agent.name;
     el.addEventListener("click", () => this.onAgentClick?.(agent.id));
-    // Restando sull'etichetta si può cliccarla; uscendo si nasconde.
-    el.addEventListener("pointerenter", () => this.hoverAgent(agent.id));
-    el.addEventListener("pointerleave", () => this.hoverAgent(null));
+    // Restando sull'etichetta si può cliccarla; uscendo si nasconde (solo con il mouse: con il dito resta finché si tocca altrove).
+    el.addEventListener("pointerenter", (e) => e.pointerType === "mouse" && this.hoverAgent(agent.id));
+    el.addEventListener("pointerleave", (e) => e.pointerType === "mouse" && this.hoverAgent(null));
     const label = new CSS2DObject(el);
     label.position.set(0, 2.3, 0.4);
-    label.visible = false; // si vede solo con il mouse sopra l'agente
+    label.visible = false; // si vede solo con il mouse sopra l'agente (o dopo averlo toccato)
     g.add(label);
     // I fumetti hanno un punto d'appoggio tutto loro: compaiono anche quando l'etichetta è nascosta.
     const talk = new CSS2DObject(Object.assign(document.createElement("div"), { className: "agent-talk" }));
@@ -522,7 +576,8 @@ export class Office3D {
     for (const [id, f] of this.floors) {
       const active = overview || id === this.focused;
       dim(f.group, !active);
-      f.labels.floor.visible = true;
+      // Palco stretto (telefono): il nome del piano già in primo piano coprirebbe la stanza davanti (lo dice già l'ascensore).
+      f.labels.floor.visible = !(this.narrow && id === this.focused);
       f.labels.floor.element.classList.toggle("active", id === this.focused);
       for (const l of f.labels.rooms) l.visible = active;
     }
@@ -531,7 +586,7 @@ export class Office3D {
     this.showLabel(this.hovered);
   }
 
-  /** L'etichetta di un agente (nome e stato) compare solo quando il mouse è sopra di lui. */
+  /** L'etichetta di un agente (nome e stato) compare solo quando il mouse è sopra di lui (o quando lo si tocca). */
   hoverAgent(agentId) {
     if (agentId) {
       clearTimeout(this.hideTimer);
@@ -564,17 +619,27 @@ export class Office3D {
   }
 
   handleClick(e) {
-    // Un trascinamento (per girare il palazzo) non è un clic.
-    if (this.downAt && Math.hypot(e.clientX - this.downAt[0], e.clientY - this.downAt[1]) > 6) return;
+    const touch = Boolean(this.lastPointer) && this.lastPointer !== "mouse";
+    // Un trascinamento (per girare il palazzo) non è un clic. Con il dito si tollera un po' più di movimento.
+    if (this.downAt && Math.hypot(e.clientX - this.downAt[0], e.clientY - this.downAt[1]) > (touch ? 10 : 6)) return;
     const hit = this.pick(e);
-    if (!hit) return;
+    if (!hit) {
+      if (touch) this.showLabel(null); // tocco nel vuoto: il nome sparisce
+      return;
+    }
     const { floorId, agentId, roomId } = hit.userData;
     if (floorId && floorId !== this.focused) return this.focusFloor(floorId); // prima si entra nel piano
-    if (agentId) this.onAgentClick?.(agentId);
-    else if (roomId) this.focusRoom(roomId);
+    if (agentId) {
+      // Con il dito: il primo tocco mostra il nome; un secondo tocco (o il tocco sul nome) apre la scheda.
+      if (touch && this.hovered !== agentId) return this.showLabel(agentId);
+      return this.onAgentClick?.(agentId);
+    }
+    if (touch) this.showLabel(null);
+    if (roomId) this.focusRoom(roomId);
   }
 
   handleHover(e) {
+    if (e.pointerType !== "mouse") return; // con il dito non si "passa sopra" (e niente calcoli mentre si gira)
     const hit = this.pick(e);
     this.renderer.domElement.style.cursor = hit ? "pointer" : "grab";
     this.hoverAgent(hit?.userData.agentId ?? null);
@@ -587,6 +652,11 @@ export class Office3D {
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
     this.labels.setSize(w, h);
+    const narrow = w < 560;
+    if (narrow !== this.narrow) {
+      this.narrow = narrow;
+      if (this.floors.size) this.applyFocus();
+    }
   }
 
   tick() {
