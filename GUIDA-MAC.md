@@ -163,7 +163,8 @@ Il collegamento è **gratuito**. Si fa una volta sola e richiede una ventina di 
 3. Premi **Add new app** e compila:
    - **Application name**: es. *Agenti borsa personale*;
    - **Description**: scrivi bene a cosa serve, così l'approvano prima. Per esempio: *Strumento personale, non commerciale, usato solo da me sul mio computer per leggere i prezzi e gestire il mio conto demo cTrader di FP Markets (in futuro il mio conto reale). Nessun altro utente.*
-   - se chiede anche nome dell'azienda o sito web, scrivi il tuo nome e cognome (e un sito qualsiasi tuo, oppure lascia vuoto se è facoltativo).
+   - nei campi dell'azienda scrivi il tuo nome e cognome; il **Company website** lascialo **vuoto** (serve solo a chi crea app per altre persone, e cTrader può chiedere di dimostrare che il sito è tuo: non inventarlo);
+   - in **Allow this application to** spunta **solo "Access your accounts and trade"** (i tuoi conti, con il trading). **Non** spuntare le voci *"Access any available account…"*: sono per chi lavora con conti di altre persone, e rendono obbligatorio il sito web.
 4. **Redirect URIs**: la prima riga già presente (quella con *playground*) **lasciala com'è**. Premi **Add redirect URI** (o *+ Add redirect URL*) e incolla esattamente l'indirizzo che trovi nell'app, sezione 🔌 Broker → **Copia**: `http://localhost:3000/ctrader/callback` (senza spazi né barra finale). Se il modulo non ha questa voce, la aggiungi dopo con **Edit** (punto 7).
 5. Premi **Save**. L'app compare nell'elenco con lo stato **Submitted** (inviata).
 6. **Aspetta l'approvazione**: la fa a mano il personale di cTrader. Di solito servono **da 1 a 3 giorni lavorativi**. Ti arriva un'email all'indirizzo del cTrader ID (guarda anche nello spam): o conferma l'approvazione o chiede altre informazioni, e in quel caso rispondi. Quando è approvata lo stato diventa **Active**.
