@@ -7,6 +7,7 @@ const dir = path.dirname(fileURLToPath(import.meta.url));
 const RESTART_CODE = 75;
 let child;
 let first = true;
+let stopping = false; // arrivato un segnale di chiusura: niente più riavvii
 
 function run() {
   child = spawn(process.execPath, [path.join(dir, "server.js")], {
@@ -17,15 +18,22 @@ function run() {
   });
   first = false;
   child.on("exit", (code, signal) => {
-    if (code === RESTART_CODE) {
+    if (code === RESTART_CODE && !stopping) {
       console.log("\n  🔄 Riavvio con la nuova versione…\n");
       return run();
     }
-    process.exit(code ?? (signal ? 1 : 0));
+    process.exit(stopping && code === RESTART_CODE ? 0 : code ?? (signal ? 1 : 0));
   });
 }
 
 // control + C arriva anche al server, che si chiude: qui lo inoltriamo solo per sicurezza.
-for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) process.on(sig, () => child?.kill(sig));
+// Sul server (Docker) start.js è il primo processo: riceve SIGTERM a ogni nuova versione e lo passa al server,
+// che chiude in ordine (aspetta gli ordini già partiti e salva).
+for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+  process.on(sig, () => {
+    stopping = true;
+    child?.kill(sig);
+  });
+}
 
 run();

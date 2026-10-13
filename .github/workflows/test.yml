@@ -1,0 +1,20 @@
+# Test automatici a ogni push e pull request (Node 22, come sul server).
+# Su Railway l'opzione "Wait for CI" aspetta che questi test passino prima di pubblicare la nuova versione.
+name: Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
