@@ -14,9 +14,10 @@ export class Office3D {
     this.onAgentClick = onAgentClick;
     this.onFloorFocus = onFloorFocus;
     this.assistantName = assistantName;
-    this.agentObjs = new Map(); // id -> { head, ring, monitor, el, status, floorId }
+    this.agentObjs = new Map(); // id -> { head, ring, monitor, el, label, talk, status, floorId }
     this.clickables = [];
-    this.floors = new Map(); // floorId -> { group, y, labels: { floor, rooms: [], agents: [] }, islands: [] }
+    this.floors = new Map(); // floorId -> { group, y, labels: { floor, rooms: [] }, islands: [] }
+    this.hovered = null; // agente sotto il mouse: è l'unico con l'etichetta visibile
     this.flows = []; // sferette che viaggiano lungo i collegamenti
     this.focused = null; // id del piano in primo piano, null = tutto il palazzo
     this.clock = new THREE.Clock();
@@ -59,6 +60,7 @@ export class Office3D {
     this.pointer = new THREE.Vector2();
     this.renderer.domElement.addEventListener("click", (e) => this.handleClick(e));
     this.renderer.domElement.addEventListener("pointermove", (e) => this.handleHover(e));
+    container.addEventListener("pointerleave", () => this.hoverAgent(null));
 
     new ResizeObserver(() => this.resize()).observe(container);
     this.resize();
@@ -96,6 +98,9 @@ export class Office3D {
   /** building: { floors, rooms, links }, agents: [...] */
   setBuilding(building, agents) {
     const before = { focused: this.focused, floors: this.floors.size, topY: this.topY };
+    if (this.hideTimer) this.hovered = null; // un'etichetta che stava per sparire non ricompare dopo la ricostruzione
+    clearTimeout(this.hideTimer);
+    this.hideTimer = null;
     // Rimuove la versione precedente: etichette HTML e memoria della scheda video.
     this.world.traverse((o) => {
       if (o.isCSS2DObject) o.element.remove();
@@ -144,7 +149,7 @@ export class Office3D {
     group.userData.floorId = floor.id;
     const color = new THREE.Color(floor.color ?? "#6f7dff");
     const ringRadius = Math.max(12, rooms.length * 3.2 + 6);
-    const entry = { group, y, ringRadius, labels: { floor: null, rooms: [], agents: [] }, islands: [] };
+    const entry = { group, y, ringRadius, labels: { floor: null, rooms: [] }, islands: [] };
 
     // Lastra del piano: disco trasparente con bordo luminoso.
     const plateR = ringRadius + 7;
@@ -345,14 +350,14 @@ export class Office3D {
     agents.forEach((agent, i) => {
       const c = i % cols;
       const r = Math.floor(i / cols);
-      const desk = this.buildDesk(agent, color, i, entry, floorId);
+      const desk = this.buildDesk(agent, color, floorId);
       desk.position.set((c - (cols - 1) / 2) * DESK_SPACING, 0.45, (r - (rows - 1) / 2) * DESK_SPACING + 0.3);
       g.add(desk);
     });
     return g;
   }
 
-  buildDesk(agent, roomColor, index, entry, floorId) {
+  buildDesk(agent, roomColor, floorId) {
     const g = new THREE.Group();
     const white = new THREE.MeshStandardMaterial({ color: 0xeef0f7, roughness: 0.6 });
     const dark = new THREE.MeshStandardMaterial({ color: 0x23263a, roughness: 0.5 });
@@ -402,16 +407,23 @@ export class Office3D {
     el.querySelector(".av").textContent = agent.avatar;
     el.querySelector(".nm").textContent = agent.name;
     el.addEventListener("click", () => this.onAgentClick?.(agent.id));
+    // Restando sull'etichetta si può cliccarla; uscendo si nasconde.
+    el.addEventListener("pointerenter", () => this.hoverAgent(agent.id));
+    el.addEventListener("pointerleave", () => this.hoverAgent(null));
     const label = new CSS2DObject(el);
-    label.position.set(0, 2.25 + (index % 2) * 0.75, 0.4);
+    label.position.set(0, 2.3, 0.4);
+    label.visible = false; // si vede solo con il mouse sopra l'agente
     g.add(label);
-    entry.labels.agents.push(label);
+    // I fumetti hanno un punto d'appoggio tutto loro: compaiono anche quando l'etichetta è nascosta.
+    const talk = new CSS2DObject(Object.assign(document.createElement("div"), { className: "agent-talk" }));
+    talk.position.copy(label.position);
+    g.add(talk);
 
     for (const m of [table, monitor, body, head, chair]) {
       m.userData = { agentId: agent.id, floorId };
       this.clickables.push(m);
     }
-    this.agentObjs.set(agent.id, { head, ring, monitor, el, status: "idle", floorId });
+    this.agentObjs.set(agent.id, { head, ring, monitor, el, label, talk, status: "idle", floorId });
     if (!agent.enabled) el.classList.add("off");
     return g;
   }
@@ -432,11 +444,11 @@ export class Office3D {
   speak(agentId, text) {
     const o = this.agentObjs.get(agentId);
     if (!o) return;
-    o.el.querySelector(".bubble")?.remove();
+    o.talk.element.querySelector(".bubble")?.remove();
     const b = document.createElement("div");
     b.className = "bubble";
     b.textContent = text;
-    o.el.append(b);
+    o.talk.element.append(b);
     setTimeout(() => b.remove(), 7000);
   }
 
@@ -513,8 +525,30 @@ export class Office3D {
       f.labels.floor.visible = true;
       f.labels.floor.element.classList.toggle("active", id === this.focused);
       for (const l of f.labels.rooms) l.visible = active;
-      for (const l of f.labels.agents) l.visible = !overview && active;
     }
+    // I fumetti si vedono solo sul piano in primo piano (nella vista di tutto il palazzo sarebbero troppi).
+    for (const o of this.agentObjs.values()) o.talk.visible = o.floorId === this.focused;
+    this.showLabel(this.hovered);
+  }
+
+  /** L'etichetta di un agente (nome e stato) compare solo quando il mouse è sopra di lui. */
+  hoverAgent(agentId) {
+    if (agentId) {
+      clearTimeout(this.hideTimer);
+      this.hideTimer = null;
+      if (agentId !== this.hovered) this.showLabel(agentId);
+    } else if (this.hovered && !this.hideTimer) {
+      // Si nasconde dopo un attimo: così si fa in tempo a portare il mouse sull'etichetta per cliccarla.
+      this.hideTimer = setTimeout(() => {
+        this.hideTimer = null;
+        this.showLabel(null);
+      }, 300);
+    }
+  }
+
+  showLabel(agentId) {
+    this.hovered = agentId;
+    for (const [id, o] of this.agentObjs) o.label.visible = id === agentId && (!this.focused || o.floorId === this.focused);
   }
 
   // ---------- interazione ----------
@@ -541,7 +575,9 @@ export class Office3D {
   }
 
   handleHover(e) {
-    this.renderer.domElement.style.cursor = this.pick(e) ? "pointer" : "grab";
+    const hit = this.pick(e);
+    this.renderer.domElement.style.cursor = hit ? "pointer" : "grab";
+    this.hoverAgent(hit?.userData.agentId ?? null);
   }
 
   resize() {

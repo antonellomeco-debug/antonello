@@ -111,7 +111,7 @@ Per **chiudere** il programma: clicca sulla finestra del Terminale e premi **con
 
 ## Parte 3 — Primi passi nell'app
 
-- **Il palazzo**: l'ufficio è un palazzo con più **piani**. Ogni piano si occupa di un settore (es. Azioni, Crypto) e ha le sue **stanze** con gli agenti. Con l'**ascensore** a sinistra scegli quale piano guardare, oppure **Tutto il palazzo**.
+- **Il palazzo**: l'ufficio è un palazzo con più **piani**. Ogni piano si occupa di un settore (es. Azioni, Crypto) e ha le sue **stanze** con gli agenti. Con l'**ascensore** a sinistra scegli quale piano guardare, oppure **Tutto il palazzo**. Il nome e lo stato di un agente compaiono quando passi il mouse sopra di lui.
 - **Prova un agente**: clicca la scrivania del **Quant SMA** → **▶ Esegui**. Vedrai il fumetto sopra l'agente; il risultato finisce in **Bacheca**.
 - **Parla con Orion** (con la chiave inserita): scrivi a destra, per esempio *"Cosa sta succedendo nel palazzo?"* oppure *"Crea un agente che segue le banche italiane"*.
 - **Approvazioni**: quando un agente vuole comprare o vendere, compare un pallino rosso. Tu scegli **Fallo per me** o **Scarta**.
