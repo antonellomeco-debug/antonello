@@ -267,6 +267,39 @@ test("troppi tentativi: dietro il proxy 5 errori per indirizzo in 15 minuti, poi
   await s.stop();
 });
 
+test("raffica di tentativi insieme dallo stesso indirizzo: contano tutti, e il proprietario entra subito", async () => {
+  const s = await start({ ...CLOUD_ENV, TRUST_PROXY: "1" });
+  const from = (ip, password) => s.req("POST", "/api/login", json({ password }, { "x-forwarded-for": ip }));
+  const flood = await Promise.all(Array.from({ length: 30 }, (_, i) => from("203.0.113.66", `raffica-${i}`)));
+  const wrong = flood.filter((r) => r.status === 401).length;
+  assert.ok(wrong <= 5, `al massimo 5 password controllate per indirizzo (${wrong})`);
+  assert.equal(wrong + flood.filter((r) => r.status === 429).length, 30);
+  const t0 = Date.now();
+  assert.equal((await from("192.0.2.10", PASSWORD)).status, 200);
+  assert.ok(Date.now() - t0 < 3000, `il proprietario non resta in fila (${Date.now() - t0} ms)`);
+  await s.stop();
+});
+
+test("password solo come testo: un elenco di tentativi non vale", async () => {
+  const r = await cloud.req("POST", "/api/login", json({ password: ["sbagliata-1", "sbagliata-2", PASSWORD] }));
+  assert.equal(r.status, 401);
+  const c = cookieOf(await cloud.req("POST", "/api/login", json({ password: PASSWORD })));
+  const live = await cloud.req("POST", "/api/safety/live", json({ enabled: true, confirm: "SOLDI VERI", password: ["x", PASSWORD] }, { cookie: c, origin: PUBLIC }));
+  assert.equal(live.status, 401);
+  assert.equal(live.json.stepUp, true);
+});
+
+test("dopo l'accesso si torna solo a pagine di questo sito (niente /.//altro-sito)", async () => {
+  const c = cookieOf(await cloud.req("POST", "/api/login", json({ password: PASSWORD })));
+  for (const next of ["/.//evil.example/x", "/%2e//evil.example/x", "/a/..//evil.example/y", "//evil.example", "https://evil.example"]) {
+    const r = await cloud.req("GET", `/login?next=${encodeURIComponent(next)}`, { headers: { cookie: c } });
+    assert.equal(r.status, 302);
+    assert.equal(r.headers.location, "/", `next=${next}`);
+  }
+  const ok = await cloud.req("GET", `/login?next=${encodeURIComponent("/?x=1")}`, { headers: { cookie: c } });
+  assert.equal(ok.headers.location, "/?x=1");
+});
+
 test("senza proxy noto nessun limite per indirizzo (sarebbero tutti lo stesso indirizzo)", async () => {
   const s = await start(CLOUD_ENV);
   for (let i = 0; i < 7; i++) assert.equal((await s.req("POST", "/api/login", json({ password: `no-${i}` }, { "x-forwarded-for": "203.0.113.9" }))).status, 401);

@@ -7,7 +7,7 @@ import { office } from "./lib/office.js";
 import { PUBLIC_DIR, STRATEGIES_DIR, ROOT } from "./lib/paths.js";
 import path from "node:path";
 import { runAgent, isRunning } from "./lib/runner.js";
-import { getState, resetState, bus, log, persistNow } from "./lib/store.js";
+import { getState, resetState, bus, log, persistNow, persist } from "./lib/store.js";
 import { portfolioValue, decide, monitorAccounts, settleInFlight, closeAgentPositionsEverywhere, stopNewOrders, recoverInterruptedApprovals } from "./lib/broker.js";
 import * as ctrader from "./lib/ctrader/service.js";
 import { codeFromInput } from "./lib/ctrader/oauth.js";
@@ -23,7 +23,7 @@ import { isWorkingTime, scheduleStatus, updateSchedule, isFridayCloseTime, romeP
 import { PORT, HOST, PUBLIC_URL, CLOUD, AUTH_ENABLED, FAIL_CLOSED, CONFIG_PROBLEMS, TRUST_PROXY, UPDATER_ON, VOLUME_OK, REDIRECT_URI } from "./lib/env.js";
 import { securityHeaders, failClosed, hostCheck, originCheck } from "./lib/guard.js";
 import * as auth from "./lib/auth.js";
-import { exportZip, importZip, backupFileName } from "./lib/backup.js";
+import { exportZip, importZip, backupFileName, confirmImportWorked } from "./lib/backup.js";
 
 const STARTED_AT = new Date().toISOString();
 const URL_APP = PUBLIC_URL ?? `http://localhost:${PORT}`;
@@ -64,7 +64,26 @@ app.use(express.json({ limit: "1mb" }));
 app.use(express.static(PUBLIC_DIR, { setHeaders: (res, file) => path.basename(file) === "sw.js" && res.setHeader("Cache-Control", "no-cache") }));
 app.use("/vendor/three", express.static(path.join(ROOT, "node_modules", "three")));
 
+// Ultimo avvio di ogni agente, salvato nello stato: un riavvio (es. una nuova versione sul server) non fa ripartire
+// tutti gli agenti insieme. All'apertura valgono solo gli avvii di oggi (ora italiana): il primo avvio della
+// giornata fa lavorare tutti, come prima.
 const lastRun = new Map();
+{
+  const today = romeParts().date;
+  for (const [id, at] of Object.entries(getState().lastRun ?? {})) {
+    if (typeof at === "string" && !Number.isNaN(Date.parse(at)) && romeParts(new Date(at)).date === today) lastRun.set(id, at);
+  }
+}
+function markRun(id) {
+  lastRun.set(id, new Date().toISOString());
+  getState().lastRun = Object.fromEntries(lastRun);
+  persist();
+}
+function clearRuns() {
+  lastRun.clear();
+  getState().lastRun = {};
+  persist();
+}
 const findAgent = (id) => office.agents().find((a) => a.id === id);
 
 app.get("/api/office", (_req, res) => {
@@ -305,7 +324,7 @@ app.post("/api/safety/resume", handle(() => {
   return safety.getSafety();
 }));
 // Sbloccare il conto reale richiede di nuovo la password dell'app (sul server): un cookie rubato non basta.
-const liveStepUp = auth.requireStepUp({ when: (req) => Boolean(req.body?.enabled), password: (req) => req.body?.password });
+const liveStepUp = auth.requireStepUp({ when: (req) => Boolean(req.body?.enabled), password: auth.bodyPassword });
 app.post("/api/safety/live", liveStepUp, handle((req) => {
   const enabled = Boolean(req.body?.enabled);
   if (!enabled) {
@@ -338,7 +357,7 @@ app.post("/api/agents/:id/run", async (req, res) => {
   const agent = findAgent(req.params.id);
   if (!agent) return res.status(404).json({ error: "agente non trovato" });
   if (isRunning(agent.id)) return res.status(409).json({ error: "già in esecuzione" });
-  lastRun.set(agent.id, new Date().toISOString());
+  markRun(agent.id);
   // Risponde subito: l'avanzamento arriva via SSE.
   runAgent(agent, office.building(), { task: req.body?.task }).catch(() => {});
   res.json({ ok: true });
@@ -365,13 +384,14 @@ app.delete("/api/rooms/:id", handle((req) => office.deleteRoom(req.params.id)));
 app.put("/api/links", handle((req) => office.setLink(req.body ?? {})));
 app.delete("/api/links", handle((req) => office.deleteLink(String(req.query.from ?? ""), String(req.query.to ?? ""))));
 
-app.post("/api/reset", auth.requireStepUp({ password: (req) => req.body?.password }), (_req, res) => {
+app.post("/api/reset", auth.requireStepUp({ password: auth.bodyPassword }), (_req, res) => {
   resetState();
   res.json({ ok: true });
 });
 
 // ---------- copia dei dati (⚙️ Impostazioni): scarica e importa ----------
-app.get("/api/backup", (_req, res) => {
+// Anche lo scarico chiede la password: la copia contiene la chiave di Claude e l'accesso a cTrader.
+app.get("/api/backup", auth.requireStepUp({ password: (req) => auth.headerPassword(req.get("x-agenti-password")) }), (_req, res) => {
   persistNow(); // nella copia anche le ultime modifiche ancora in memoria
   res.set({ "Content-Type": "application/zip", "Content-Disposition": `attachment; filename=${backupFileName()}` });
   res.send(exportZip());
@@ -446,7 +466,7 @@ setInterval(() => {
   const working = isWorkingTime();
   if (working !== wasWorking) {
     if (working && wasWorking === false) {
-      lastRun.clear();
+      clearRuns();
       log("orario", "info", "Inizio dell'orario di lavoro: gli agenti programmati ripartono.");
     } else if (!working && wasWorking === true) {
       log("orario", "info", `Fine dell'orario di lavoro: gli agenti programmati ripartono ${resumeText() ?? "all'inizio del prossimo orario"}.`);
@@ -459,8 +479,9 @@ setInterval(() => {
     if (isUpdating() || safety.isStopped()) return;
     if (!agent.enabled || !(agent.everyMinutes > 0) || isRunning(agent.id)) continue;
     const prev = lastRun.has(agent.id) ? Date.parse(lastRun.get(agent.id)) : 0;
-    if (now - prev >= agent.everyMinutes * 60_000) {
-      lastRun.set(agent.id, new Date().toISOString());
+    // Almeno ogni 5 minuti anche per agenti salvati prima del limite o arrivati da una copia importata.
+    if (now - prev >= Math.max(5, agent.everyMinutes) * 60_000) {
+      markRun(agent.id);
       runAgent(agent, office.building()).catch(() => {});
     }
   }
@@ -519,6 +540,7 @@ const SHUTDOWN_WAIT_MS = 8_000;
 async function shutdown(reason, code = 0) {
   if (shuttingDown) return;
   shuttingDown = true;
+  if (importedAtBoot) confirmImportWorked(); // chiusura ordinata: i dati importati funzionavano
   stopNewOrders();
   console.log(`\n  ⏹  ${reason}: chiudo il programma…`);
   const timeout = new Promise((r) => setTimeout(() => r(false), SHUTDOWN_WAIT_MS).unref());
@@ -546,6 +568,8 @@ function openBrowser() {
 // All'avvio: dati importati e ordini rimasti a metà da una chiusura improvvisa.
 if (importedAtBoot) log("programma", "info", `Dati della copia importata messi al loro posto (${importedAtBoot} file).`);
 recoverInterruptedApprovals();
+// Dopo un'importazione: se il programma resta acceso 30 secondi (o si chiude in modo ordinato), i dati nuovi vanno bene.
+if (importedAtBoot) setTimeout(confirmImportWorked, 30_000).unref();
 
 // Express 5 passa anche l'eventuale errore di avvio (es. porta occupata) a questa callback.
 const server = app.listen(PORT, HOST, (err) => {

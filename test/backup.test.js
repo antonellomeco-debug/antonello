@@ -50,7 +50,12 @@ test("importazione rifiutata: non è uno zip, JSON rovinato, nessun dato dell'ap
   assert.throws(() => backup.readBackup(zipOf({ "building.json": "{rotto" })), /building\.json è rovinato/);
   assert.throws(() => backup.readBackup(zipOf({ "agents/a.json": "[1,2]" })), /non ha il contenuto atteso/);
   assert.throws(() => backup.readBackup(zipOf({ "foto.jpg": "x", "auth.json": "{}" })), /non sembra una copia/);
-  assert.throws(() => backup.readBackup(zipOf({ "building.json": { floors: "no" } })), /palazzo/);
+  assert.throws(() => backup.readBackup(zipOf({ "building.json": { floors: "no" } })), /building\.json non ha il contenuto atteso/);
+  // forma sbagliata che fermerebbe il programma al riavvio
+  assert.throws(() => backup.readBackup(zipOf({ "building.json": {}, "state.json": { approvals: null } })), /state\.json non ha il contenuto atteso/);
+  assert.throws(() => backup.readBackup(zipOf({ "building.json": { floors: [null] } })), /building\.json non ha/);
+  assert.throws(() => backup.readBackup(zipOf({ "building.json": {}, "state.json": { portfolio: { trades: {} } } })), /state\.json non ha/);
+  assert.throws(() => backup.readBackup(zipOf({ "agents/a.json": { id: "b" } })), /agents\/a\.json non ha/);
   const big = `{"x":"${"a".repeat(11 * 1024 * 1024)}"}`;
   assert.throws(() => backup.readBackup(zipOf({ "state.json": big, "building.json": {} })), /troppo grande/);
 });
@@ -93,7 +98,37 @@ test("importazione completa: copia di sicurezza, poi i file vanno a posto al ria
   assert.deepEqual(read("auth.json"), { sessions: {} }, "auth.json non si importa");
   assert.equal(read("safety.json").liveEnabled, false, "i file che la copia non ha restano");
   assert.equal(fs.existsSync(backup.STAGING_DIR), false);
+  assert.ok(fs.existsSync(backup.APPLIED_MARK), "segno per tornare indietro se il programma non riparte");
+  backup.confirmImportWorked(); // il programma è ripartito bene
   assert.equal(backup.applyStagedImport(), 0, "una volta sola");
+});
+
+test("sicurezza: dalla copia solo i limiti; STOP, blocco del giorno e conto reale restano quelli di adesso", () => {
+  const safetyFile = path.join(dataDir, "safety.json");
+  const before = read("safety.json");
+  fs.writeFileSync(safetyFile, JSON.stringify({ ...before, killSwitch: { active: true, reason: "STOP di prova" }, liveEnabled: false, daily: { accounts: { 1: { breached: true } } } }));
+  backup.importZip(zipOf({
+    "building.json": { name: "Palazzo importato", floors: [], rooms: [], links: [] },
+    "safety.json": { limits: { maxLotsPerOrder: 0.05 }, killSwitch: { active: false }, liveEnabled: true, daily: {} },
+  }));
+  backup.applyStagedImport();
+  backup.confirmImportWorked();
+  const s = read("safety.json");
+  assert.equal(s.limits.maxLotsPerOrder, 0.05, "i limiti vengono dalla copia");
+  assert.equal(s.killSwitch.active, true, "lo STOP resta acceso");
+  assert.equal(s.liveEnabled, false, "il conto reale resta bloccato");
+  assert.equal(s.daily.accounts[1].breached, true, "il blocco del giorno resta");
+});
+
+test("se il programma non riparte dopo l'importazione, al riavvio tornano i dati di prima", () => {
+  assert.equal(read("building.json").name, "Palazzo importato");
+  backup.importZip(zipOf({ "building.json": { name: "Palazzo che non parte", floors: [], rooms: [], links: [] } }));
+  assert.equal(backup.applyStagedImport(), 1);
+  assert.equal(read("building.json").name, "Palazzo che non parte");
+  // nessuna conferma (il programma si è fermato subito): all'avvio dopo si torna indietro
+  assert.equal(backup.applyStagedImport(), 0);
+  assert.equal(read("building.json").name, "Palazzo importato");
+  assert.equal(fs.existsSync(backup.APPLIED_MARK), false);
 });
 
 test("preparazione interrotta (manca PRONTO): ignorata", () => {
@@ -118,7 +153,10 @@ test("server: scarica la copia e importala con la password (riavvio automatico c
   const cookie = String(login.headers["set-cookie"][0]).split(";")[0];
 
   assert.equal((await s.req("GET", "/api/backup")).status, 401, "serve l'accesso");
-  const dl = await s.req("GET", "/api/backup", { headers: { cookie }, raw: true });
+  const noPass = await s.req("GET", "/api/backup", { headers: { cookie } });
+  assert.equal(noPass.status, 401, "anche con l'accesso serve la password: la copia contiene chiavi e accesso a cTrader");
+  assert.equal(noPass.json.stepUp, true);
+  const dl = await s.req("GET", "/api/backup", { headers: { cookie, "x-agenti-password": encodeURIComponent(PASSWORD) }, raw: true });
   assert.equal(dl.status, 200);
   assert.equal(dl.headers["content-type"], "application/zip");
   assert.match(dl.headers["content-disposition"], /^attachment; filename=agenti-dati-\d{4}-\d{2}-\d{2}\.zip$/);
@@ -163,7 +201,7 @@ test("server: scarica la copia e importala con la password (riavvio automatico c
   assert.equal(name, "Palazzo dalla copia", s.output());
   assert.match(s.output(), /Riavvio con la nuova versione|Riavvio/);
   const copies = fs.readdirSync(path.join(s.dataDir, "backup")).filter((f) => f.startsWith("prima-di-import-"));
-  assert.equal(copies.length, 1);
+  assert.equal(copies.length, 2, "una copia quando si sceglie il file e una quando si applica (con le modifiche fatte nel frattempo)");
 });
 
 test("server senza start.js: importazione pronta, va riavviato a mano", async () => {
