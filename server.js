@@ -6,7 +6,7 @@ import { PUBLIC_DIR, STRATEGIES_DIR, ROOT } from "./lib/paths.js";
 import path from "node:path";
 import { runAgent, isRunning } from "./lib/runner.js";
 import { getState, resetState, bus, log } from "./lib/store.js";
-import { portfolioValue, decide, monitorAccounts, settleInFlight, closeAllAgentPositions } from "./lib/broker.js";
+import { portfolioValue, decide, monitorAccounts, settleInFlight, closeAgentPositionsEverywhere } from "./lib/broker.js";
 import * as ctrader from "./lib/ctrader/service.js";
 import { codeFromInput } from "./lib/ctrader/oauth.js";
 import * as safety from "./lib/safety.js";
@@ -17,6 +17,7 @@ import { exec } from "node:child_process";
 import { hasCredentials, keyStatus, verifyKey, cleanKey } from "./lib/claude.js";
 import { updateSettings } from "./lib/settings.js";
 import { checkUpdate, applyUpdate, isUpdating, RESTART_CODE } from "./lib/updater.js";
+import { isWorkingTime, scheduleStatus, updateSchedule, isFridayCloseTime, romeParts, resumeText } from "./lib/schedule.js";
 
 const STARTED_AT = new Date().toISOString();
 
@@ -145,8 +146,17 @@ app.get("/api/stats", (_req, res) => {
     broker: ctrader.isReady() ? (office.building().floors.some((f) => f.trading?.mode === "ctrader") ? "in uso" : "collegato") : "no",
     costUsd: st.usage.costUsd,
     tokens: st.usage.inputTokens + st.usage.outputTokens,
+    schedule: (({ enabled, working, resume }) => ({ enabled, working, resume }))(scheduleStatus()),
   });
 });
+
+// Orario di lavoro degli agenti programmati (⚙️ Impostazioni).
+app.get("/api/schedule", (_req, res) => res.json(scheduleStatus()));
+app.put("/api/schedule", handle((req) => {
+  updateSchedule(req.body ?? {});
+  bus.emit("event", { type: "stats" });
+  return scheduleStatus();
+}));
 
 app.get("/api/approvals", (_req, res) => res.json(getState().approvals.slice().reverse()));
 app.post("/api/approvals/:id", async (req, res) => {
@@ -252,19 +262,10 @@ app.get("/api/safety", (_req, res) => res.json(safety.getSafety()));
 app.put("/api/safety/limits", handle((req) => safety.updateLimits(req.body ?? {})));
 app.post("/api/safety/stop", handleAsync(async (req) => {
   safety.activateKill("STOP premuto dall'utente");
-  const report = { closed: 0, unconfirmed: 0, failed: [] };
+  let report = { closed: 0, unconfirmed: 0, failed: [] };
   if (req.body?.closePositions && ctrader.isReady()) {
     await settleInFlight(); // prima finiscono gli ordini già partiti, poi si chiude tutto
-    for (const id of ctrader.status().accounts.map((a) => String(a.ctidTraderAccountId))) {
-      try {
-        const r = await closeAllAgentPositions(id);
-        report.closed += r.closed.length;
-        report.unconfirmed += r.unconfirmed.length;
-        report.failed.push(...r.failed.map((f) => ({ accountId: id, symbol: f.symbol, error: f.error })));
-      } catch (e) {
-        report.failed.push({ accountId: id, symbol: "tutte le posizioni del conto", error: e.message });
-      }
-    }
+    report = await closeAgentPositionsEverywhere();
     log("sicurezza", report.failed.length ? "error" : "warn",
       `STOP: chiuse ${report.closed} posizioni degli agenti` +
         (report.unconfirmed ? `, ${report.unconfirmed} in attesa di conferma` : "") +
@@ -356,8 +357,23 @@ app.use((err, _req, res, _next) => res.status(500).json({ error: err.message }))
 
 // Scheduler: ogni minuto avvia gli agenti con everyMinutes > 0 che sono "scaduti".
 // Con lo STOP attivo non parte nessun agente in automatico (si possono ancora avviare a mano).
+// Fuori dall'orario di lavoro (⚙️ Impostazioni) non parte nessun agente in automatico; quando l'orario
+// ricomincia ripartono tutti, come all'apertura del programma.
+let wasWorking = null;
 setInterval(() => {
   const now = Date.now();
+  const working = isWorkingTime();
+  if (working !== wasWorking) {
+    if (working && wasWorking === false) {
+      lastRun.clear();
+      log("orario", "info", "Inizio dell'orario di lavoro: gli agenti programmati ripartono.");
+    } else if (!working && wasWorking === true) {
+      log("orario", "info", `Fine dell'orario di lavoro: gli agenti programmati ripartono ${resumeText() ?? "all'inizio del prossimo orario"}.`);
+    }
+    if (wasWorking !== null) bus.emit("event", { type: "stats" });
+    wasWorking = working;
+  }
+  if (!working) return;
   for (const agent of office.agents()) {
     if (isUpdating() || safety.isStopped()) return;
     if (!agent.enabled || !(agent.everyMinutes > 0) || isRunning(agent.id)) continue;
@@ -382,6 +398,38 @@ const monitor = async () => {
 };
 setInterval(monitor, 60_000);
 setTimeout(monitor, 5_000);
+
+// Chiusura del venerdì (⚙️ Impostazioni → Orario): dall'ora scelta chiude le posizioni aperte dagli agenti
+// su tutti i conti cTrader, così nessuna resta aperta nel weekend. Riprova ogni minuto finché ne resta qualcuna.
+let fridayClosing = false;
+let fridayDone = ""; // giorno (ora italiana) in cui non è rimasta nessuna posizione degli agenti da chiudere
+let fridayFailures = 0;
+async function fridayClose() {
+  if (fridayClosing || !isFridayCloseTime() || !ctrader.isReady()) return;
+  const day = romeParts().date;
+  if (fridayDone === day) return;
+  fridayClosing = true;
+  try {
+    await settleInFlight(); // prima finiscono gli ordini già partiti
+    const { closed, unconfirmed, failed } = await closeAgentPositionsEverywhere();
+    if (closed || unconfirmed) {
+      log("sicurezza", "warn", `Chiusura del venerdì: chiuse ${closed} posizioni degli agenti` + (unconfirmed ? `, ${unconfirmed} in attesa di conferma` : "") + ".");
+    }
+    if (failed.length) {
+      fridayFailures++;
+      if (fridayFailures <= 3) {
+        const what = failed.map((f) => `${f.symbol} sul conto ${ctrader.account(f.accountId)?.traderLogin ?? f.accountId} (${f.error})`).join("; ");
+        log("sicurezza", "error", `Chiusura del venerdì: NON chiuse ${what}. Riprovo tra un minuto; se non riesce, chiudile tu da 🔌 Broker.`);
+      }
+    } else if (!closed && !unconfirmed) {
+      fridayDone = day; // nessuna posizione degli agenti aperta: per oggi è fatto
+      fridayFailures = 0;
+    }
+  } finally {
+    fridayClosing = false;
+  }
+}
+setInterval(() => fridayClose().catch((e) => log("sicurezza", "error", `Chiusura del venerdì non riuscita: ${e.message}`)), 60_000);
 
 // control + C o chiusura della finestra: uscita ordinata, così i dati in attesa vengono salvati.
 for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) process.on(sig, () => process.exit(0));

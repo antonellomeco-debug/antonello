@@ -38,6 +38,7 @@
           <div>
             <h1>I miei agenti IA</h1>
             <p class="sub" id="office-sub"></p>
+            <p class="sub schedule-line hidden" id="schedule-line"></p>
           </div>
           <div class="head-actions">
             <button class="btn stop-cta hidden" id="stop-cta" title="Ferma subito tutti gli ordini degli agenti">⛔ STOP</button>
@@ -391,6 +392,27 @@
         <span class="spacer"></span>
         <button type="submit" class="btn primary" id="save-key">Salva e verifica</button>
       </footer>
+
+      <fieldset class="update-box" id="schedule-box">
+        <legend>🕒 Orario di lavoro degli agenti</legend>
+        <p class="hint" id="schedule-status"></p>
+        <label class="inline"><input type="checkbox" id="sched-enabled" /> Gli agenti programmati lavorano solo in questi giorni e orari (ora italiana)</label>
+        <div class="checks" id="sched-days"></div>
+        <div class="row sched-times">
+          <label>Dalle <input type="time" id="sched-start" /></label>
+          <label>alle <input type="time" id="sched-end" /></label>
+        </div>
+        <div class="row wrap">
+          <label class="inline"><input type="checkbox" id="sched-friday" /> Il venerdì, dalle</label>
+          <input type="time" id="sched-friday-time" class="time-small" />
+          <span class="hint">chiudi le posizioni aperte dagli agenti sui conti cTrader (niente posizioni nel weekend)</span>
+        </div>
+        <p class="hint">Fuori orario Orion risponde sempre e con ▶ puoi far lavorare un agente a mano. All'inizio dell'orario gli agenti programmati ripartono tutti, come quando apri il programma.</p>
+        <div class="row">
+          <button type="button" class="btn" id="sched-save">Salva orario</button>
+          <p class="errors" id="sched-errors"></p>
+        </div>
+      </fieldset>
 
       <fieldset class="update-box">
         <legend>🔄 Aggiornamenti</legend>

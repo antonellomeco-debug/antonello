@@ -323,3 +323,22 @@ test("controllo periodico e chiusura delle posizioni degli agenti", async () => 
   assert.equal(closed.length, before);
   assert.equal((await ct.positions(demo)).filter((p) => p.label.startsWith("agenti")).length, 0);
 });
+
+test("chiusura delle posizioni degli agenti su tutti i conti (STOP e chiusura del venerdì)", async () => {
+  resetSafety();
+  const agentPositions = async () => {
+    let n = 0;
+    for (const id of [demo, live]) n += (await ct.positions(id)).filter((p) => p.label.startsWith("agenti")).length;
+    return n;
+  };
+  await broker.placeOrder(agent(), { symbol: "EURUSD", side: "buy", lots: 0.01 });
+  await broker.placeOrder(agent(), { symbol: "EURUSD", side: "sell", lots: 0.02 });
+  const before = await agentPositions();
+  assert.ok(before >= 2);
+  const r = await broker.closeAgentPositionsEverywhere();
+  assert.equal(r.closed + r.unconfirmed, before); // anche quelle rimaste sugli altri conti
+  assert.deepEqual(r.failed, []);
+  assert.equal(await agentPositions(), 0);
+  // seconda volta: niente da chiudere (così la chiusura del venerdì sa di aver finito)
+  assert.deepEqual(await broker.closeAgentPositionsEverywhere(), { closed: 0, unconfirmed: 0, failed: [] });
+});

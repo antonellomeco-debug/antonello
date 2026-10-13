@@ -9,7 +9,9 @@ le decisioni prese e a che punto siamo. Aggiornalo quando cambia qualcosa di imp
   semplici, niente gergo. Prima di cose difficili da annullare chiedi conferma.
 - Avvia il programma con l'icona **Avvia Agenti** sulla Scrivania (oppure `npm start`) e si aggiorna con il
   pulsante **🔄 Aggiorna** dell'app, che scarica l'ultima versione da GitHub (repository
-  `antonellomeco-debug/antonello`, ramo predefinito: oggi è `claude/sharp-mccarthy-231pjj`, l'unico ramo).
+  `antonellomeco-debug/antonello`, ramo predefinito: `claude/sharp-mccarthy-231pjj`; l'aggiornamento legge
+  `commits/HEAD`, cioè il ramo predefinito). Le modifiche fatte su altri rami arrivano all'utente solo dopo
+  l'unione nel ramo predefinito.
   Ogni push su quel ramo arriva quindi all'utente: pubblica solo codice provato (`npm test` verde).
 - Broker: **FP Markets**, piattaforma **cTrader**, per ora **conto demo**. Budget per i servizi ~10 €/mese.
 
@@ -38,6 +40,32 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
 - Pagina di accesso usata: `https://id.ctrader.com/my/settings/openapi/grantingaccess/` (documentazione
   ufficiale 2026), scambio del codice su `https://openapi.ctrader.com/apps/token`. Redirect URI:
   `http://localhost:3000/ctrader/callback`.
+
+## Orario di lavoro, calendario, giorno e ora (13 ottobre 2026)
+
+- `lib/schedule.js`: orario di lavoro degli agenti programmati in ora italiana (`Europe/Rome`, con l'ora legale),
+  salvato in `data/settings.json` (chiave `schedule`), di partenza lun–ven 07:30–22:30, attivo. Fuori orario lo
+  scheduler di `server.js` non avvia agenti; al passaggio fuori orario → in orario svuota `lastRun`, così tutti
+  ripartono come all'apertura. **Chiusura del venerdì** (di partenza 21:45): `closeAgentPositionsEverywhere()`
+  in `lib/broker.js` (usata anche dallo STOP) chiude le posizioni con etichetta `agenti` su tutti i conti
+  collegati, riprova ogni minuto finché ne resta qualcuna. Interfaccia: ⚙️ Impostazioni → 🕒 Orario; avviso
+  "⏸ Fuori orario" nell'Ufficio (`/api/stats` → `schedule`, `/api/schedule` GET/PUT).
+- Giorno e ora: `firstMessage()` in `lib/runner.js` mette "Adesso è lunedì 19/10/2026, ore 07:45 (ora italiana;
+  … UTC)." all'inizio di ogni lavoro (anche con un compito); Orion riceve la stessa riga tra [ ] in ogni
+  messaggio dell'utente.
+- `lib/calendar.js` + strumento `get_calendar` (agenti e Orion): calendario Forex Factory con cache di 60 minuti in
+  `data/calendar.json`. Fonti in ordine: copia QuarkFX su raw.githubusercontent.com (21 giorni, con i dati usciti,
+  orari UTC), la stessa su jsDelivr, file ufficiale `nfs.faireconomy.media/ff_calendar_thisweek.json` (orari di
+  New York con il fuso). Dal container sono bloccati jsDelivr e faireconomy: si prova solo la copia su GitHub
+  (con `NODE_USE_ENV_PROXY=1`).
+
+## Piano Gold (XAUUSD) per Orion
+
+- L'utente ha una pagina (artifact claude.ai "Piano Gold per Orion") con i messaggi da incollare a Orion:
+  1–5 costruiscono il piano Gold (7 stanze, 33 agenti, quasi tutti `claude-haiku-5-5`; solo il Capo Trader
+  propone ordini), A automatizza la routine, B (facoltativo) toglie l'approvazione al Capo Trader sul demo,
+  C usa il calendario automatico e il nuovo giorno/ora. Gli agenti del piano stanno in `data/agents/` dell'utente:
+  si cambiano solo tramite Orion o dall'interfaccia.
 
 ## A che punto siamo (13 ottobre 2026)
 

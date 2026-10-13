@@ -200,6 +200,9 @@ legend { padding: 0 6px; color: var(--muted); font-size: 12px; }
 .key-cta { border-color: var(--warn); color: var(--warn); }
 .update-cta { border-color: var(--good); color: var(--good); }
 .update-box { margin-top: 6px; }
+.schedule-line { color: var(--warn); }
+.sched-times label { flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
+.sched-times input, .row input.time-small { flex: 0 0 auto; width: 120px; font-size: 12px; }
 .key-status { padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font-size: 13px; }
 .key-status.ok { color: var(--good); }
 .key-status.missing { color: var(--warn); }
