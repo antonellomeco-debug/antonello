@@ -103,6 +103,9 @@ async function refreshStats() {
   const badge = $("#badge-approvals");
   badge.textContent = s.pending;
   badge.classList.toggle("hidden", !s.pending);
+  const off = Boolean(s.schedule?.enabled && !s.schedule.working);
+  $("#schedule-line").classList.toggle("hidden", !off);
+  if (off) $("#schedule-line").textContent = `${scheduleText(s.schedule)} Orion risponde comunque e con ▶ puoi far lavorare un agente a mano.`;
   renderStopControls();
 }
 
@@ -932,6 +935,7 @@ async function openSettings() {
   settingsForm.key.value = "";
   $("#settings-errors").textContent = "";
   checkForUpdate();
+  renderSchedule();
   await renderKeyStatus();
   if (!state.office.llmReady) settingsForm.querySelector(".howto").open = true;
   settingsDlg.showModal();
@@ -952,6 +956,7 @@ async function renderKeyStatus() {
 
 settingsForm.addEventListener("submit", async (e) => {
   e.preventDefault();
+  if (document.activeElement?.closest("#schedule-box")) return; // Invio nei campi dell'orario: non è il salvataggio della chiave
   const btn = $("#save-key");
   btn.disabled = true;
   btn.textContent = "Verifico…";
@@ -976,6 +981,58 @@ $("#remove-key").onclick = async () => {
 
 settingsDlg.querySelectorAll("[data-close]").forEach((b) => (b.onclick = () => settingsDlg.close()));
 $("#open-settings").onclick = openSettings;
+
+// ---------- orario di lavoro degli agenti ----------
+
+const DAY_LABELS = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"];
+const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
+function scheduleText(s, withNow) {
+  if (!s.enabled) return "Orario spento: gli agenti programmati lavorano a qualsiasi ora, anche di notte e nel weekend.";
+  return s.working
+    ? `✅ Adesso gli agenti programmati lavorano${withNow && s.now ? ` (${s.now})` : ""}.`
+    : `⏸ Fuori orario: gli agenti programmati ripartono ${s.resume ?? "all'inizio del prossimo orario"}.`;
+}
+
+async function renderSchedule() {
+  const s = await api("/api/schedule").catch(() => null);
+  if (!s) return;
+  $("#sched-enabled").checked = s.enabled;
+  $("#sched-days").innerHTML = DAY_ORDER.map(
+    (d) => `<label class="inline"><input type="checkbox" value="${d}" ${s.days.includes(d) ? "checked" : ""} /> ${DAY_LABELS[d]}</label>`,
+  ).join("");
+  $("#sched-start").value = s.start;
+  $("#sched-end").value = s.end;
+  $("#sched-friday").checked = s.fridayClose.enabled;
+  $("#sched-friday-time").value = s.fridayClose.time;
+  $("#schedule-status").textContent = scheduleText(s, true);
+  $("#sched-errors").textContent = "";
+}
+
+$("#sched-save").onclick = async () => {
+  const btn = $("#sched-save");
+  btn.disabled = true;
+  $("#sched-errors").textContent = "";
+  try {
+    await api("/api/schedule", {
+      method: "PUT",
+      body: JSON.stringify({
+        enabled: $("#sched-enabled").checked,
+        days: [...$("#sched-days").querySelectorAll("input:checked")].map((i) => Number(i.value)),
+        start: $("#sched-start").value,
+        end: $("#sched-end").value,
+        fridayClose: { enabled: $("#sched-friday").checked, time: $("#sched-friday-time").value },
+      }),
+    });
+    await renderSchedule();
+    $("#schedule-status").textContent = `Orario salvato. ${$("#schedule-status").textContent}`;
+    refreshStats();
+  } catch (err) {
+    $("#sched-errors").textContent = err.message;
+  } finally {
+    btn.disabled = false;
+  }
+};
 
 // ---------- aggiornamenti ----------
 
@@ -1282,5 +1339,6 @@ loadAll().then(() => {
   }
 });
 setInterval(refreshPortfolio, 60_000);
+setInterval(refreshStats, 5 * 60_000); // così l'avviso "fuori orario" resta giusto anche a pagina ferma
 setInterval(() => state.view === "broker" && loadBrokerAccounts(), 30_000);
 setTimeout(() => checkForUpdate({ quiet: true }), 3000); // un controllo silenzioso all'apertura

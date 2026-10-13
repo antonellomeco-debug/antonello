@@ -11,6 +11,7 @@ Cosa trovi nell'interfaccia:
 - **Parla con Orion**: chat con il regista. Puoi chiedergli cosa succede, far lavorare gli agenti, oppure **creare e modificare agenti, piani, stanze e collegamenti descrivendoli a parole**.
 - **Approvazioni**: gli agenti *propongono* gli ordini e tu scegli "Fallo per me" o "Scarta".
 - **Broker**: colleghi un conto **cTrader** (demo o reale), scegli su quale conto opera ogni piano e gestisci le protezioni (STOP, limiti, perdita massima del giorno).
+- **⚙️ Impostazioni**: chiave di Claude, **orario di lavoro degli agenti** (giorni e ore in cui lo scheduler li fa partire, chiusura delle posizioni il venerdì sera) e aggiornamenti.
 - **Bacheca**, **Portafoglio**, **Attività**.
 
 > ⚠️ **Simulazione per default.** Finché non colleghi un piano a un conto cTrader, gli ordini sono eseguiti su un portafoglio virtuale (`paper trading`). Il conto reale è bloccato finché non lo sblocchi tu. Non è una consulenza finanziaria.
@@ -36,6 +37,7 @@ Variabili facoltative:
 - `MARKET_MODE=demo` (prezzi simulati, utile offline)
 - `ASSISTANT_NAME` (default Orion)
 - `ASSISTANT_MODEL` (default claude-opus-5-5)
+- `CALENDAR_URLS` (fonti del calendario economico separate da virgole; servono ai test) e `CALENDAR_TTL_MIN` (default 60: ogni quanto riscaricarlo)
 
 La spesa API mostrata nell'ufficio è una stima calcolata dai token usati.
 
@@ -97,6 +99,7 @@ Claude esegue le `instructions` usando solo gli strumenti abilitati in `tools`:
 | `get_indicators` | SMA20/50, RSI14, volatilità annualizzata, rendimenti su 5/20/60 candele (`return5d`… con D1, `return5_H1`… con altri periodi); con cTrader anche su candele M1…W1 |
 | `get_candles` | Ultime candele (con cTrader: periodi M1, M5, M15, M30, H1, H4, D1, W1) |
 | `search_symbols` | Cerca gli strumenti disponibili sul broker cTrader |
+| `get_calendar` | Calendario economico (Forex Factory) con giorno e ora italiana, impatto, previsione, dato precedente e dato uscito; filtri per periodo (`oggi`, `domani`, `ieri`, `settimana`, `7giorni`), valute e impatto minimo |
 | `read_notes` | Legge la propria stanza, le stanze del proprio piano scelte in `readsFrom` e tutte quelle dei piani collegati che mandano informazioni al suo piano |
 | `post_note` | Pubblica nella bacheca della propria stanza |
 | `get_portfolio` | Liquidità o saldo, posizioni, P&L del conto del suo piano |
@@ -117,11 +120,21 @@ Le strategie si trovano in [`strategies/`](strategies). Quelle già incluse sono
 
 ### Campi comuni
 
-- `everyMinutes`: lo scheduler esegue l'agente ogni N minuti (`0` = solo a mano).
+- `everyMinutes`: lo scheduler esegue l'agente ogni N minuti (`0` = solo a mano), solo nell'**orario di lavoro** (vedi sotto).
 - `enabled`: se `false`, lo scheduler lo ignora.
 - `limits.maxOrderPct` / `limits.maxPositionPct`: percentuale massima del portafoglio per un singolo ordine e per un singolo titolo (solo portafoglio simulato; sui conti cTrader valgono i limiti di Broker → Sicurezza).
 - `limits.onlyWatchlist`: l'agente può operare solo sui titoli della sua watchlist.
 - `limits.requireApproval` (default `true`): ogni ordine finisce in **Approvazioni** e parte solo con il tuo ok. Con `false` l'agente esegue da solo sul conto del suo piano, sempre entro le regole di **Broker → Sicurezza**.
+
+### Orario di lavoro, giorno e ora
+
+- **Orario di lavoro** (`lib/schedule.js`, salvato in `data/settings.json`, si cambia da **⚙️ Impostazioni**): lo scheduler fa partire gli agenti solo nei giorni e nelle ore scelti, in ora italiana (di partenza dal lunedì al venerdì, 07:30–22:30). Quando l'orario ricomincia, tutti gli agenti programmati ripartono come all'apertura del programma. Fuori orario Orion risponde e i pulsanti ▶ funzionano.
+- **Chiusura del venerdì**: dall'ora scelta (di partenza le 21:45) il programma chiude le posizioni aperte dagli agenti su tutti i conti cTrader e riprova ogni minuto finché ne resta qualcuna.
+- **Giorno e ora**: il primo messaggio di ogni lavoro di un agente (anche con un compito) e ogni messaggio a Orion iniziano con giorno della settimana, data e ora italiana.
+
+### Calendario economico
+
+`lib/calendar.js` scarica il calendario di Forex Factory al massimo una volta ogni ora e lo salva in `data/calendar.json`, così resta disponibile anche se la fonte per un po' non risponde (lo strumento lo segnala con un `avviso`). Fonti, in ordine: la copia pubblica su GitHub del progetto QuarkFX (tre settimane, con i dati usciti), la stessa su jsDelivr, il file ufficiale `ff_calendar_thisweek.json`. Gli orari sono convertiti in ora italiana.
 
 ## Broker cTrader e sicurezza
 
@@ -162,6 +175,8 @@ lib/broker.js       dove opera ogni piano, portafoglio virtuale, ordini su cTrad
 lib/safety.js       STOP, limiti, perdita massima del giorno, blocco del conto reale
 lib/ctrader/        cTrader Open API: protocollo, connessione, accesso OAuth, conti/prezzi/ordini
 lib/runner.js       esecuzione agenti (Claude con strumenti, oppure strategia JS)
+lib/schedule.js     orario di lavoro degli agenti, chiusura del venerdì, giorno e ora italiana
+lib/calendar.js     calendario economico (Forex Factory) con cache in data/calendar.json
 lib/tools.js        strumenti disponibili agli agenti
 lib/orchestrator.js il regista con cui parli in chat
 lib/claude.js       client Claude condiviso, verifica della chiave, errori in italiano

@@ -99,7 +99,13 @@ Per far ragionare gli agenti "LLM" e parlare con **Orion** serve una chiave di C
 
 Per **chiudere** il programma: clicca sulla finestra del Terminale e premi **control + C** (il tasto *control*, non ⌘), oppure chiudi la finestra e conferma **Termina**.
 
-> Gli agenti programmati (es. "ogni 60 minuti") lavorano solo mentre il programma è aperto e il Mac è acceso.
+> Gli agenti programmati (es. "ogni 60 minuti") lavorano solo mentre il programma è aperto e il Mac è acceso, e solo nell'**orario di lavoro** scelto in ⚙️ Impostazioni (di partenza dal lunedì al venerdì, dalle 07:30 alle 22:30). Fuori orario non partono e non costano niente: il programma può restare aperto anche la notte e nel weekend.
+
+**Far partire il programma all'accensione del Mac** (facoltativo):
+
+1. Apri **Impostazioni di Sistema → Generali → Elementi login** (su alcune versioni si chiama «Elementi login ed estensioni»).
+2. Sotto **«Apri al login»** premi **+**, scegli **Avvia Agenti** sulla Scrivania e premi **Apri**.
+3. Gli agenti lavorano solo se il Mac resta sveglio: in **Impostazioni di Sistema → Batteria → Opzioni** (sui Mac fissi: **Energia**) attiva l'opzione che impedisce lo stop automatico quando il display è spento.
 
 ---
 
@@ -130,6 +136,13 @@ Puoi farlo in due modi.
 - con **↔** i due piani si leggono a vicenda: gli agenti di ciascun piano leggono **tutte le bacheche** dell'altro;
 - con **→** le informazioni vanno in un solo senso: solo il piano di arrivo legge le bacheche di quello di partenza. All'inizio, per esempio, la Direzione legge il piano Azioni, ma non il contrario;
 - se il collegamento è **spento**, i due piani lavorano ciascuno per conto suo.
+
+### Orario di lavoro e calendario economico
+
+- **Orario di lavoro** (⚙️ Impostazioni → 🕒 Orario di lavoro degli agenti): scegli i giorni e le ore in cui gli agenti programmati lavorano (ora italiana) e premi **Salva orario**. Quando l'orario ricomincia, gli agenti programmati ripartono tutti, come quando apri il programma. Fuori orario nell'Ufficio vedi la scritta **⏸ Fuori orario**; Orion risponde comunque e con **▶** puoi far lavorare un agente a mano.
+- **Chiusura del venerdì**: con la casella attiva, il venerdì dall'ora scelta (di partenza le 21:45) il programma chiude le posizioni aperte dagli agenti sui conti cTrader, così nessuna resta aperta nel weekend. Lo trovi scritto in **📜 Attività**.
+- **Giorno e ora**: ogni agente, quando comincia un lavoro, sa che giorno della settimana è e che ora è in Italia. Anche Orion.
+- **Calendario economico**: gli agenti con lo strumento **get_calendar** (si spunta nella scheda dell'agente, oppure lo chiedi a Orion) leggono da soli il calendario della settimana: orari italiani, importanza, previsioni e, appena esce, il dato uscito. Si aggiorna da solo da internet al massimo una volta all'ora. Puoi anche chiedere a Orion: *"Quali dati importanti escono oggi?"*
 
 ### Quanto costa?
 
