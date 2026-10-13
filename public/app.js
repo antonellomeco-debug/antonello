@@ -63,11 +63,13 @@ async function loadSession() {
   try {
     const res = await fetch("/api/session", { cache: "no-store" });
     if (res.ok) return (state.session = { ...DEFAULT_SESSION, ...(await res.json()) });
+    // Solo un server vecchio non conosce /api/session. Un errore del server (es. 502 mentre si riavvia) non deve
+    // far dimenticare che serve la password: si tiene lo stato di prima.
+    if (res.status === 404) return (state.session = { ...DEFAULT_SESSION });
   } catch {
     // server non raggiungibile: si riprova più tardi
-    return null;
   }
-  return (state.session = { ...DEFAULT_SESSION });
+  return null;
 }
 
 /** Mostra o nasconde ciò che dipende dalla sessione: avviso sul volume, Esci, aggiornamenti, app sul telefono. */
@@ -1234,7 +1236,7 @@ $("#import-file").addEventListener("change", async (e) => {
   if (state.session.auth) {
     const password = await askPassword("Per importare i dati scrivi la password con cui entri nell'app.");
     if (password == null) return;
-    headers["X-Agenti-Password"] = password;
+    headers["X-Agenti-Password"] = encodeURIComponent(password); // le intestazioni non accettano € o emoji
   }
   $("#data-status").textContent = "Invio il file…";
   try {
@@ -1267,9 +1269,42 @@ async function waitForRestart(before) {
     if (down || (v && v.startedAt !== before)) return location.reload();
   }
   $("#restart-title").textContent = "Il programma non è ripartito";
+  $("#restart-reload").classList.remove("hidden"); // nell'app installata non c'è il pulsante del browser per ricaricare
   $("#restart-msg").textContent = "Aspetta ancora un minuto e ricarica la pagina. Sul Mac: chiudi il programma e riaprilo con l'icona «Avvia Agenti».";
 }
 $("#restart-dialog").addEventListener("cancel", (e) => e.preventDefault()); // non si chiude con Esc durante il riavvio
+$("#restart-reload").onclick = () => location.reload();
+
+// Esporta: la copia contiene la chiave di Claude e l'accesso a cTrader, quindi sul server chiede la password.
+$("#export-data").onclick = async () => {
+  $("#data-errors").textContent = "";
+  const headers = {};
+  if (state.session.auth) {
+    const password = await askPassword("Per scaricare la copia dei dati scrivi la password con cui entri nell'app.");
+    if (password == null) return;
+    headers["X-Agenti-Password"] = encodeURIComponent(password);
+  }
+  $("#data-status").textContent = "Preparo il file…";
+  try {
+    const res = await fetch("/api/backup", { headers, cache: "no-store" });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      if (res.status === 401 && body.login) return goLogin();
+      throw new Error(body.error ?? res.statusText);
+    }
+    const name = /filename=([^;]+)/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? "agenti-dati.zip";
+    const url = URL.createObjectURL(await res.blob());
+    const link = Object.assign(document.createElement("a"), { href: url, download: name });
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    $("#data-status").textContent = `File «${name}» scaricato ✅. Tienilo al sicuro: contiene la chiave di Claude e l'accesso a cTrader.`;
+  } catch (err) {
+    $("#data-status").textContent = "";
+    $("#data-errors").textContent = err.message;
+  }
+};
 
 // ---------- password per le operazioni delicate ----------
 
@@ -1558,6 +1593,7 @@ function connectEvents() {
     if (es !== events) return;
     // Sessione scaduta? Allora si torna all'accesso invece di riprovare all'infinito.
     const s = await loadSession();
+    if (es !== events) return; // nel frattempo è partito un collegamento nuovo: questo non serve più
     if (s?.auth && !s.loggedIn) return goLogin();
     // Il browser riprova da solo, tranne quando il server ha risposto con un errore: allora si riprova noi.
     if (es.readyState === EventSource.CLOSED) retryTimer = setTimeout(connectEvents, 5000);
@@ -1671,7 +1707,9 @@ if (window.visualViewport && touchMQ.matches) {
 }
 
 // ---------- app installabile: service worker (solo su https o sul computer stesso) ----------
-if ("serviceWorker" in navigator && (location.protocol === "https:" || ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname))) {
+// Sul Mac (http://localhost) niente service worker: con il programma chiuso il browser deve dire semplicemente che
+// la pagina non si apre, non mostrare la pagina «controlla la connessione» pensata per il telefono.
+if ("serviceWorker" in navigator && location.protocol === "https:") {
   window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
 }
 

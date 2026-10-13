@@ -12,13 +12,16 @@ function safeNext(raw) {
   if (typeof raw !== "string" || !raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) return "/";
   try {
     const u = new URL(raw, location.origin);
-    if (u.origin !== location.origin || u.pathname === "/login" || u.pathname === "/login.html") return "/";
+    // "/.//sito.it" diventa "//sito.it": sarebbe un altro sito.
+    if (u.origin !== location.origin || u.pathname.startsWith("//") || u.pathname === "/login" || u.pathname === "/login.html") return "/";
     return u.pathname + u.search + u.hash;
   } catch {
     return "/";
   }
 }
-const next = safeNext(new URLSearchParams(location.search).get("next"));
+let next = safeNext(new URLSearchParams(location.search).get("next"));
+// Il pezzo dopo # (es. /#broker) il server non lo vede: lo si riattacca qui.
+if (location.hash && !next.includes("#")) next += location.hash;
 
 // Già dentro (o password non richiesta, come sul Mac): si va direttamente all'app.
 fetch("/api/session", { cache: "no-store" })

@@ -463,7 +463,7 @@
         <legend>💾 Dati</legend>
         <p class="hint">Salva una copia di agenti, palazzo, portafoglio e impostazioni in un file, oppure riprendi una copia salvata (per esempio per portare i dati dal Mac al server). Importando, i dati di adesso vengono sostituiti: prima il programma ne salva comunque una copia.</p>
         <div class="row wrap">
-          <a class="btn" id="export-data" href="/api/backup" download>⬇️ Esporta i dati</a>
+          <button type="button" class="btn" id="export-data">⬇️ Esporta i dati</button>
           <button type="button" class="btn" id="import-data">⬆️ Importa i dati</button>
           <input type="file" id="import-file" accept=".zip,application/zip" hidden />
         </div>
@@ -521,6 +521,7 @@
       <div class="orb" aria-hidden="true"></div>
       <h2 id="restart-title">Riavvio in corso…</h2>
       <p class="hint" id="restart-msg">I dati sono stati importati. Il programma si riavvia e la pagina si ricarica da sola.</p>
+      <button type="button" class="btn primary hidden" id="restart-reload">↻ Ricarica la pagina</button>
     </div>
   </dialog>
 
