@@ -17,6 +17,10 @@ ENV NODE_ENV=production \
     UPDATER=off \
     TRUST_PROXY=1
 
+# bzip2: serve a "tar" per estrarre il riconoscimento della voce dei messaggi vocali, che si scarica nel volume
+# alla prima richiesta (lib/voice.js).
+RUN apt-get update && apt-get install -y --no-install-recommends bzip2 && rm -rf /var/lib/apt/lists/*
+
 # Prima solo le librerie (cambiano di rado: Docker riusa questo passaggio), poi il programma.
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force

@@ -1,6 +1,8 @@
 // Interfaccia: palazzo 3D, gestione di piani/stanze/collegamenti, approvazioni, bacheca, portafoglio,
 // attività, chat con il regista ed editor degli agenti.
 import { Office3D } from "./office3d.js";
+import { VoiceRecorder, recordingSupported, micErrorText, MAX_SECONDS } from "./recorder.js";
+import * as speech from "./speech.js";
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -16,6 +18,9 @@ const state = {
   chat: { name: "", busy: false, transcript: [] }, status: {}, view: "office", room: null, editing: null,
   floorFocus: null, broker: null, brokerAccounts: null, session: { ...DEFAULT_SESSION },
 };
+
+// Messaggi vocali: stato del riconoscimento sul server, registrazione in corso, invio, lettura della risposta.
+const voice = { status: null, rec: null, sending: false, speakTurn: false };
 
 // Telefono (schermo stretto) e schermo touch (niente mouse).
 const phoneMQ = matchMedia("(max-width: 860px)");
@@ -139,6 +144,7 @@ async function loadAll() {
     api("/api/notes"), api("/api/log"), api("/api/approvals"), api("/api/chat"),
   ]);
   await loadBroker();
+  refreshVoiceStatus();
   renderChat();
   renderView();
   refreshStats();
@@ -1006,19 +1012,20 @@ function renderChat() {
   const body = $("#chat-body");
   const t = state.chat.transcript;
   body.innerHTML = t.length
-    ? t.map((m) => `<div class="msg ${m.role}" data-who="${esc(state.office.assistant.toUpperCase())}">${m.role === "tool" ? "⚙ " : ""}${esc(m.text)}</div>`).join("")
+    ? t.map((m) => `<div class="msg ${m.role}" data-who="${esc(state.office.assistant.toUpperCase())}">${m.role === "tool" ? "⚙ " : ""}${m.voice ? '<span class="voice-tag" title="Messaggio vocale">🎤</span> ' : ""}${esc(m.text)}</div>`).join("")
     : `<div class="msg assistant" data-who="${esc(state.office.assistant.toUpperCase())}">Ciao! Sono ${esc(state.office.assistant)}, coordino gli agenti dell'ufficio. Chiedimi cosa stanno facendo, fai lavorare qualcuno o descrivimi un nuovo agente da creare.${state.office.llmReady ? "" : "\n\n🔑 Per parlarmi inserisci la chiave di Claude in ⚙️ Impostazioni."}</div>`;
   body.scrollTop = body.scrollHeight;
   $("#chat").classList.toggle("busy", state.chat.busy);
   $("#chat-reset").disabled = state.chat.busy; // non si può azzerare mentre Orion lavora
-  $("#chat-state").textContent = state.chat.busy ? "Sto lavorando…" : "Ti ascolto — scrivi pure";
+  renderChatState();
   $("#chat-chips").innerHTML = t.length ? "" : SUGGESTIONS.map((s) => `<button class="chip" type="button">${esc(s)}</button>`).join("");
   $("#chat-chips").querySelectorAll(".chip").forEach((c) => (c.onclick = () => sendChat(c.textContent)));
 }
 
 async function sendChat(text) {
   text = text.trim();
-  if (!text || state.chat.busy) return;
+  if (!text || state.chat.busy || voice.sending) return;
+  speech.stop(); // messaggio scritto: la lettura della risposta precedente non serve più
   $("#chat-input").value = "";
   growChatInput();
   try {
@@ -1034,6 +1041,7 @@ async function sendChat(text) {
 
 $("#chat-form").addEventListener("submit", (e) => {
   e.preventDefault();
+  if (voice.rec) return finishRecording(); // durante la registrazione ➤ manda il messaggio vocale
   sendChat($("#chat-input").value);
 });
 $("#chat-input").addEventListener("keydown", (e) => {
@@ -1054,6 +1062,202 @@ $("#chat-input").addEventListener("input", growChatInput);
 // si sposta sotto il dito (altrimenti il tocco su ➤ potrebbe finire altrove).
 for (const el of [$("#chat-form"), $("#chat-chips")]) el.addEventListener("mousedown", (e) => e.target.closest("button") && e.preventDefault());
 $("#chat-reset").onclick = () => api("/api/chat/reset", { method: "POST" }).catch((e) => alert(e.message));
+
+// ---------- messaggi vocali e risposte a voce ----------
+// 🎤 registra (tocca ➤ per mandare, ✕ per annullare); il server trascrive e passa il testo a Orion. Se le risposte a
+// voce sono accese (🔊, scelta di ogni dispositivo), Orion legge ad alta voce la risposta ai messaggi vocali.
+
+const VOICE_PREF = "agenti.risposteVoce";
+
+function voiceRepliesOn() {
+  try {
+    return localStorage.getItem(VOICE_PREF) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+async function refreshVoiceStatus() {
+  voice.status = await api("/api/voice").catch(() => voice.status);
+  renderVoice();
+}
+
+/** Nota nella chat visibile solo su questo dispositivo (non va a Orion). */
+function chatNote(text) {
+  const t = state.chat.transcript;
+  if (t.at(-1)?.local && t.at(-1).text === text) return;
+  t.push({ role: "system", text, at: new Date().toISOString(), local: true });
+  renderChat();
+}
+
+function renderChatState() {
+  const st = voice.status;
+  const pct = Math.round((st?.progress ?? 0) * 100);
+  $("#chat-state").textContent = voice.rec
+    ? "🔴 Registro: ➤ manda, ✕ annulla"
+    : voice.sending && !state.chat.busy
+      ? "Trascrivo il messaggio vocale…"
+      : state.chat.busy
+        ? "Sto lavorando…"
+        : st?.state === "downloading"
+          ? `Preparo i messaggi vocali… ${pct}%`
+          : st?.state === "extracting"
+            ? "Preparo i messaggi vocali… ultimo passaggio (1–2 minuti)"
+            : recordingSupported()
+              ? "Ti ascolto — scrivi o tocca 🎤"
+              : "Ti ascolto — scrivi pure";
+}
+
+function renderVoice() {
+  const mic = $("#chat-mic");
+  const st = voice.status?.state;
+  const rec = Boolean(voice.rec);
+  mic.hidden = !recordingSupported();
+  mic.textContent = rec ? "✕" : st === "downloading" || st === "extracting" ? "⏳" : "🎤";
+  mic.classList.toggle("on", rec);
+  mic.disabled = voice.sending;
+  const label = rec ? "Annulla il messaggio vocale" : "Messaggio vocale";
+  mic.setAttribute("aria-label", label);
+  mic.title = label;
+  $("#chat-form").classList.toggle("recording", rec);
+  $("#chat-input").hidden = rec;
+  $("#rec-bar").hidden = !rec;
+  const speak = $("#chat-voice");
+  speak.hidden = !speech.speechSupported();
+  const on = voiceRepliesOn();
+  speak.textContent = on ? "🔊" : "🔇";
+  speak.title = on ? "Orion risponde a voce ai messaggi vocali: tocca per spegnere" : "Risposte a voce spente: tocca per accenderle";
+  speak.setAttribute("aria-pressed", String(on));
+  renderChatState();
+}
+
+$("#chat-voice").onclick = () => {
+  const on = !voiceRepliesOn();
+  try {
+    localStorage.setItem(VOICE_PREF, on ? "1" : "0");
+  } catch {
+    // memoria del browser non disponibile: vale fino alla chiusura
+  }
+  if (!on) {
+    speech.stop();
+    voice.speakTurn = false;
+  } else speech.unlock();
+  renderVoice();
+};
+
+$("#chat-mic").onclick = () => {
+  if (voice.rec) {
+    voice.rec.cancel();
+    voice.rec = null;
+    return renderVoice();
+  }
+  startRecording();
+};
+
+/** Parte dal tocco su 🎤: il microfono va acceso subito, dentro il tocco (sull'iPhone non funziona dopo). */
+function startRecording() {
+  if (voice.sending || state.chat.busy) return chatNote(`Aspetta che ${state.office.assistant} finisca di rispondere, poi riprova.`);
+  if (!state.office.llmReady) return chatNote("🔑 Per parlare con me inserisci prima la chiave di Claude in ⚙️ Impostazioni.");
+  const st = voice.status?.state;
+  if (st !== "ready") return prepareVoice();
+  speech.stop();
+  const rec = new VoiceRecorder({
+    onTick: (sec) => {
+      const left = MAX_SECONDS - sec;
+      $("#rec-time").textContent = `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
+      $("#rec-hint").textContent = left <= 15 ? `ancora ${Math.max(0, Math.ceil(left))} secondi` : "Parla pure…";
+    },
+    onLimit: () => voice.rec === rec && finishRecording(),
+    onInterrupted: (why) => {
+      if (voice.rec !== rec) return;
+      voice.rec = null;
+      renderVoice();
+      chatNote(why);
+    },
+  });
+  voice.rec = rec;
+  $("#rec-time").textContent = "0:00";
+  $("#rec-hint").textContent = "Parla pure…";
+  renderVoice();
+  rec.start().catch((err) => {
+    if (voice.rec !== rec) return;
+    voice.rec = null;
+    renderVoice();
+    chatNote(micErrorText(err));
+  });
+}
+
+/** La prima volta: si scarica il riconoscimento della voce (con conferma). */
+async function prepareVoice() {
+  const st = voice.status;
+  if (!st) {
+    await refreshVoiceStatus();
+    if (voice.status?.state === "ready") return chatNote("Messaggi vocali pronti: tocca di nuovo 🎤 e parla.");
+    if (!voice.status) return chatNote("Non riesco a sapere se i messaggi vocali sono pronti: controlla la connessione e riprova.");
+    return prepareVoice();
+  }
+  if (st.state === "downloading" || st.state === "extracting") {
+    return chatNote("Sto ancora preparando i messaggi vocali: ti avviso qui quando sono pronti.");
+  }
+  if (st.state === "unsupported") return chatNote(`${st.error} Intanto puoi dettare con il microfono della tastiera.`);
+  const where = state.session.cloud ? "sul server" : "su questo computer";
+  const retry = st.state === "error" ? `L'ultima volta non è riuscita (${st.error}). ` : "";
+  if (!confirm(`${retry}Per i messaggi vocali preparo il riconoscimento della voce ${where}: si scarica una volta sola (circa ${st.downloadMB ?? 560} MB, qualche minuto). Poi la voce resta sul tuo ${state.session.cloud ? "server" : "computer"}, senza servizi esterni. Procedo?`)) return;
+  try {
+    voice.status = await api("/api/voice/prepare", { method: "POST" });
+    chatNote("Preparo i messaggi vocali: ci vuole qualche minuto. Intanto puoi continuare a scrivere, ti avviso qui quando sono pronti.");
+  } catch (err) {
+    chatNote(err.message);
+  }
+  renderVoice();
+}
+
+/** ➤ durante la registrazione (o il limite di 2 minuti): ferma, manda al server e aspetta la risposta. */
+async function finishRecording() {
+  const rec = voice.rec;
+  if (!rec || voice.sending) return;
+  voice.sending = true;
+  const speakReply = voiceRepliesOn() && speech.speechSupported();
+  if (speakReply) speech.unlock(); // dentro il tocco: sull'iPhone serve per poter leggere la risposta dopo
+  let blob = null;
+  try {
+    blob = await rec.stop();
+  } finally {
+    voice.rec = null;
+    renderVoice();
+  }
+  if (!blob || blob.size < 44 + 16000) {
+    // meno di mezzo secondo
+    voice.sending = false;
+    renderVoice();
+    return chatNote("Messaggio troppo corto: tocca 🎤, parla, poi tocca ➤.");
+  }
+  voice.speakTurn = speakReply;
+  try {
+    const res = await fetch("/api/chat/voice", { method: "POST", headers: { "Content-Type": "audio/wav" }, body: blob });
+    const body = await res.json().catch(() => ({}));
+    if (res.status === 401 && body.login) return goLogin();
+    if (!res.ok) {
+      voice.speakTurn = false;
+      if (body.voice) voice.status = body.voice;
+      const shown = body.error && state.chat.transcript.some((m) => m.text.includes(body.error));
+      if (!shown) chatNote(body.error ?? "Messaggio vocale non riuscito: riprova.");
+      // Trascritto ma non arrivato a Orion: il testo torna nel campo, così si può rimandare scritto.
+      if (body.text && !state.chat.transcript.some((m) => m.role === "user" && m.text === body.text) && !$("#chat-input").value.trim()) {
+        $("#chat-input").value = body.text;
+        growChatInput();
+      }
+    }
+  } catch {
+    voice.speakTurn = false;
+    chatNote("Connessione interrotta: se il tuo messaggio non compare qui sopra, riprova.");
+  } finally {
+    voice.sending = false;
+    renderVoice();
+  }
+}
+
+speech.onSpeakingChange((on) => $("#chat").classList.toggle("speaking", on));
 
 // ---------- impostazioni ----------
 
@@ -1670,11 +1874,21 @@ function handleEvent(ev) {
     case "chat":
       state.chat.transcript.push(ev.entry);
       renderChat();
+      if (ev.entry.role === "assistant" && voice.speakTurn) speech.say(ev.entry.text);
       break;
     case "chat-status":
       state.chat.busy = ev.busy;
+      if (!ev.busy) voice.speakTurn = false; // risposta finita: i messaggi seguenti non si leggono
       renderChat();
       break;
+    case "voice": {
+      const was = voice.status?.state;
+      voice.status = ev.status;
+      if (ev.status.state === "ready" && (was === "downloading" || was === "extracting")) chatNote("✅ Messaggi vocali pronti: tocca 🎤, parla, poi tocca ➤.");
+      if ((ev.status.state === "error" || ev.status.state === "unsupported") && was !== ev.status.state) chatNote(`Messaggi vocali: ${ev.status.error}`);
+      renderVoice();
+      break;
+    }
     case "chat-reset":
       state.chat.transcript = [];
       renderChat();

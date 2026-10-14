@@ -183,6 +183,18 @@ h4 { margin: 14px 0 6px; font-size: 12px; color: var(--muted); text-transform: u
 .chips .chip { font-size: 11px; }
 .chat-form { display: flex; gap: 8px; padding: 10px 14px 14px; border-top: 1px solid var(--border); }
 .chat-form textarea { flex: 1; resize: none; max-height: 120px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 9px 12px; }
+/* messaggi vocali: 🎤 registra, durante la registrazione la barra rossa prende il posto del campo di testo */
+.chat-form .mic { font-size: 18px; padding: 6px 10px; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
+.chat-form .mic.on { color: var(--bad); font-weight: 700; }
+.rec-bar:not([hidden]) {
+  flex: 1; display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 8px 12px; min-width: 0;
+  background: var(--surface); border: 1px solid var(--bad); border-radius: 12px;
+}
+.rec-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--bad); flex: none; animation: rec-blink 1s steps(2, start) infinite; }
+@keyframes rec-blink { to { visibility: hidden; } }
+.rec-bar b { font-variant-numeric: tabular-nums; }
+#rec-hint { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat.speaking .orb { animation: breathe .8s ease-in-out infinite; }
 
 /* ---------- dialog agente ---------- */
 dialog { width: min(720px, 94vw); background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: 0; }
@@ -401,6 +413,8 @@ dialog.small-dlg { width: min(480px, 94vw); }
   .chat-form { padding: 8px 12px 10px; align-items: flex-end; }
   .chat-form textarea { font-size: 16px; min-height: 44px; line-height: 1.35; }
   .chat-form .btn { min-width: 48px; min-height: 44px; }
+  .chat-form .mic { min-width: 44px; padding: 6px; }
+  .rec-bar:not([hidden]) { min-height: 44px; }
 
   .view { padding: 12px 16px 16px; overscroll-behavior: contain; }
   .sys-banner { padding: 8px 16px; font-size: 13px; }
@@ -523,7 +537,7 @@ dialog.small-dlg { width: min(480px, 94vw); }
   button, a.btn, .lift, .chip, .roster-row, .more-row, summary, label { touch-action: manipulation; }
   .btn { min-height: 44px; }
   .btn.small { min-height: 44px; padding: 8px 12px; }
-  .dlg-head .btn.ghost, #chat-reset { min-width: 44px; }
+  .dlg-head .btn.ghost, #chat-reset, #chat-voice { min-width: 44px; }
   .chip { min-height: 44px; padding: 8px 14px; font-size: 13px; }
   .chips .chip { font-size: 13px; }
   input[type="checkbox"], input[type="radio"] { width: 22px; height: 22px; flex-shrink: 0; }

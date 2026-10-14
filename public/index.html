@@ -270,12 +270,15 @@
           <b id="chat-title">Parla con …</b>
           <small id="chat-state">Ti ascolto — scrivi pure</small>
         </div>
+        <button class="btn ghost small" id="chat-voice" type="button" title="Risposte a voce" hidden>🔊</button>
         <button class="btn ghost small" id="chat-reset" title="Nuova conversazione">↺</button>
       </header>
       <div class="chat-body" id="chat-body"></div>
       <div class="chips" id="chat-chips"></div>
       <form class="chat-form" id="chat-form">
         <textarea id="chat-input" rows="1" placeholder="Scrivi un messaggio…"></textarea>
+        <div class="rec-bar" id="rec-bar" hidden><span class="rec-dot" aria-hidden="true"></span><b id="rec-time">0:00</b><span id="rec-hint">Parla pure…</span></div>
+        <button class="btn ghost mic" id="chat-mic" type="button" aria-label="Messaggio vocale" title="Messaggio vocale" hidden>🎤</button>
         <button class="btn primary" type="submit" aria-label="Invia">➤</button>
       </form>
     </aside>
