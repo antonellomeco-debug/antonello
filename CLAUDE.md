@@ -89,6 +89,16 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   + `login.js`; barra a 5 schede ≤ 860 px, sezione «Altro», tocco per il nome degli agenti, 3D fermo fuori vista.
 - Prove dell'interfaccia sul "telefono": Playwright con `devices["iPhone 13"]`; con password usare
   `PUBLIC_URL=http://127.0.0.1:<porta>` (cookie non Secure su http).
+- **Server dell'utente (14 ottobre 2026):** Railway, piano Hobby, progetto **agenti** (id `43f02f2f-bd30-4ab3-9149-701d0f6a6a0c`),
+  ambiente `production` (`0ce8307b-b43f-4ea5-8e31-bc6450a181fc`), servizio **antonello**
+  (`2401d6fc-eb96-4d72-b504-3457748a7292`) dal ramo principale, regione `europe-west4-drams3a` (Amsterdam), volume
+  `/data`, healthcheck `/healthz`, restart Always, Serverless spento, **Wait for CI** acceso, variabili `PORT`,
+  `RAILWAY_DEPLOYMENT_DRAINING_SECONDS`, `APP_PASSWORD` (messa dall'utente: mai chiederla). Indirizzo:
+  `https://antonello-production-01e3.up.railway.app`. Creato dal container con la CLI ufficiale (`npm i @railway/cli`
+  in una cartella temporanea, `railway login --browserless`: l'utente apre il link con il codice) e l'API GraphQL
+  `backboard.railway.com/graphql/v2`. Serve l'ambiente cloud con accesso alla rete «Personalizzato» e domini
+  `railway.com`, `backboard.railway.com`, `*.up.railway.app` (l'utente l'ha impostato da «Default · antonello»
+  in alto nella conversazione → Modifica ambiente cloud).
 
 ## Piano Gold (XAUUSD) per Orion
 
@@ -100,7 +110,11 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   Capo Trader e il Capo Fondamentale (le notizie orarie spingerebbero fuori CALENDARIO OGGI e LIVELLI).
   Gli agenti del piano stanno in `data/agents/` dell'utente: si cambiano solo tramite Orion o dall'interfaccia.
 
-## A che punto siamo (13 ottobre 2026)
+## A che punto siamo (14 ottobre 2026)
+
+- Il server su Railway è online con la password (vedi sopra). Da fare per l'utente: primo accesso, portare i dati
+  dal Mac (esporta sul Mac → chiudi il programma sul Mac e toglilo dall'avvio → importa sul server), redirect
+  `https://antonello-production-01e3.up.railway.app/ctrader/callback` su openapi.ctrader.com, icona sull'iPhone.
 
 - L'utente ha aperto il conto demo e sta **registrando l'app** su openapi.ctrader.com/apps. Nel modulo deve
   spuntare solo **"Access your accounts and trade"** e lasciare vuoto il sito web; poi aspettare lo stato
