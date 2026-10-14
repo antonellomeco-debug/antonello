@@ -143,6 +143,14 @@ Le strategie si trovano in [`strategies/`](strategies). Quelle già incluse sono
 
 Lo strumento `web_search` (anche per Orion) usa la ricerca web di Anthropic: la eseguono i server di Claude, quindi non serve un altro abbonamento né un'altra chiave. Un agente con `web_search` tra i suoi strumenti e un `everyMinutes` trova e pubblica da solo le notizie (per esempio sull'oro) senza che l'utente le incolli. Ogni ricerca costa 1 centesimo di dollaro più i token dei risultati e viene sommata nella stima dei costi. Se l'organizzazione Anthropic ha disattivato la ricerca web, l'errore spiega come riattivarla (platform.claude.com/settings/capabilities). Le ricerche lunghe possono fermarsi a metà (`stop_reason: "pause_turn"`): il programma rimanda la conversazione così com'è e la ricerca riprende. Test: `test/websearch.test.js`, con un finto server dell'API di Claude.
 
+### Messaggi vocali a Orion
+
+Nella chat il pulsante 🎤 registra un messaggio vocale (➤ lo manda, ✕ lo annulla, al massimo 2 minuti). L'app prende l'audio grezzo del microfono (`public/recorder.js` con l'AudioWorklet `public/pcm-worklet.js`, che funziona anche nell'app installata sull'iPhone, dove il riconoscimento vocale del browser non è affidabile) e manda un WAV a 16 kHz mono a `POST /api/chat/voice`. Il server lo trascrive **da sé** (`lib/voice.js`): Whisper large-v3-turbo int8 con [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (`sherpa-onnx-node`), senza servizi esterni né chiavi, in un processo a parte (`lib/voice-worker.js`) che occupa circa 1,7 GB solo mentre lavora e si chiude dopo 3 minuti senza messaggi. Le trascrizioni passano una per volta; i messaggi oltre 28 s si dividono nelle pause; le frasi che Whisper inventa sul silenzio («Sottotitoli… Amara.org») si tolgono. Il testo arriva a Orion come messaggio dell'utente con `voice: true` e un avviso di trascrizione automatica (può chiedere conferma su nomi e numeri).
+
+- **Modello**: alla prima richiesta (`POST /api/voice/prepare`, con conferma nell'app) si scaricano 564 MB da GitHub (impronta SHA-256 controllata) e con `tar` si estraggono 3 file (~1 GB) in `<dati>/models/whisper-turbo/`. Stato in `GET /api/voice` e con l'evento `voice` (`missing`, `downloading`, `extracting`, `ready`, `error`, `unsupported`). La cartella `models/` non entra nelle copie dei dati. Sul server serve `bzip2` (nel `Dockerfile`); sul Mac `tar` lo gestisce da sé (librerie native: macOS 14+ su Apple Silicon, 15+ su Intel). Variabili: `VOICE_THREADS` (thread, al massimo 4), `VOICE_IDLE_MS`.
+- **Risposte a voce** (`public/speech.js`): con 🔊 acceso (scelta di ogni dispositivo) le risposte ai messaggi vocali si leggono con le voci italiane del dispositivo (`speechSynthesis`, gratis), a frasi brevi e senza i simboli del formato. Sull'iPhone la voce si sblocca con il tocco su ➤.
+- Test: `test/voice.test.js` con un finto motore (`test/helpers/fake-sherpa.cjs`, variabile `VOICE_ENGINE`) e un finto archivio del modello (`VOICE_MODEL_URL`, `VOICE_MODEL_SHA256`).
+
 ## Broker cTrader e sicurezza
 
 Il collegamento usa la [cTrader Open API](https://help.ctrader.com/open-api/) (protocollo Protobuf su TLS, porta 5035; accesso OAuth). I passi per l'utente sono nella [guida per Mac](GUIDA-MAC.md#parte-4--collegare-il-broker-ctrader-conto-demo).
@@ -198,6 +206,8 @@ lib/schedule.js     orario di lavoro degli agenti, chiusura del venerdì, giorno
 lib/calendar.js     calendario economico (Forex Factory) con cache in data/calendar.json
 lib/tools.js        strumenti disponibili agli agenti (compresa la ricerca web di Claude)
 lib/orchestrator.js il regista con cui parli in chat
+lib/voice.js        messaggi vocali: modello Whisper (scarico, estrazione) e trascrizione
+lib/voice-worker.js processo a parte che trascrive (sherpa-onnx)
 lib/claude.js       client Claude condiviso, verifica della chiave, errori in italiano
 lib/updater.js      aggiornamento dall'app (spento sul server)
 lib/env.js          modalità Mac o server: indirizzo pubblico, cartella dei dati, password
@@ -210,6 +220,7 @@ lib/store.js        stato persistente (data/state.json)
 lib/settings.js     impostazioni salvate dall'app (data/settings.json)
 lib/paths.js        percorsi del progetto
 public/office3d.js  palazzo 3D (three.js)
+public/recorder.js  registrazione dei messaggi vocali (con pcm-worklet.js); speech.js legge le risposte
 public/             interfaccia
 defaults/           palazzo e agenti di partenza
 strategies/         strategie JavaScript

@@ -113,7 +113,26 @@ Il server ha un indirizzo nuovo: cTrader deve conoscerlo per il collegamento.
      portafoglio, broker, attività, impostazioni, nuovo agente, esci);
    - nel palazzo: un dito per girare, due per avvicinarti; **tocca un agente** per vederne il nome, **toccalo di
      nuovo** (o tocca il nome) per aprire la sua scheda;
-   - in chat **Invio va a capo**: per mandare il messaggio tocca **➤**.
+   - in chat **Invio va a capo**: per mandare il messaggio tocca **➤**;
+   - per parlare con Orion a voce tocca **🎤** (vedi sotto).
+
+## Messaggi vocali a Orion
+
+1. Nella chat con Orion tocca **🎤**.
+2. **Solo la prima volta** l'app chiede di preparare il riconoscimento della voce: tocca **OK**. Il server scarica
+   circa 560 MB, una volta sola (qualche minuto: puoi continuare a scrivere). Quando è pronto, nella chat compare
+   «✅ Messaggi vocali pronti».
+3. Tocca **🎤**: la prima volta l'iPhone chiede il permesso per il **microfono** → **Consenti**.
+4. Parla. Compare la barra rossa con il tempo. Quando hai finito tocca **➤** per mandare, oppure **✕** per annullare
+   (al massimo 2 minuti).
+5. Il messaggio compare nella chat con **🎤** e il testo capito: Orion lo legge e risponde.
+6. **Orion ti risponde anche a voce** (con la voce italiana dell'iPhone). Se non lo vuoi, tocca **🔊** in alto: diventa
+   **🔇**. Se non senti niente, togli il silenzioso (l'interruttore sul lato) e alza il volume.
+
+La voce viene trasformata in testo **sul tuo server**, non da altri servizi, e non costa niente in più (pochi centesimi
+di consumo su Railway). Il programma tiene la memoria occupata solo per qualche minuto dopo un messaggio vocale.
+Se l'iPhone continua a chiedere il permesso del microfono: **Impostazioni → App → Safari → Microfono → Consenti**.
+In alternativa puoi sempre dettare con il **microfono della tastiera** dell'iPhone.
 
 ## Aggiornamenti e copie di sicurezza
 
@@ -137,6 +156,8 @@ Il server ha un indirizzo nuovo: cTrader deve conoscerlo per il collegamento.
 | cTrader: «**Rinnovo dell'accesso non riuscito**» | Probabilmente il programma è acceso anche sul Mac con gli stessi dati: chiudilo lì, poi nell'app premi **🔗 Ricollega**. |
 | L'icona sull'iPhone apre Safari invece dell'app | L'icona è un semplice segnalibro: cancellala e aggiungila di nuovo con **Apri come app web** acceso. |
 | Sull'iPhone devi rimettere la password ogni volta | Controlla di aprire l'app dall'icona **Agenti** e non da un link; l'accesso dura 60 giorni dall'ultimo uso. |
+| 🎤: «**Il microfono non è consentito**» | Sull'iPhone: **Impostazioni → App → Safari → Microfono → Consenti**, poi chiudi l'app (scorri in su e mandala via) e riaprila. |
+| 🎤: «**Non ho sentito la tua voce**» o «**Non ho capito le parole**» | Parla più vicino al telefono, in un posto meno rumoroso, e riprova. |
 | L'app sul telefono mostra «**Server non raggiungibile**» | Il server si sta aggiornando o internet manca: aspetta un minuto e tocca **Riprova**. |
 
 Le impostazioni tecniche (variabili facoltative, come funziona l'accesso) sono descritte nel [README](README.md#sul-server-railway).
