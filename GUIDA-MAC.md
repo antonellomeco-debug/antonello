@@ -147,6 +147,15 @@ Puoi farlo in due modi.
 - **Calendario economico**: gli agenti con lo strumento **get_calendar** (si spunta nella scheda dell'agente, oppure lo chiedi a Orion) leggono da soli il calendario della settimana: orari italiani, importanza, previsioni e, appena esce, il dato uscito. Si aggiorna da solo da internet al massimo una volta all'ora. Puoi anche chiedere a Orion: *"Quali dati importanti escono oggi?"*
 - **Notizie automatiche**: gli agenti con lo strumento **web_search** cercano da soli su internet le notizie (per esempio sull'oro) e le pubblicano in bacheca con il nome della fonte: non devi più incollarle tu. Anche Orion sa cercare: chiedigli *"Che notizie ci sono oggi sull'oro?"*. Ogni ricerca costa circa 1 centesimo: un agente che cerca le notizie ogni ora costa circa 7–8 € al mese.
 
+### Messaggi vocali a Orion
+
+Nella chat con Orion tocca **🎤**, parla e poi tocca **➤** (✕ per annullare). La prima volta l'app chiede di
+preparare il riconoscimento della voce: scarica circa 560 MB, una volta sola, e poi la voce resta sul tuo computer
+(niente servizi esterni, niente costi). Il browser chiede il permesso per il **microfono**: consentilo. Orion ti
+risponde anche a voce: per spegnere la voce tocca **🔊** in alto nella chat. Serve macOS 14 o più recente
+(macOS 15 sui Mac con processore Intel). Se usi il programma sul server (Railway), vedi la
+[guida Railway + iPhone](GUIDA-CLOUD.md#messaggi-vocali-a-orion).
+
 ### Quanto costa?
 
 - Il programma è gratis. Gli agenti **a regole** sono gratis.
