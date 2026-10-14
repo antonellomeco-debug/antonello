@@ -14,6 +14,7 @@ export function micErrorText(err) {
   if (name === "NotAllowedError" || name === "SecurityError") {
     return "Il microfono non è consentito. Sull'iPhone: Impostazioni → App → Safari → Microfono → «Consenti» (o «Chiedi»), poi chiudi e riapri l'app. Sul computer: consenti il microfono dall'icona accanto all'indirizzo.";
   }
+  if (name === "WorkletLoadError") return err.message;
   if (name === "NotFoundError" || name === "OverconstrainedError") return "Non trovo un microfono su questo dispositivo.";
   if (name === "NotReadableError" || name === "AbortError") return "Il microfono è occupato da un'altra app (per esempio una chiamata): chiudila e riprova.";
   return `Non riesco a usare il microfono (${err?.message || name || "errore sconosciuto"}).`;
@@ -45,7 +46,11 @@ export class VoiceRecorder {
         audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
       streamP.catch(() => {}); // l'errore si gestisce sotto: niente avvisi in console nel frattempo
-      await ctx.audioWorklet.addModule("/pcm-worklet.js");
+      try {
+        await ctx.audioWorklet.addModule("/pcm-worklet.js");
+      } catch {
+        throw Object.assign(new Error("Non riesco a preparare la registrazione: il server non risponde o manca la connessione. Riprova tra poco, o chiudi e riapri l'app."), { name: "WorkletLoadError" });
+      }
       const stream = (this.stream = await streamP);
       await resumed;
       if (this.closed) {
@@ -64,12 +69,24 @@ export class VoiceRecorder {
       };
       this.source.connect(this.node);
       this.node.connect(ctx.destination); // in uscita solo silenzio: serve perché il browser faccia girare il nodo
+      if (ctx.state !== "running") await ctx.resume().catch(() => {});
+      if (ctx.state !== "running") throw Object.assign(new Error("L'audio non è partito: riprova."), { name: "WorkletLoadError" });
+      // Chiamata, Siri, sveglia o un'altra app prendono l'audio: l'iPhone sospende senza chiudere, quindi si controlla.
       const track = this.stream.getAudioTracks()[0];
-      if (track) track.onended = () => this.interrupt("Il microfono si è spento.");
+      const lost = () => {
+        if (!this.closed && (ctx.state !== "running" || track?.muted)) {
+          this.interrupt("Registrazione interrotta: una chiamata, Siri o un'altra app hanno preso l'audio. Tocca 🎤 e riprova.");
+        }
+      };
+      ctx.onstatechange = lost;
+      if (track) {
+        track.onended = () => this.interrupt("Il microfono si è spento.");
+        track.onmute = lost;
+      }
       this.onHidden = () => document.hidden && this.interrupt("Registrazione annullata: l'app è passata in secondo piano.");
       document.addEventListener("visibilitychange", this.onHidden);
-      const t0 = performance.now();
-      this.timer = setInterval(() => this.onTick?.((performance.now() - t0) / 1000), 250);
+      // Il tempo mostrato è quello dell'audio davvero registrato.
+      this.timer = setInterval(() => this.onTick?.(this.seconds), 250);
       return true;
     } catch (err) {
       const cancelled = this.closed;

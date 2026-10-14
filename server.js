@@ -135,7 +135,9 @@ const handle = (fn) => (req, res) => {
   }
 };
 
-const someoneWorking = () => office.agents().some((a) => isRunning(a.id)) || isChatBusy();
+// Messaggi vocali in trascrizione (prima che arrivino a Orion): contano come lavoro in corso.
+let voiceInFlight = 0;
+const someoneWorking = () => office.agents().some((a) => isRunning(a.id)) || isChatBusy() || voiceInFlight > 0;
 
 app.post("/api/update", async (_req, res) => {
   try {
@@ -363,13 +365,20 @@ app.post("/api/chat/voice", express.raw({ type: ["audio/wav", "audio/x-wav", "au
   if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: "Audio mancante o in un formato non previsto." });
   // Prima i controlli veloci, così non si aspetta la trascrizione per niente.
   if (isChatBusy()) return res.status(409).json({ error: `${ASSISTANT_NAME} sta ancora rispondendo: aspetta che finisca e riprova.` });
+  // Un vocale per volta: se l'app ha perso la risposta (telefono bloccato, rete) e lo rimanda, non arriva due volte.
+  if (voiceInFlight) return res.status(409).json({ error: "Sto ancora trascrivendo il messaggio vocale di prima: aspetta che compaia nella chat." });
   if (!hasCredentials()) return res.status(400).json({ error: MISSING_KEY });
   let text;
+  voiceInFlight++;
   try {
     text = await voice.transcribe(req.body);
   } catch (e) {
     return res.status(e.status ?? 500).json({ error: e.message, voice: voice.publicStatus() });
+  } finally {
+    voiceInFlight--;
   }
+  // Durante la trascrizione può essere partito un aggiornamento o un riavvio: il testo torna all'app.
+  if (shuttingDown || restartPending || isUpdating()) return res.status(503).json({ error: "Il programma si sta riavviando: riprova tra un minuto.", text });
   try {
     res.json({ text, reply: await chat(chatCtx, text, { voice: true }) });
   } catch (e) {

@@ -51,7 +51,7 @@ export function speakableText(text) {
     .replace(/https?:\/\/\S+/g, "link")
     .replace(/^\s{0,3}(#{1,6}|>|[-*+•]|\d+[.)])\s+/gm, "")
     .replace(/\*\*|__|[*_~|]/g, " ")
-    .replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}\u{20E3}]/gu, " ")
+    .replace(/[\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}\u{FE0F}\u{200D}\u{20E3}\u{E0020}-\u{E007F}]/gu, " ")
     .replace(/[ \t]+/g, " ")
     .replace(/ ([.,;:!?»)])/g, "$1")
     .trim();
