@@ -186,7 +186,7 @@ test("trascrizione: testo, pezzi uniti, audio corto, muto o con frasi inventate"
 test("modello rovinato: errore chiaro, e il messaggio dopo riprova", async () => {
   voice.shutdownVoice();
   process.env.FAKE_SHERPA_FAIL = "load";
-  await assert.rejects(voice.transcribe(wav16(tone(2))), /modello rovinato/);
+  await assert.rejects(voice.transcribe(wav16(tone(2))), /non è partito/);
   delete process.env.FAKE_SHERPA_FAIL;
   assert.equal(await voice.transcribe(wav16(tone(2))), "pezzo di 2.0 secondi");
 });
@@ -217,6 +217,10 @@ test("modello mancante: 409 e preparazione (scarico con rimando, controllo, estr
   assert.match(bad.error, /integrità/);
   assert.equal(fs.existsSync(ready), false);
 
+  // Avanzi di un tentativo interrotto: si tolgono prima di controllare lo spazio.
+  fs.mkdirSync(path.join(DATA, "models", ".whisper-turbo-tmp"), { recursive: true });
+  fs.writeFileSync(path.join(DATA, "models", ".whisper-turbo-tmp", "pezzo"), "x");
+  fs.writeFileSync(path.join(DATA, "models", "whisper-turbo.tar.bz2.part"), "mezzo archivio");
   const started = v.prepare();
   assert.equal(started.state, "downloading");
   assert.equal(v.prepare().state, "downloading", "una sola preparazione alla volta");
@@ -239,7 +243,8 @@ test("motore che non funziona su questo computer: niente download, stato «unsup
   process.env.VOICE_ENGINE = FAKE_ENGINE;
   const st = v.publicStatus();
   assert.equal(st.state, "unsupported");
-  assert.match(st.error, /microfono della tastiera/);
+  assert.match(st.error, /^Su questo computer il riconoscimento della voce non funziona: /);
+  assert.doesNotMatch(st.error, /tastiera/, "il consiglio lo aggiunge l'app, una volta sola");
   assert.equal(fs.existsSync(path.join(DATA, "models", "whisper-turbo")), false);
   fakeModel(DATA);
 });
@@ -315,6 +320,18 @@ test("server: errori chiari (formato, audio muto, troppo grande, Orion occupato)
   assert.match(busy.json.error, /sta ancora rispondendo/);
   await first;
   delete process.env.FAKE_CLAUDE_DELAY_MS;
+});
+
+test("server: un vocale rimandato mentre il primo è in trascrizione non arriva due volte", async () => {
+  const s = await startVoiceServer({ FAKE_SHERPA_DELAY_MS: "1500" });
+  const before = claudeRequests.length;
+  const first = s.req("POST", "/api/chat/voice", wavReq(wav16(tone(2))));
+  await new Promise((r) => setTimeout(r, 400));
+  const again = await s.req("POST", "/api/chat/voice", wavReq(wav16(tone(2))));
+  assert.equal(again.status, 409);
+  assert.match(again.json.error, /Sto ancora trascrivendo/);
+  assert.equal((await first).status, 200);
+  assert.equal(claudeRequests.length - before, 1, "Orion riceve il messaggio una volta sola");
 });
 
 test("server: senza chiave di Claude non si trascrive; modello mancante → 409 con lo stato", async () => {

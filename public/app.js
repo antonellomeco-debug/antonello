@@ -144,6 +144,7 @@ async function loadAll() {
     api("/api/notes"), api("/api/log"), api("/api/approvals"), api("/api/chat"),
   ]);
   await loadBroker();
+  if (!state.chat.busy) voice.speakTurn = false; // risposta finita mentre la diretta era interrotta
   refreshVoiceStatus();
   renderChat();
   renderView();
@@ -218,6 +219,13 @@ async function refreshPortfolio() {
 function showView(view) {
   // "Parla con Orion" e "Altro" sono sezioni solo del telefono: su computer la chat è sempre a destra.
   if (!phoneMQ.matches && (view === "chat" || view === "more")) view = "office";
+  // Sul telefono, uscendo dalla chat si annulla la registrazione: non deve continuare senza che si veda.
+  if (voice.rec && phoneMQ.matches && view !== "chat") {
+    voice.rec.cancel();
+    voice.rec = null;
+    renderVoice();
+    chatNote("Registrazione annullata: sei uscito dalla chat.");
+  }
   state.view = view;
   $(".app").dataset.view = view;
   document.querySelectorAll(".nav[data-view]").forEach((x) =>
@@ -1026,6 +1034,7 @@ async function sendChat(text) {
   text = text.trim();
   if (!text || state.chat.busy || voice.sending) return;
   speech.stop(); // messaggio scritto: la lettura della risposta precedente non serve più
+  voice.speakTurn = false; // e la risposta a un messaggio scritto non si legge
   $("#chat-input").value = "";
   growChatInput();
   try {
@@ -1078,14 +1087,25 @@ function voiceRepliesOn() {
 }
 
 async function refreshVoiceStatus() {
-  voice.status = await api("/api/voice").catch(() => voice.status);
+  const next = await api("/api/voice").catch(() => null);
+  if (next) applyVoiceStatus(next);
+  else renderVoice();
+}
+
+/** Nuovo stato del riconoscimento (dalla diretta o riletto dopo un'interruzione): avvisa quando è pronto o fallito. */
+function applyVoiceStatus(next) {
+  const was = voice.status?.state;
+  voice.status = next;
+  const preparing = was === "downloading" || was === "extracting";
+  if (next.state === "ready" && preparing) chatNote("✅ Messaggi vocali pronti: tocca 🎤, parla, poi tocca ➤.");
+  if ((next.state === "error" || next.state === "unsupported") && was && was !== next.state) chatNote(`Messaggi vocali: ${next.error}`);
   renderVoice();
 }
 
 /** Nota nella chat visibile solo su questo dispositivo (non va a Orion). */
 function chatNote(text) {
   const t = state.chat.transcript;
-  if (t.at(-1)?.local && t.at(-1).text === text) return;
+  if (t.at(-1)?.local && t.at(-1).text === text) t.pop(); // stessa nota di seguito: si rimette in fondo, si vede che è nuova
   t.push({ role: "system", text, at: new Date().toISOString(), local: true });
   renderChat();
 }
@@ -1161,6 +1181,8 @@ function startRecording() {
   const st = voice.status?.state;
   if (st !== "ready") return prepareVoice();
   speech.stop();
+  // Dentro il tocco: sull'iPhone sblocca la voce anche se il messaggio parte da solo al limite dei 2 minuti.
+  if (voiceRepliesOn()) speech.unlock();
   const rec = new VoiceRecorder({
     onTick: (sec) => {
       const left = MAX_SECONDS - sec;
@@ -1233,6 +1255,7 @@ async function finishRecording() {
     return chatNote("Messaggio troppo corto: tocca 🎤, parla, poi tocca ➤.");
   }
   voice.speakTurn = speakReply;
+  const from = state.chat.transcript.length;
   try {
     const res = await fetch("/api/chat/voice", { method: "POST", headers: { "Content-Type": "audio/wav" }, body: blob });
     const body = await res.json().catch(() => ({}));
@@ -1240,7 +1263,7 @@ async function finishRecording() {
     if (!res.ok) {
       voice.speakTurn = false;
       if (body.voice) voice.status = body.voice;
-      const shown = body.error && state.chat.transcript.some((m) => m.text.includes(body.error));
+      const shown = body.error && state.chat.transcript.slice(from).some((m) => m.text.includes(body.error));
       if (!shown) chatNote(body.error ?? "Messaggio vocale non riuscito: riprova.");
       // Trascritto ma non arrivato a Orion: il testo torna nel campo, così si può rimandare scritto.
       if (body.text && !state.chat.transcript.some((m) => m.role === "user" && m.text === body.text) && !$("#chat-input").value.trim()) {
@@ -1881,14 +1904,9 @@ function handleEvent(ev) {
       if (!ev.busy) voice.speakTurn = false; // risposta finita: i messaggi seguenti non si leggono
       renderChat();
       break;
-    case "voice": {
-      const was = voice.status?.state;
-      voice.status = ev.status;
-      if (ev.status.state === "ready" && (was === "downloading" || was === "extracting")) chatNote("✅ Messaggi vocali pronti: tocca 🎤, parla, poi tocca ➤.");
-      if ((ev.status.state === "error" || ev.status.state === "unsupported") && was !== ev.status.state) chatNote(`Messaggi vocali: ${ev.status.error}`);
-      renderVoice();
+    case "voice":
+      applyVoiceStatus(ev.status);
       break;
-    }
     case "chat-reset":
       state.chat.transcript = [];
       renderChat();

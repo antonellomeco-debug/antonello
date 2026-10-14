@@ -100,6 +100,22 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   `railway.com`, `backboard.railway.com`, `*.up.railway.app` (l'utente l'ha impostato da «Default · antonello»
   in alto nella conversazione → Modifica ambiente cloud).
 
+## Messaggi vocali a Orion (14 ottobre 2026)
+
+- 🎤 nella chat: `public/recorder.js` + `public/pcm-worklet.js` (audio grezzo, WAV 16 kHz mono; il riconoscimento
+  del browser non è affidabile nell'app installata sull'iPhone) → `POST /api/chat/voice` → `lib/voice.js` trascrive
+  sul nostro server con Whisper large-v3-turbo int8 (`sherpa-onnx-node` 1.13.8) in un processo a parte
+  (`lib/voice-worker.js`, ~1,7 GB solo mentre lavora, si chiude dopo 3 minuti) → `chat(ctx, text, {voice:true})`
+  (avviso di trascrizione per Orion, `voice: true` nella chat). Un vocale per volta (`voiceInFlight` in server.js,
+  conta in `someoneWorking()`).
+- Modello: alla prima richiesta (conferma nell'app) 564 MB da GitHub (`sherpa-onnx-whisper-turbo.tar.bz2`, SHA-256
+  fissato), estratti con `tar` in `<dati>/models/whisper-turbo/` (non entra nei backup). Docker: `bzip2`. Mac:
+  macOS 14+ (Apple Silicon) o 15+ (Intel). Dal container GitHub è raggiungibile: si può provare con il modello vero.
+- 🔊 risposte lette con `speechSynthesis` (`public/speech.js`), scelta per dispositivo in localStorage.
+- Test: `test/voice.test.js` con `test/helpers/fake-sherpa.cjs` (`VOICE_ENGINE`) e finto archivio (`VOICE_MODEL_URL`).
+  Prova nel browser: Chromium con `--use-file-for-fake-audio-capture=<wav>` (voci di prova generate con Piper
+  `it_IT-paola-medium` di sherpa-onnx).
+
 ## Piano Gold (XAUUSD) per Orion
 
 - L'utente ha una pagina (artifact claude.ai "Piano Gold per Orion") con i messaggi da incollare a Orion:
