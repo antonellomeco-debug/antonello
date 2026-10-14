@@ -16,7 +16,7 @@ import { chat, getTranscript, resetChat, isChatBusy, ASSISTANT_NAME } from "./li
 import { getQuote } from "./lib/market.js";
 import fs from "node:fs";
 import { exec } from "node:child_process";
-import { hasCredentials, keyStatus, verifyKey, cleanKey } from "./lib/claude.js";
+import { hasCredentials, keyStatus, verifyKey, cleanKey, MISSING_KEY } from "./lib/claude.js";
 import { updateSettings } from "./lib/settings.js";
 import { checkUpdate, applyUpdate, isUpdating, installedVersion, RESTART_CODE } from "./lib/updater.js";
 import { isWorkingTime, scheduleStatus, updateSchedule, isFridayCloseTime, romeParts, resumeText } from "./lib/schedule.js";
@@ -24,6 +24,7 @@ import { PORT, HOST, PUBLIC_URL, CLOUD, AUTH_ENABLED, FAIL_CLOSED, CONFIG_PROBLE
 import { securityHeaders, failClosed, hostCheck, originCheck } from "./lib/guard.js";
 import * as auth from "./lib/auth.js";
 import { exportZip, importZip, backupFileName, confirmImportWorked } from "./lib/backup.js";
+import * as voice from "./lib/voice.js";
 
 const STARTED_AT = new Date().toISOString();
 const URL_APP = PUBLIC_URL ?? `http://localhost:${PORT}`;
@@ -353,6 +354,29 @@ app.post("/api/chat", async (req, res) => {
 });
 app.post("/api/chat/reset", handle(() => resetChat()));
 
+// ---------- messaggi vocali ----------
+// L'app registra la voce e manda un WAV (16 kHz, un canale); il server lo trascrive (lib/voice.js) e lo passa a
+// Orion come un messaggio scritto. La prima volta si scarica il riconoscimento della voce (circa 560 MB).
+app.get("/api/voice", (_req, res) => res.json(voice.publicStatus()));
+app.post("/api/voice/prepare", handle(() => voice.prepare()));
+app.post("/api/chat/voice", express.raw({ type: ["audio/wav", "audio/x-wav", "audio/wave"], limit: "6mb" }), async (req, res) => {
+  if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: "Audio mancante o in un formato non previsto." });
+  // Prima i controlli veloci, così non si aspetta la trascrizione per niente.
+  if (isChatBusy()) return res.status(409).json({ error: `${ASSISTANT_NAME} sta ancora rispondendo: aspetta che finisca e riprova.` });
+  if (!hasCredentials()) return res.status(400).json({ error: MISSING_KEY });
+  let text;
+  try {
+    text = await voice.transcribe(req.body);
+  } catch (e) {
+    return res.status(e.status ?? 500).json({ error: e.message, voice: voice.publicStatus() });
+  }
+  try {
+    res.json({ text, reply: await chat(chatCtx, text, { voice: true }) });
+  } catch (e) {
+    res.status(400).json({ error: e.message, text }); // il testo torna all'app: si può rimandare scritto
+  }
+});
+
 app.post("/api/agents/:id/run", async (req, res) => {
   const agent = findAgent(req.params.id);
   if (!agent) return res.status(404).json({ error: "agente non trovato" });
@@ -552,6 +576,7 @@ async function shutdown(reason, code = 0) {
   shuttingDown = true;
   if (importedAtBoot) confirmImportWorked(); // chiusura ordinata: i dati importati funzionavano
   stopNewOrders();
+  voice.shutdownVoice();
   console.log(`\n  ⏹  ${reason}: chiudo il programma…`);
   const timeout = new Promise((r) => setTimeout(() => r(false), SHUTDOWN_WAIT_MS).unref());
   const settled = await Promise.race([settleInFlight().then(() => true, () => true), timeout]);
