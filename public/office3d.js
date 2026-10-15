@@ -225,6 +225,7 @@ export class Office3D {
    * piano, un puntino per agente); al centro il regista; archi per i collegamenti tra piani di palazzi diversi.
    */
   setUniverse(universe, agents) {
+    const before = { radius: this.universeRadius, top: this.towerTop };
     const changed = this.mode !== "universe";
     this.mode = "universe";
     this.sceneKey = null;
@@ -236,7 +237,8 @@ export class Office3D {
     const tops = [];
     const floorPos = new Map(); // id del piano -> posizione nel mondo (per gli archi tra palazzi)
     palaces.forEach((p, i) => {
-      const angle = (i / Math.max(n, 1)) * Math.PI * 2 + Math.PI / 2;
+      // Partenza spostata di mezzo passo: con due palazzi stanno uno accanto all'altro, non uno dietro l'altro.
+      const angle = (i / Math.max(n, 1)) * Math.PI * 2 + Math.PI / 2 + Math.PI / Math.max(n, 1);
       const pos = new THREE.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
       const floors = universe.floors.filter((f) => f.palace === p.id); // dal più basso
       const tower = new THREE.Group();
@@ -366,7 +368,8 @@ export class Office3D {
       this.fitLimits(view);
       this.camera.position.copy(view.camera);
       this.controls.target.copy(view.target);
-    } else if (changed) {
+    } else if (changed || before.radius !== radius || before.top !== this.towerTop) {
+      // Vista appena aperta, oppure palazzi aggiunti o tolti: si rifà l'inquadratura.
       this.flyTo(view);
       this.fly.thenRotate = true;
     }

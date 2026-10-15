@@ -611,9 +611,10 @@ function openFloorEditor(floor, palaceId) {
   $("#floor-errors").textContent = "";
   floorDlg.showModal();
 }
-// Piano nuovo: cambiando palazzo si propone il livello giusto per quel palazzo.
+// Cambiando palazzo si propone il livello giusto per quel palazzo (in cima); tornando al suo, il livello di prima.
 floorForm.palace.addEventListener("change", () => {
-  if (!state.editingFloor) floorForm.level.value = nextLevel(floorForm.palace.value);
+  const floor = floorById(state.editingFloor);
+  floorForm.level.value = floor && floor.palace === floorForm.palace.value ? floor.level : nextLevel(floorForm.palace.value);
 });
 floorForm.addEventListener("submit", async (e) => {
   e.preventDefault();

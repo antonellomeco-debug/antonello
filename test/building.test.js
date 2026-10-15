@@ -101,6 +101,24 @@ test("file di prima (un solo palazzo): diventa un universo con un palazzo che co
   fs.writeFileSync(file, JSON.stringify({ name: "Torre Gold", floors: [{ id: "a", name: "A", level: 0, color: "#4f8cff" }] }));
   b = B.loadBuilding();
   assert.deepEqual([b.name, b.palaces[0].name, b.floors[0].palace], ["Il mio universo", "Torre Gold", "torre-gold"]);
+  // Nome molto lungo: si accorcia, così il palazzo resta modificabile.
+  fs.writeFileSync(file, JSON.stringify({ name: "X".repeat(90), floors: [] }));
+  assert.equal(B.loadBuilding().palaces[0].name.length, 60);
+  // File riscritto da una versione vecchia dopo l'universo (rollback): i piani hanno il palazzo ma l'elenco manca.
+  // I palazzi tornano dai piani, senza unirli, e il nome dell'universo resta.
+  fs.writeFileSync(file, JSON.stringify({
+    name: "Il mio universo",
+    floors: [{ id: "a", name: "A", level: 0, palace: "palazzo-investimenti" }, { id: "s", name: "S", level: 0, palace: "palazzo-social" }],
+  }));
+  const back = B.loadBuilding();
+  assert.equal(back.name, "Il mio universo");
+  assert.deepEqual(back.palaces.map((p) => [p.id, p.name]), [["palazzo-investimenti", "Palazzo Investimenti"], ["palazzo-social", "Palazzo Social"]]);
+  assert.deepEqual(back.floors.map((f) => f.palace), ["palazzo-investimenti", "palazzo-social"]);
+  // Universo vuoto riscritto senza piani né palazzi: il nome dell'universo non diventa il nome di un palazzo.
+  fs.writeFileSync(file, JSON.stringify({ name: "Il mio universo", floors: [] }));
+  assert.deepEqual(B.loadBuilding().palaces.map((p) => p.name), ["Palazzo Investimenti"]);
+  fs.writeFileSync(file, JSON.stringify({ name: "Torre Gold", floors: [{ id: "a", name: "A", level: 0, color: "#4f8cff" }] }));
+  b = B.loadBuilding();
   // Salvato e riletto: resta uguale.
   B.saveBuilding(b);
   const again = B.loadBuilding();
@@ -120,7 +138,9 @@ test("palazzi: creazione, nomi doppi, piani nel palazzo giusto con i loro livell
   assert.equal(f.palace, social.id);
   assert.equal(f.level, 0, "primo piano del palazzo nuovo: livello 0, non dopo i piani degli altri palazzi");
   assert.equal(B.upsertFloor(b, { name: "Piano TikTok", palace: social.id }).level, 1);
-  assert.equal(B.upsertFloor(b, { name: "Senza palazzo" }).palace, "investimenti", "senza palazzo: il primo");
+  assert.throws(() => B.upsertFloor(b, { name: "Senza palazzo" }), /indica in quale palazzo/, "con più palazzi va indicato");
+  assert.equal(B.upsertFloor(b, { name: "Piano Reels", palace: "palazzo social" }).palace, social.id, "va bene anche il nome");
+  B.deleteFloor(b, "piano-reels");
   assert.throws(() => B.upsertFloor(b, { name: "X", palace: "inesistente" }), /palazzo "inesistente" non esiste/);
   assert.throws(() => B.deletePalace(b, social.id), /ancora 2 piani/);
   B.deleteFloor(b, f.id);
@@ -128,6 +148,9 @@ test("palazzi: creazione, nomi doppi, piani nel palazzo giusto con i loro livell
   B.deletePalace(b, social.id);
   assert.deepEqual(b.palaces.map((p) => p.id), ["investimenti"]);
   assert.throws(() => B.deletePalace(b, "investimenti"), /unico palazzo/);
+  const other = B.upsertPalace(b, { name: "Palazzo Ricerche" });
+  assert.throws(() => B.upsertPalace(b, { id: other.id, name: "investimenti" }), /esiste già/, "anche rinominando");
+  B.deletePalace(b, other.id);
   const renamed = B.upsertPalace(b, { id: "investimenti", name: "Palazzo Borsa" });
   assert.deepEqual([renamed.id, renamed.name], ["investimenti", "Palazzo Borsa"], "rinominare non cambia il codice");
 });
