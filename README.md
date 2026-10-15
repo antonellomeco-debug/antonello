@@ -147,6 +147,13 @@ Le strategie si trovano in [`strategies/`](strategies). Quelle già incluse sono
 
 Lo strumento `web_search` (anche per Orion) usa la ricerca web di Anthropic: la eseguono i server di Claude, quindi non serve un altro abbonamento né un'altra chiave. Un agente con `web_search` tra i suoi strumenti e un `everyMinutes` trova e pubblica da solo le notizie (per esempio sull'oro) senza che l'utente le incolli. Ogni ricerca costa 1 centesimo di dollaro più i token dei risultati e viene sommata nella stima dei costi. Se l'organizzazione Anthropic ha disattivato la ricerca web, l'errore spiega come riattivarla (platform.claude.com/settings/capabilities). Le ricerche lunghe possono fermarsi a metà (`stop_reason: "pause_turn"`): il programma rimanda la conversazione così com'è e la ricerca riprende. Test: `test/websearch.test.js`, con un finto server dell'API di Claude.
 
+### Velocità di Orion
+
+Orion risponde **in diretta**: il testo arriva all'app mentre lo scrive (`client.beta.messages.stream`, eventi SSE
+`chat-delta`). In ⚙️ Impostazioni → **⚡ Velocità di Orion**: Veloce (Claude Sonnet 5.5, ragiona poco; predefinita),
+Equilibrato (Opus 5.5, ragiona poco), Accurato (Opus 5.5, ragiona di più). La conversazione resta in memoria (cache) per
+un'ora e riparte con un riassunto oltre 120.000 token, così le risposte restano rapide anche dopo una pausa.
+
 ### Messaggi vocali a Orion
 
 Nella chat il pulsante 🎤 registra un messaggio vocale (➤ lo manda, ✕ lo annulla, al massimo 2 minuti). L'app prende l'audio grezzo del microfono (`public/recorder.js` con l'AudioWorklet `public/pcm-worklet.js`, che funziona anche nell'app installata sull'iPhone, dove il riconoscimento vocale del browser non è affidabile) e manda un WAV a 16 kHz mono a `POST /api/chat/voice`. Il server lo trascrive **da sé** (`lib/voice.js`): Whisper large-v3-turbo int8 con [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (`sherpa-onnx-node`), senza servizi esterni né chiavi, in un processo a parte (`lib/voice-worker.js`) che occupa circa 1,7 GB solo mentre lavora e si chiude dopo 3 minuti senza messaggi. Le trascrizioni passano una per volta; i messaggi oltre 28 s si dividono nelle pause; le frasi che Whisper inventa sul silenzio («Sottotitoli… Amara.org») si tolgono. Il testo arriva a Orion come messaggio dell'utente con `voice: true` e un avviso di trascrizione automatica (può chiedere conferma su nomi e numeri).

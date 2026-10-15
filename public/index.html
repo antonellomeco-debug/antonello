@@ -480,6 +480,19 @@
         <button type="submit" class="btn primary" id="save-key">Salva e verifica</button>
       </footer>
 
+      <fieldset class="update-box" id="speed-box">
+        <legend>⚡ Velocità di Orion</legend>
+        <div class="row wrap">
+          <select id="orion-speed" aria-label="Velocità di Orion">
+            <option value="veloce">Veloce — risponde in pochi secondi (consigliato)</option>
+            <option value="equilibrato">Equilibrato — modello più potente, ragiona poco</option>
+            <option value="accurato">Accurato — il più lento, per lavori complessi</option>
+          </select>
+          <span class="hint" id="speed-status"></span>
+        </div>
+        <p class="hint">Vale solo per Orion: gli agenti usano il modello scelto nella loro scheda. Le risposte compaiono mentre Orion le scrive.</p>
+      </fieldset>
+
       <fieldset class="update-box" id="schedule-box">
         <legend>🕒 Orario di lavoro degli agenti</legend>
         <p class="hint" id="schedule-status"></p>

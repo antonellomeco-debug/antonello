@@ -6,6 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import http from "node:http";
+import { sendClaudeMessage } from "./helpers/claude-reply.js";
 
 const requests = [];
 let replies = [];
@@ -15,8 +16,7 @@ const server = http.createServer((req, res) => {
   req.on("end", () => {
     requests.push(JSON.parse(body || "{}"));
     const reply = replies.shift() ?? { content: [{ type: "text", text: "fine" }], stop_reason: "end_turn" };
-    res.setHeader("content-type", "application/json");
-    res.end(JSON.stringify({ id: `msg_${requests.length}`, type: "message", role: "assistant", model: "claude-opus-5-5", usage: { input_tokens: 100, output_tokens: 20 }, ...reply }));
+    sendClaudeMessage(res, { id: `msg_${requests.length}`, type: "message", role: "assistant", model: "claude-opus-5-5", usage: { input_tokens: 100, output_tokens: 20 }, ...reply }, requests.at(-1));
   });
 });
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
@@ -66,7 +66,9 @@ test("Orion crea un palazzo, un piano dentro, e lo collega al palazzo degli inve
   const snapshot = requests[0].messages.find((m) => m.role === "system")?.content ?? "";
   assert.match(snapshot, /^Stato attuale dell'universo "Il mio universo"/);
   assert.match(snapshot, /Palazzo Palazzo Investimenti \[palazzo-investimenti\]/);
-  assert.match(requests[0].system, /universo virtuale/);
+  assert.match(requests[0].system.map((b) => b.text).join(""), /universo virtuale/);
+  assert.equal(requests[0].stream, true, "Orion risponde in diretta");
+  assert.equal(requests[0].system[0].cache_control.ttl, "1h");
   // Dopo le modifiche, il nuovo stato mostra il palazzo nuovo e il collegamento tra palazzi.
   replies = [done("ok")];
   requests.length = 0;
@@ -99,4 +101,28 @@ test("un agente sa in quale palazzo lavora e da quale palazzo vengono le stanze 
     await runAgent(cio, office.building());
     assert.match(requests[0].system, /sala-trend: Sala Trend \(Piano Tendenze, palazzo Palazzo Social\)/);
   }
+});
+
+test("Orion: velocità scelta nelle impostazioni (modello e impegno) e testo in diretta", async () => {
+  const { setSpeed, getSpeed } = await import("../lib/orchestrator.js");
+  const { bus } = await import("../lib/store.js");
+  assert.equal(getSpeed(), "veloce");
+  const deltas = [];
+  const on = (ev) => ev.type === "chat-delta" && ev.delta && deltas.push(ev.delta);
+  bus.on("event", on);
+  requests.length = 0;
+  replies = [done("Ecco come sta andando l'universo oggi.")];
+  await chat(office, "Ciao");
+  bus.off("event", on);
+  assert.equal(requests[0].model, "claude-sonnet-5-5");
+  assert.equal(requests[0].output_config.effort, "low");
+  assert.equal(deltas.join(""), "Ecco come sta andando l'universo oggi.", "il testo arriva a pezzi mentre Orion scrive");
+  setSpeed("accurato");
+  requests.length = 0;
+  replies = [done("ok")];
+  await chat(office, "Ciao di nuovo");
+  assert.equal(requests[0].model, "claude-opus-5-5");
+  assert.equal(requests[0].output_config.effort, "medium");
+  assert.throws(() => setSpeed("turbo"), /Velocità/);
+  setSpeed("veloce");
 });

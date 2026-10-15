@@ -180,6 +180,12 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   `MARKET_MODE=demo`; per cTrader usare il finto server (variabili `CTRADER_TLS=0`, `CTRADER_DEMO_HOST`,
   `CTRADER_LIVE_HOST`, `CTRADER_PORT`, `CTRADER_AUTH_URL`, `CTRADER_TOKEN_URL`).
 - Per fermare processi usare `pgrep -f "^node "`: un'espressione che compare nel proprio comando ferma anche la shell.
+  I server avviati dagli script di prova con `process.execPath` si chiamano `/opt/node22/bin/node server.js`: cercarli
+  con `pgrep -af server.js` e fermarli per PID (controllare `PORT` in `/proc/<pid>/environ`).
 - Dal container, Node raggiunge GitHub solo con `NODE_USE_ENV_PROXY=1`.
-- Modello Claude usato dagli agenti e da Orion: `claude-opus-5-5`. Orion: il prompt di sistema resta fisso,
-  lo stato del palazzo arriva come messaggio `system` in coda (cronologia solo in aggiunta).
+- Modello Claude degli agenti: quello nella loro scheda. Orion: **velocità** in ⚙️ Impostazioni (`orionSpeed` in
+  settings: veloce = `claude-sonnet-5-5` effort low, predefinita; equilibrato = opus low; accurato = opus medium;
+  `ASSISTANT_MODEL` fissa il modello), risposte **in diretta** (`client.beta.messages.stream`, evento SSE `chat-delta`,
+  bolla `#chat-live` nell'app), cache di **1 ora** (sistema + conversazione) e ripartenza con riassunto oltre 120.000
+  token. Il prompt di sistema resta fisso, lo stato del palazzo arriva come messaggio `system` in coda (cronologia solo
+  in aggiunta). I finti server di Claude nei test rispondono in diretta con `test/helpers/claude-reply.js`.
