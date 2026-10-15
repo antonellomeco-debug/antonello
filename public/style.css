@@ -614,3 +614,40 @@ dialog.small-dlg { width: min(480px, 94vw); }
 .msg.assistant.live::after { content: "▍"; color: var(--accent); animation: blink 1s steps(2) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .msg.assistant.live::after { animation: none; } }
+
+/* ---------- 💰 Spesa ---------- */
+.cost-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 12px; max-width: 1100px; }
+.cost-kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+.cost-kpi b { font-size: 26px; font-variant-numeric: tabular-nums; }
+.cost-kpi small { color: var(--muted); font-size: 12px; }
+.cost-alert { margin: 12px 0 0; padding: 10px 14px; border-radius: 10px; background: #ff6b6b22; border: 1px solid #ff6b6b66; max-width: 1100px; }
+.cost-alert.warn { background: #ffc94d1f; border-color: #ffc94d66; }
+.cost-budget { margin-top: 14px; display: grid; gap: 6px; max-width: 560px; }
+.cost-budget label span { display: block; color: var(--muted); font-size: 12px; font-weight: 400; }
+.cost-budget .row, .cost-palace .row { display: flex; gap: 8px; align-items: center; }
+.cost-budget input, .cost-palace input { width: 120px; }
+.cost-palaces { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 12px; max-width: 1100px; }
+.cost-palace { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.cost-palace h3 { margin: 0; display: flex; align-items: center; gap: 8px; }
+.cost-palace h3 i { width: 12px; height: 12px; border-radius: 50%; background: var(--c); flex: none; }
+.cost-palace label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.cost-big { margin: 0; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cost-big small { font-size: 12px; font-weight: 400; color: var(--muted); }
+.cost-bar { display: block; height: 6px; border-radius: 99px; background: var(--surface-3); overflow: hidden; margin-top: 4px; min-width: 60px; }
+.cost-bar i { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
+.cost-bar.near i { background: var(--warn); }
+.cost-bar.over i { background: var(--bad); }
+.table-wrap { overflow-x: auto; max-width: 1100px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.cost-table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 13px; }
+.cost-table th, .cost-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.cost-table th { color: var(--muted); font-weight: 600; font-size: 12px; white-space: nowrap; }
+.cost-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cost-table td small { display: block; color: var(--muted); font-size: 11px; }
+.cost-table tr.off { opacity: .55; }
+.cost-table .tips span { display: inline-block; margin: 0 4px 4px 0; padding: 2px 8px; border-radius: 99px; background: #ffc94d1a; color: var(--warn); font-size: 11px; }
+.cost-table .tips span.ok { background: #34c08a1a; color: var(--good); }
+.cost-table button.link { background: none; border: 0; color: var(--text); padding: 0; font: inherit; font-weight: 600; cursor: pointer; text-align: left; }
+.cost-other { list-style: none; padding: 0; margin: 0; max-width: 560px; display: grid; gap: 6px; }
+.cost-other li { display: flex; justify-content: space-between; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; }
+.cost-help { max-width: 1100px; margin-top: 18px; }
+#costs-all { margin-top: 8px; }

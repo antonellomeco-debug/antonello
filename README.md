@@ -147,6 +147,15 @@ Le strategie si trovano in [`strategies/`](strategies). Quelle già incluse sono
 
 Lo strumento `web_search` (anche per Orion) usa la ricerca web di Anthropic: la eseguono i server di Claude, quindi non serve un altro abbonamento né un'altra chiave. Un agente con `web_search` tra i suoi strumenti e un `everyMinutes` trova e pubblica da solo le notizie (per esempio sull'oro) senza che l'utente le incolli. Ogni ricerca costa 1 centesimo di dollaro più i token dei risultati e viene sommata nella stima dei costi. Se l'organizzazione Anthropic ha disattivato la ricerca web, l'errore spiega come riattivarla (platform.claude.com/settings/capabilities). Le ricerche lunghe possono fermarsi a metà (`stop_reason: "pause_turn"`): il programma rimanda la conversazione così com'è e la ricerca riprende. Test: `test/websearch.test.js`, con un finto server dell'API di Claude.
 
+### Spesa e risparmio
+
+Sezione **💰 Spesa**: spesa del mese (Claude, ricerche web, immagini IA, post su X) per palazzo e per agente, stima a
+fine mese, consigli per ogni agente. **Budget del mese** generale e per palazzo: raggiunto il tetto, gli agenti
+programmati si fermano fino al mese dopo (Orion e i lavori a mano restano). **Ritmo** di ogni palazzo: normale, risparmio
+(metà dei lavori), minimo (un quarto), pausa. Nella scheda dell'agente **Solo con novità** (`onlyOnNews`): quando tocca a
+lui lavora solo se altri hanno scritto nelle stanze che legge. Orion vede la spesa con `get_costs` e può cambiare il
+ritmo (`set_palace_pace`), non i budget. Dettagli in `lib/costs.js`.
+
 ### Velocità di Orion
 
 Orion risponde **in diretta**: il testo arriva all'app mentre lo scrive (`client.beta.messages.stream`, eventi SSE

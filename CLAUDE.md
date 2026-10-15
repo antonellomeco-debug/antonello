@@ -145,6 +145,19 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
 - L'utente ha la pagina «Palazzo Social» (artifact claude.ai) con 7 messaggi per Orion: palazzo con 4 piani
   (Instagram, LinkedIn, Threads, X), 5 stanze per piano (Direzione, Trend, Studio, Redazione, Analisi), 29 agenti.
 
+## Spesa e risparmio (15 ottobre 2026)
+
+- `lib/store.js`: `costScope` (AsyncLocalStorage) dice chi spende: `runAgent` → `{agentId, palace}`, chat di Orion →
+  `{kind:"orion"}`, post programmati → `{kind:"social"}`; `addUsage`/`addCost` sommano anche in `usage.days[AAAA-MM-GG]`
+  (`usd`, `agents{id:{usd,runs}}`, `palaces`, `other`; 62 giorni). `countRun` a ogni lavoro llm.
+- `lib/costs.js`: `monthSpend`, `costReport` (stime al mese con l'orario di lavoro, consigli), budget del mese generale e
+  per palazzo (`settings.costs`, solo dall'interfaccia), ritmo dei palazzi (normale ×1, risparmio ×2, minimo ×4, pausa;
+  anche Orion con `set_palace_pace`). Scheduler in `server.js`: `effectiveEvery`, `scheduleBlock` (avviso «spesa» una volta
+  al giorno), agenti `onlyOnNews` saltano il giro se nessun altro ha scritto nelle stanze che leggono.
+- Risparmi di base: nuovi agenti Haiku + effort low, `web_search` max 3 ricerche, note lette accorciate a 2.500 caratteri.
+  Orion: `get_costs`, regole di spesa nel prompt. Interfaccia: sezione 💰 Spesa (`public/costs.js`), numero «spesa del
+  mese» in alto, casella «Solo con novità» nella scheda dell'agente. Test: `test/costs.test.js`.
+
 ## Piano Gold (XAUUSD) per Orion
 
 - L'utente ha una pagina (artifact claude.ai "Piano Gold per Orion") con i messaggi da incollare a Orion:

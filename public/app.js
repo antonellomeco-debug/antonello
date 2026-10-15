@@ -4,6 +4,7 @@ import { Office3D } from "./office3d.js";
 import { VoiceRecorder, recordingSupported, micErrorText, MAX_SECONDS } from "./recorder.js";
 import * as speech from "./speech.js";
 import { initSocial, loadSocial, renderSocial, renderPostApproval } from "./social.js";
+import { initCosts, renderCosts, loadCosts } from "./costs.js";
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -27,7 +28,7 @@ const voice = { status: null, rec: null, sending: false, speakTurn: false };
 const phoneMQ = matchMedia("(max-width: 860px)");
 const touchMQ = matchMedia("(hover: none) and (pointer: coarse)");
 // Sezioni che sul telefono stanno dentro "Altro".
-const MORE_VIEWS = ["building", "social", "portfolio", "broker", "log"];
+const MORE_VIEWS = ["building", "costs", "social", "portfolio", "broker", "log"];
 
 // ---------- utilità sul palazzo ----------
 const B = () => state.office.building;
@@ -275,7 +276,7 @@ async function refreshStats() {
   const cells = [
     [s.working, "al lavoro ora"], [s.agents, "agenti"], ...(s.palaces > 1 ? [[s.palaces, "palazzi"]] : []), [s.floors, "piani"], [s.rooms, "stanze"], [s.notes, "note in bacheca"],
     [s.trades + (s.brokerTrades ?? 0), "ordini eseguiti"], [s.pending, "da approvare", `stat-pending clickable ${s.pending ? "alert" : ""}`],
-    [`$${fmt(s.costUsd)}`, "spesa API (stima)", "stat-cost"],
+    [`$${fmt(s.costMonth ?? s.costUsd)}`, s.budget ? `spesa del mese (su ${fmt(s.budget, 0)} $)` : "spesa del mese", `stat-cost clickable ${s.budget && s.costMonth >= s.budget * 0.8 ? "alert" : ""}`],
     [state.office.llmReady ? "sì" : "no", "Claude collegato", "stat-key clickable"], [s.scheduled, "programmati"],
   ];
   $("#stats").innerHTML = cells
@@ -283,6 +284,11 @@ async function refreshStats() {
     .join("");
   $("#stats .stat-key").addEventListener("click", openSettings);
   $("#stats .stat-pending").addEventListener("click", () => showView("approvals"));
+  $("#stats .stat-cost").addEventListener("click", () => showView("costs"));
+  const near = Boolean(s.budget && s.costMonth >= s.budget * 0.8);
+  $("#badge-costs").classList.toggle("hidden", !near);
+  $("#more-costs-badge").classList.toggle("hidden", !near);
+  $("#more-costs-state").textContent = `${fmt(s.costMonth ?? 0)} $ questo mese${s.budget ? ` su ${fmt(s.budget, 0)} $` : ""}`;
   const badge = $("#badge-approvals");
   badge.textContent = s.pending;
   badge.classList.toggle("hidden", !s.pending);
@@ -344,6 +350,7 @@ function showView(view) {
   renderView();
   syncOffice3d();
   if (view === "broker") loadBrokerAccounts();
+  if (view === "costs") loadCosts().then(() => state.view === "costs" && renderCosts(), () => {});
   if (view === "social") loadSocial().then(() => state.view === "social" && renderSocial(), () => {});
   if (view === "chat") $("#chat-body").scrollTop = $("#chat-body").scrollHeight;
   else if (phoneMQ.matches && document.activeElement?.closest(".chat-form")) document.activeElement.blur(); // chiude la tastiera
@@ -377,6 +384,7 @@ function renderView() {
   else if (state.view === "portfolio") renderPortfolio();
   else if (state.view === "broker") renderBroker();
   else if (state.view === "social") renderSocial();
+  else if (state.view === "costs") renderCosts();
 }
 
 // ---------- ufficio ----------
@@ -1891,7 +1899,7 @@ function openEditor(agent) {
       B().rooms[0]?.id,
     watchlist: [], readsFrom: [], tools: ["get_quote", "get_indicators", "read_notes", "post_note"], canTrade: false,
     limits: { maxOrderPct: 10, maxPositionPct: 20, onlyWatchlist: true, requireApproval: true },
-    model: "claude-opus-5-5", effort: "medium", instructions: "", strategy: state.office.strategies[0], params: {},
+    model: "claude-haiku-5-5", effort: "low", onlyOnNews: false, instructions: "", strategy: state.office.strategies[0], params: {},
   };
   state.editing = isNew ? null : agent.id;
   $("#dlg-title").textContent = isNew ? "Nuovo agente" : `${agent.avatar} ${agent.name}`;
@@ -1923,6 +1931,7 @@ function openEditor(agent) {
   form.canTrade.checked = agent.canTrade;
   form.requireApproval.checked = agent.limits.requireApproval !== false;
   form.enabled.checked = agent.enabled;
+  form.onlyOnNews.checked = Boolean(agent.onlyOnNews);
   form.maxOrderPct.value = agent.limits.maxOrderPct;
   form.maxPositionPct.value = agent.limits.maxPositionPct;
   form.onlyWatchlist.checked = agent.limits.onlyWatchlist !== false;
@@ -1984,6 +1993,7 @@ function readForm() {
     room: form.room.value,
     mode: form.mode.value,
     enabled: form.enabled.checked,
+    onlyOnNews: form.onlyOnNews.checked,
     everyMinutes: Number(form.everyMinutes.value) || 0,
     watchlist: form.watchlist.value.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean),
     readsFrom: checked("readsFrom"),
@@ -2141,6 +2151,7 @@ function handleEvent(ev) {
       break;
     case "stats":
       refreshStatsSoon();
+      if (state.view === "costs") loadCosts().then(() => state.view === "costs" && renderCosts(), () => {});
       break;
     case "chat-delta":
       liveDelta(ev);
@@ -2217,6 +2228,7 @@ async function start() {
   refreshSocialBadge();
 }
 initSocial(api);
+initCosts(api, { palaceName: (id) => B().palaces.find((p) => p.id === id)?.name ?? id, openAgent: (id) => openEditor(state.office.agents.find((a) => a.id === id)) });
 /** Avviso "!" su 📣 Social quando un accesso è scaduto o sta per scadere. */
 let socialBadgeTimer = null;
 function refreshSocialBadge() {
