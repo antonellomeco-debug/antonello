@@ -262,6 +262,33 @@ legend { padding: 0 6px; color: var(--muted); font-size: 12px; }
 .floor-label b { font-size: 12px; letter-spacing: .02em; }
 .floor-label small { font-size: 10px; color: var(--muted); }
 .floor-label.active { background: color-mix(in srgb, var(--c) 55%, #000); }
+.palace-label {
+  pointer-events: auto !important; cursor: pointer; display: flex; flex-direction: column; align-items: center;
+  padding: 6px 14px; border-radius: 12px; background: #0d1024f0; border: 1px solid var(--c); color: #fff;
+  box-shadow: 0 0 22px color-mix(in srgb, var(--c) 55%, transparent);
+}
+.palace-label b { font-size: 13px; }
+.palace-label small { font-size: 10.5px; color: var(--muted); }
+
+/* barra dei palazzi sopra il palco: 🌌 Universo, un pulsante per palazzo, + Palazzo */
+.palace-bar { display: flex; flex: none; gap: 6px; overflow-x: auto; overflow-y: hidden; padding: 0 0 8px; scrollbar-width: none; }
+.palace-bar::-webkit-scrollbar { display: none; }
+.palace-chip {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 999px; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--border); color: var(--text); font-weight: 600; font-size: 13px; white-space: nowrap;
+}
+.palace-chip i { width: 10px; height: 10px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
+.palace-chip.active { border-color: var(--c, var(--accent)); background: color-mix(in srgb, var(--c, var(--accent)) 22%, var(--surface)); }
+.palace-chip.add { color: var(--accent); border-style: dashed; background: transparent; }
+@media (hover: hover) { .palace-chip:hover { border-color: var(--accent); } }
+
+/* pagina Universo: un blocco per palazzo con i suoi piani */
+.palace-block { margin-bottom: 18px; }
+.palace-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: var(--radius); background: color-mix(in srgb, var(--c) 14%, var(--surface)); border: 1px solid color-mix(in srgb, var(--c) 50%, var(--border)); margin-bottom: 10px; }
+.palace-head .palace-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--c); box-shadow: 0 0 10px var(--c); }
+.palace-head .palace-title { flex: 1; min-width: 160px; display: flex; flex-direction: column; }
+.palace-head h2 { margin: 0; font-size: 17px; }
+.palace-head small { color: var(--muted); }
 
 /* ---------- pagina Palazzo ---------- */
 .floors-list { display: grid; gap: 12px; max-width: 980px; }

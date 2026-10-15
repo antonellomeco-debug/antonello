@@ -82,7 +82,7 @@ test("Orion non può eliminare un palazzo con piani dentro", async () => {
   await chat(office, "Elimina il palazzo social");
   const result = requests[1].messages.at(-1).content[0];
   assert.equal(result.is_error, true);
-  assert.match(result.content, /ancora 1 piani/);
+  assert.match(result.content, /ancora un piano \(Piano Tendenze\)/);
   assert.ok(office.building().palaces.some((p) => p.id === "palazzo-social"));
 });
 

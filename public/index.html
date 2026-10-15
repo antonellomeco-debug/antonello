@@ -30,7 +30,7 @@
       <div class="logo" title="Ufficio Agenti">🪐</div>
       <button class="nav active" data-view="office" title="Ufficio"><span>🏢</span><em>Ufficio</em></button>
       <button class="nav mobile-only" data-view="chat" title="Parla con Orion"><span>💬</span><em id="nav-chat-label">Orion</em></button>
-      <button class="nav desktop-only" data-view="building" title="Palazzo: piani, stanze e collegamenti"><span>🏗️</span><em>Palazzo</em></button>
+      <button class="nav desktop-only" data-view="building" title="Universo: palazzi, piani, stanze e collegamenti"><span>🌌</span><em>Universo</em></button>
       <button class="nav" data-view="approvals" title="Approvazioni"><span>✅</span><em>Approvazioni</em><b class="badge hidden" id="badge-approvals"></b></button>
       <button class="nav" data-view="notes" title="Bacheca"><span>📝</span><em>Bacheca</em></button>
       <button class="nav desktop-only" data-view="portfolio" title="Portafoglio"><span>💼</span><em>Portafoglio</em></button>
@@ -59,6 +59,8 @@
             <button class="btn primary desktop-only" id="new-agent">+ Nuovo agente</button>
           </div>
         </header>
+        <!-- Palazzi dell'universo: 🌌 tutti insieme oppure uno alla volta. -->
+        <nav class="palace-bar" id="palace-bar" aria-label="Palazzi"></nav>
         <!-- Su computer l'elenco degli agenti sta sopra il palco 3D; su telefono sotto, sempre aperto. -->
         <div class="stage-wrap">
           <div class="stage">
@@ -82,17 +84,18 @@
         <button class="btn ghost back-btn mobile-only" data-go="more">‹ Altro</button>
         <header class="page-head">
           <div>
-            <h1 id="building-title">Il palazzo</h1>
-            <p class="sub">Ogni piano gestisce un settore. I piani <b>collegati</b> si scambiano informazioni: gli agenti di un piano leggono le bacheche dell'altro. Puoi fare tutto anche chiedendolo a Orion.</p>
+            <h1 id="building-title">L'universo</h1>
+            <p class="sub">Ogni <b>palazzo</b> è un settore (investimenti, social, ricerche…) e ha i suoi piani. I piani <b>collegati</b> si scambiano informazioni, anche tra palazzi diversi: gli agenti di un piano leggono le bacheche dell'altro. Puoi fare tutto anche chiedendolo a Orion.</p>
           </div>
           <div class="head-actions">
-            <button class="btn" id="rename-building">✏️ Nome palazzo</button>
-            <button class="btn primary" id="new-floor">+ Nuovo piano</button>
+            <button class="btn" id="rename-building">✏️ Nome universo</button>
+            <button class="btn" id="new-floor">+ Nuovo piano</button>
+            <button class="btn primary" id="new-palace">+ Nuovo palazzo</button>
           </div>
         </header>
         <div class="floors-list" id="floors-list"></div>
-        <h2 class="section-title">Collegamenti tra piani</h2>
-        <p class="sub">Un collegamento <b>↔</b> fa comunicare i piani nei due sensi; <b>→</b> manda le informazioni in un solo senso (il secondo piano legge il primo). Spegnilo quando non vuoi che comunichino.</p>
+        <h2 class="section-title">Collegamenti tra piani (anche tra palazzi)</h2>
+        <p class="sub">Un collegamento <b>↔</b> fa comunicare i piani nei due sensi; <b>→</b> manda le informazioni in un solo senso (il secondo piano legge il primo). Collegando piani di palazzi diversi, i palazzi comunicano tra loro. Spegnilo quando non vuoi che comunichino.</p>
         <div class="links-list" id="links-list"></div>
         <form class="link-form card" id="link-form">
           <select name="from" aria-label="Da piano"></select>
@@ -249,7 +252,7 @@
       <section class="view hidden" id="view-more">
         <header class="page-head"><div><h1>Altro</h1></div></header>
         <div class="more-list">
-          <button class="more-row" data-go="building"><span class="ico">🏗️</span><span class="txt"><b>Palazzo</b><small>Piani, stanze e collegamenti</small></span><span class="chev">›</span></button>
+          <button class="more-row" data-go="building"><span class="ico">🌌</span><span class="txt"><b>Universo</b><small>Palazzi, piani, stanze e collegamenti</small></span><span class="chev">›</span></button>
           <button class="more-row" data-go="portfolio"><span class="ico">💼</span><span class="txt"><b>Portafoglio</b><small>Il portafoglio simulato</small></span><span class="chev">›</span></button>
           <button class="more-row" data-go="broker"><span class="ico">🔌</span><span class="txt"><b>Broker e sicurezza</b><small id="more-broker-state">Conto cTrader, STOP e limiti</small></span><b class="pill hidden" id="more-broker-badge">STOP</b><span class="chev">›</span></button>
           <button class="more-row" data-go="log"><span class="ico">📜</span><span class="txt"><b>Attività</b><small>Tutto quello che fanno gli agenti</small></span><span class="chev">›</span></button>
@@ -365,6 +368,7 @@
       <header class="dlg-head"><h2 id="floor-title">Piano</h2><button type="button" class="btn ghost" data-close>✕</button></header>
       <div class="grid2">
         <label class="span2">Nome del piano <input name="name" required placeholder="es. 2° Piano · Crypto" /></label>
+        <label class="span2">Palazzo <select name="palace"></select></label>
         <label>Settore <input name="sector" placeholder="es. Criptovalute" /></label>
         <label>Livello (0 = piano terra) <input name="level" type="number" step="1" /></label>
         <label class="span2">Descrizione <input name="description" placeholder="Di cosa si occupa questo piano" /></label>
@@ -373,6 +377,25 @@
       <p class="errors" id="floor-errors"></p>
       <footer class="dlg-foot">
         <button type="button" class="btn danger" id="floor-delete">Elimina piano</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn ghost" data-close>Annulla</button>
+        <button type="submit" class="btn primary">Salva</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="palace-dialog">
+    <form id="palace-form" class="dlg-form" method="dialog">
+      <header class="dlg-head"><h2 id="palace-title">Palazzo</h2><button type="button" class="btn ghost" data-close>✕</button></header>
+      <div class="grid2">
+        <label class="span2">Nome del palazzo <input name="name" required maxlength="60" placeholder="es. Palazzo Social" /></label>
+        <label class="span2">Di cosa si occupa <input name="description" maxlength="500" placeholder="es. Segue le tendenze pubbliche su Instagram e TikTok" /></label>
+        <label>Colore <input name="color" type="color" /></label>
+      </div>
+      <p class="hint">Dopo averlo creato, aggiungi i piani e le stanze (o chiedi a Orion: «Crea i piani del Palazzo Social»).</p>
+      <p class="errors" id="palace-errors"></p>
+      <footer class="dlg-foot">
+        <button type="button" class="btn danger" id="palace-delete">Elimina palazzo</button>
         <span class="spacer"></span>
         <button type="button" class="btn ghost" data-close>Annulla</button>
         <button type="submit" class="btn primary">Salva</button>
