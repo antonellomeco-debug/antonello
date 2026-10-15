@@ -171,6 +171,12 @@ export async function startFakeSocial({ port = 0 } = {}) {
       }
       // ---------------- Gemini
       if (host === "generativelanguage.googleapis.com") {
+        if (p === "/v1beta/models") {
+          const k = String(req.headers["x-goog-api-key"] ?? "");
+          if (k.startsWith("AQ.rifiutata")) return json(401, { error: { code: 401, message: "Request had invalid authentication credentials.", status: "UNAUTHENTICATED", details: [{ reason: "ACCESS_TOKEN_TYPE_UNSUPPORTED" }] } });
+          if (!k || k.includes("sbagliata")) return json(400, { error: { code: 400, message: "API key not valid. Please pass a valid API key.", status: "INVALID_ARGUMENT" } });
+          return json(200, { models: [{ name: "models/gemini-2.5-flash-image" }] });
+        }
         const model = p.match(/models\/([^:]+):generateContent/)?.[1];
         if (opts.geminiFirstModel404 && model === "gemini-3.1-flash-image-preview") return json(404, { error: { code: 404, message: `models/${model} is not found`, status: "NOT_FOUND" } });
         if (!req.headers["x-goog-api-key"]) return json(400, { error: { code: 400, message: "API key not valid." } });
