@@ -200,6 +200,34 @@ test("X: foto caricata a pezzi, costo del post (di più con un link), rinnovo de
   await assert.rejects(social.proposePost(agent, { network: "x", text: "x".repeat(281), reason: "x" }), /troppo lungo/);
 });
 
+test("thread: le risposte a un proprio post partono dopo di lui (anche se approvate prima) e non contano nel massimo", async () => {
+  social.setNetworkSettings("x", { auto: false, maxPerDay: 1 });
+  const first = await social.proposePost(agent, { network: "x", text: "Come leggere un grafico in 3 punti 🧵", reason: "thread" });
+  const second = await social.proposePost(agent, { network: "x", text: "1. Guarda la tendenza", reply_to: first.post_id, reason: "thread" });
+  const ap = (r) => getState().approvals.find((x) => x.postId === r.post_id);
+  // Approvata prima la risposta: aspetta il primo post.
+  assert.equal((await social.decidePost(ap(second).id, true)).status, "scheduled");
+  // Il limite di 1 post al giorno su X è già stato usato nella prova di X: si alza per il primo post.
+  social.setNetworkSettings("x", { maxPerDay: 10 });
+  assert.equal((await social.decidePost(ap(first).id, true)).status, "executed");
+  const file = path.join(DATA, "social.json");
+  const saved = JSON.parse(fs.readFileSync(file, "utf8"));
+  saved.posts.find((p) => p.id === second.post_id).publishAt = new Date(Date.now() - 1000).toISOString();
+  fs.writeFileSync(file, JSON.stringify(saved));
+  social._reload();
+  await social.publishDue();
+  const tweets = fake.calls.filter((c) => c.path === "/2/tweets");
+  const parentId = social.statusForAgents().post_recenti.find((p) => p.post_id === first.post_id).id_social;
+  assert.equal(tweets.at(-1).body.reply.in_reply_to_tweet_id, parentId);
+  assert.equal(social.statusForAgents().post_recenti.find((p) => p.post_id === second.post_id).stato, "published");
+  // Le risposte non consumano il massimo dei post del giorno.
+  social.setNetworkSettings("x", { auto: true, maxPerDay: 1 });
+  const r = await social.proposePost(agent, { network: "x", text: "2. Poi i volumi", reply_to: second.post_id, reason: "thread" });
+  assert.equal(r.status, "published");
+  await assert.rejects(social.proposePost(agent, { network: "instagram", text: "x", reply_to: first.post_id, media: [graphic.id], reason: "x" }), /solo per i thread/);
+  social.setNetworkSettings("x", { maxPerDay: 5 });
+});
+
 test("massimo di post al giorno e post a 0 = pubblicazione ferma", async () => {
   social.setNetworkSettings("threads", { auto: true, maxPerDay: 1 });
   await assert.rejects(social.proposePost(agent, { network: "threads", text: "secondo post", reason: "x" }), /limite di 1 post al giorno/);

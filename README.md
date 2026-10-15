@@ -155,6 +155,39 @@ Nella chat il pulsante 🎤 registra un messaggio vocale (➤ lo manda, ✕ lo a
 - **Risposte a voce** (`public/speech.js`): con 🔊 acceso (scelta di ogni dispositivo) le risposte ai messaggi vocali si leggono con le voci italiane del dispositivo (`speechSynthesis`, gratis), a frasi brevi e senza i simboli del formato. Sull'iPhone la voce si sblocca con il tocco su ➤.
 - Test: `test/voice.test.js` con un finto motore (`test/helpers/fake-sherpa.cjs`, variabile `VOICE_ENGINE`) e un finto archivio del modello (`VOICE_MODEL_URL`, `VOICE_MODEL_SHA256`).
 
+## Social: Instagram, Threads, LinkedIn e X
+
+Sezione **📣 Social** dell'app. L'utente crea una volta l'app di sviluppatore di ogni social (guida passo passo dentro la
+sezione), incolla Client ID e Secret e preme **Collega** (OAuth; ritorno su `<indirizzo>/social/callback`, che passa anche
+senza accesso se porta lo `state` appena creato). Instagram e Threads funzionano solo dal server online: vogliono un
+indirizzo https e scaricano foto e video da lì.
+
+- **API usate** (`lib/social/networks.js`): Instagram API con accesso Instagram (account professionale, senza Pagina
+  Facebook; `graph.instagram.com`, contenitore → stato → `media_publish`; foto solo JPEG, feed tra 4:5 e 1,91:1: le foto
+  3:4 dell'iPhone si ritagliano in una copia nascosta), Threads (`graph.threads.net/v1.0`), LinkedIn «Share on LinkedIn»
+  (`/rest/posts`, `/rest/images`, `/rest/videos`; intestazione `LinkedIn-Version` = due mesi fa, con ripiego sui mesi
+  prima; testo «little text» con i simboli protetti; niente statistiche né commenti per i profili personali) e X API v2
+  (OAuth 2 con PKCE, caricamento a pezzi `/2/media/upload/*`; a consumo: 0,015 $ a post, 0,20 $ con un link, 0,005 $ a
+  post letto, sommati alla spesa con `addCost`). Codici d'accesso: X si rinnova ogni 2 ore (il codice di rinnovo cambia e
+  si salva subito), Instagram e Threads prima dei 60 giorni (controllo ogni ora), LinkedIn va ricollegato dopo 60 giorni.
+- **Post** (`lib/social/index.js`, dati in `<dati>/social.json`, file con permessi 600): `social_publish` crea un post
+  `pending` con un'approvazione `kind: "post"` in ✅ Approvazioni; con la pubblicazione **automatica** (si attiva solo
+  dall'interfaccia, per ogni social) parte subito. `publish_at` (ora italiana) → `scheduled`, pubblicato dal giro di ogni
+  30 secondi. Stati: pending, scheduled, publishing, published, failed, rejected, cancelled, uncertain (chiusura o rete
+  persa a metà). Massimo di post al giorno per social (0 = fermo; le risposte hanno un tetto a parte di 30). Thread su X e
+  Threads: `reply_to` = `post_id` di un proprio post, anche non ancora uscito (la risposta aspetta il post precedente).
+- **Archivio** (`lib/social/media.js`, `<dati>/media/`, fuori dalle copie dei dati): caricamento grezzo `POST /api/media`
+  (foto fino a 40 MB → JPEG con `sharp`, anteprima; video MP4/MOV fino a 500 MB così come sono; controllo dello spazio
+  libero), indirizzi pubblici `/m/<codice casuale>.<estensione>` senza accesso (servono a Meta).
+- **Grafiche** (`create_graphic`): SVG scritto dall'agente → JPEG con `sharp`/librsvg nei formati square, portrait, story,
+  landscape; caratteri inclusi in `assets/fonts/` (Montserrat, Inter, Bebas Neue, Playfair Display, licenza OFL) con un
+  `fonts.conf` creato all'avvio; niente script, DOCTYPE, risorse esterne; `media:ID` inserisce una foto dell'archivio.
+  `media_view` manda la foto all'agente come immagine. **Immagini IA** (`generate_image`, `lib/social/imagegen.js`):
+  Gemini con la chiave dell'utente (`geminiKey` in `settings.json`), modelli `gemini-3.1-flash-image-preview` poi
+  `gemini-2.5-flash-image`, circa 0,07 $ a immagine.
+- Test: `test/social.test.js` e `test/social-server.test.js` con il finto server `test/helpers/fake-social.js`
+  (`SOCIAL_API_BASE`, che risponde come i quattro social e Gemini e scarica davvero i file come Meta).
+
 ## Broker cTrader e sicurezza
 
 Il collegamento usa la [cTrader Open API](https://help.ctrader.com/open-api/) (protocollo Protobuf su TLS, porta 5035; accesso OAuth). I passi per l'utente sono nella [guida per Mac](GUIDA-MAC.md#parte-4--collegare-il-broker-ctrader-conto-demo).
@@ -212,6 +245,9 @@ lib/tools.js        strumenti disponibili agli agenti (compresa la ricerca web d
 lib/orchestrator.js il regista con cui parli in chat
 lib/voice.js        messaggi vocali: modello Whisper (scarico, estrazione) e trascrizione
 lib/voice-worker.js processo a parte che trascrive (sherpa-onnx)
+lib/social/         social: accesso e pubblicazione (networks.js), post e approvazioni (index.js),
+                    archivio di foto e video e grafiche (media.js), immagini IA (imagegen.js)
+assets/fonts/       caratteri per le grafiche degli agenti (licenza OFL)
 lib/claude.js       client Claude condiviso, verifica della chiave, errori in italiano
 lib/updater.js      aggiornamento dall'app (spento sul server)
 lib/env.js          modalità Mac o server: indirizzo pubblico, cartella dei dati, password
@@ -225,6 +261,7 @@ lib/settings.js     impostazioni salvate dall'app (data/settings.json)
 lib/paths.js        percorsi del progetto
 public/office3d.js  palazzo 3D (three.js)
 public/recorder.js  registrazione dei messaggi vocali (con pcm-worklet.js); speech.js legge le risposte
+public/social.js    sezione 📣 Social e schede dei post da approvare
 public/             interfaccia
 defaults/           palazzo e agenti di partenza
 strategies/         strategie JavaScript
