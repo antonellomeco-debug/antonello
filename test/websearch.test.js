@@ -83,10 +83,10 @@ test("web_search è uno strumento degli agenti eseguito dai server di Claude", (
   assert.ok(ALL_TOOLS.includes("web_search"));
   assert.deepEqual(validate(newsAgent, office.building().rooms), []);
   const tools = toolsFor(newsAgent);
-  assert.deepEqual(tools.at(-1), { type: "web_search_20250305", name: "web_search", max_uses: 5 });
+  assert.deepEqual(tools.at(-1), { type: "web_search_20250305", name: "web_search", max_uses: 3 });
   assert.equal(tools.find((t) => t.name === "web_search").input_schema, undefined); // niente schema: lo definisce Anthropic
   assert.equal(toolsFor(normalize({ id: "x", room: "ricerca", tools: ["post_note"] })).some((t) => t.name === "web_search"), false);
-  assert.deepEqual(WEB_SEARCH_TOOL, { type: "web_search_20250305", name: "web_search", max_uses: 5 });
+  assert.deepEqual(WEB_SEARCH_TOOL, { type: "web_search_20250305", name: "web_search", max_uses: 3 });
 });
 
 test("agente: dopo pause_turn riprende rimandando la conversazione così com'è", async () => {

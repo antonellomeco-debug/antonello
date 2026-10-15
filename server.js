@@ -7,7 +7,7 @@ import { office } from "./lib/office.js";
 import { PUBLIC_DIR, STRATEGIES_DIR, ROOT } from "./lib/paths.js";
 import path from "node:path";
 import { runAgent, isRunning } from "./lib/runner.js";
-import { getState, resetState, bus, log, persistNow, persist } from "./lib/store.js";
+import { getState, resetState, bus, log, persistNow, persist, costScope } from "./lib/store.js";
 import { portfolioValue, decide, monitorAccounts, settleInFlight, closeAgentPositionsEverywhere, stopNewOrders, recoverInterruptedApprovals } from "./lib/broker.js";
 import * as ctrader from "./lib/ctrader/service.js";
 import { codeFromInput } from "./lib/ctrader/oauth.js";
@@ -25,6 +25,7 @@ import { securityHeaders, failClosed, hostCheck, originCheck } from "./lib/guard
 import * as auth from "./lib/auth.js";
 import { exportZip, importZip, backupFileName, confirmImportWorked } from "./lib/backup.js";
 import * as voice from "./lib/voice.js";
+import * as costs from "./lib/costs.js";
 import * as social from "./lib/social/index.js";
 import * as media from "./lib/social/media.js";
 import { setGeminiKey } from "./lib/social/imagegen.js";
@@ -210,6 +211,8 @@ app.get("/api/stats", (_req, res) => {
     stop: safety.isStopped(),
     broker: ctrader.isReady() ? (office.building().floors.some((f) => f.trading?.mode === "ctrader") ? "in uso" : "collegato") : "no",
     costUsd: st.usage.costUsd,
+    costMonth: costs.monthSpend().total,
+    budget: costs.costReport([], office.building()).budget,
     tokens: st.usage.inputTokens + st.usage.outputTokens,
     schedule: (({ enabled, working, resume }) => ({ enabled, working, resume }))(scheduleStatus()),
   });
@@ -377,6 +380,16 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 app.post("/api/chat/reset", handle(() => resetChat()));
+app.get("/api/costs", (_req, res) => res.json(costs.costReport(office.agents(), office.building())));
+app.put("/api/costs/budget", handle((req) => {
+  costs.setBudgets(req.body ?? {});
+  return costs.costReport(office.agents(), office.building());
+}));
+app.put("/api/costs/pace", handle((req) => {
+  costs.setPalacePace(String(req.body?.palace ?? ""), String(req.body?.pace ?? ""), office.building());
+  bus.emit("event", { type: "stats" });
+  return costs.costReport(office.agents(), office.building());
+}));
 app.get("/api/orion", (_req, res) => res.json({ speed: getSpeed(), speeds: Object.keys(SPEEDS) }));
 app.put("/api/orion", handle((req) => setSpeed(String(req.body?.speed ?? ""))));
 
@@ -616,16 +629,37 @@ function schedulerTick() {
     wasWorking = working;
   }
   if (!working) return;
+  const building = office.building();
+  const month = costs.monthSpend(); // una volta per giro: serve per i budget
   for (const agent of office.agents()) {
     if (isUpdating() || safety.isStopped()) return;
     if (!agent.enabled || !(agent.everyMinutes > 0) || isRunning(agent.id)) continue;
     const prev = lastRun.has(agent.id) ? Date.parse(lastRun.get(agent.id)) : 0;
-    // Almeno ogni 5 minuti anche per agenti salvati prima del limite o arrivati da una copia importata.
-    if (now - prev >= Math.max(5, agent.everyMinutes) * 60_000) {
-      markRun(agent.id);
-      runAgent(agent, office.building()).catch(() => {});
+    // Almeno ogni 5 minuti anche per agenti salvati prima del limite o arrivati da una copia importata; il ritmo del
+    // palazzo (💰 Spesa) può allungare l'intervallo.
+    if (now - prev < costs.effectiveEvery(agent, building) * 60_000) continue;
+    const blocked = costs.scheduleBlock(agent, building, month);
+    if (blocked) {
+      noteBlocked(agent, building, blocked);
+      continue;
     }
+    markRun(agent.id);
+    // "Solo con novità": se nessuno ha scritto niente di nuovo nelle stanze che legge, salta questo giro (gratis).
+    if (agent.onlyOnNews && prev && !costs.hasNews(agent, building, prev)) continue;
+    runAgent(agent, building).catch(() => {});
   }
+}
+
+/** Un avviso al giorno per palazzo quando gli agenti non partono per un budget raggiunto. */
+const blockedNoted = new Map();
+function noteBlocked(agent, building, reason) {
+  if (reason === "palazzo in pausa") return;
+  const key = `${costs.palaceOfAgent(agent, building)}|${reason.split(" (")[0]}`;
+  const today = romeParts().date;
+  if (blockedNoted.get(key) === today) return;
+  blockedNoted.set(key, today);
+  const palace = building.palaces.find((p) => p.id === costs.palaceOfAgent(agent, building))?.name ?? "palazzo";
+  log("spesa", "warn", `${palace}: ${reason}. Gli agenti programmati sono fermi fino al mese prossimo (o finché alzi il budget in 💰 Spesa).`);
 }
 setInterval(() => {
   // Un errore in un giro (es. dati rovinati) si scrive nel registro e non ferma il programma.
@@ -736,7 +770,7 @@ setInterval(async () => {
   if (shuttingDown || publishing) return;
   publishing = true;
   try {
-    await social.publishDue();
+    await costScope.run({ kind: "social" }, () => social.publishDue());
   } catch (err) {
     log("social", "error", `Post programmati: ${err.message}`);
   } finally {

@@ -35,6 +35,7 @@
       <button class="nav" data-view="notes" title="Bacheca"><span>📝</span><em>Bacheca</em></button>
       <button class="nav desktop-only" data-view="portfolio" title="Portafoglio"><span>💼</span><em>Portafoglio</em></button>
       <button class="nav desktop-only" data-view="social" title="Social: account, archivio foto e video, post"><span>📣</span><em>Social</em><b class="badge hidden" id="badge-social">!</b></button>
+      <button class="nav desktop-only" data-view="costs" title="Spesa: quanto costano palazzi e agenti, budget e risparmio"><span>💰</span><em>Spesa</em><b class="badge hidden" id="badge-costs">!</b></button>
       <button class="nav desktop-only" data-view="broker" title="Broker e sicurezza"><span>🔌</span><em>Broker</em><b class="badge hidden" id="badge-broker">!</b></button>
       <button class="nav desktop-only" data-view="log" title="Attività"><span>📜</span><em>Attività</em></button>
       <button class="nav settings-nav desktop-only" id="open-settings" title="Impostazioni"><span>⚙️</span><em>Impostazioni</em><b class="badge hidden" id="badge-settings">!</b></button>
@@ -138,6 +139,18 @@
           <button class="btn danger" id="reset-btn">Azzera tutto</button>
         </header>
         <div id="portfolio-body"></div>
+      </section>
+
+      <!-- SPESA -->
+      <section class="view hidden" id="view-costs">
+        <button class="btn ghost back-btn mobile-only" data-go="more">‹ Altro</button>
+        <header class="page-head">
+          <div>
+            <h1>💰 Spesa</h1>
+            <p class="sub">Quanto costano Orion, i palazzi e i singoli agenti questo mese (stima dai consumi di Claude, ricerche web, immagini e post su X). Qui scegli i budget e il ritmo di ogni palazzo.</p>
+          </div>
+        </header>
+        <div id="costs-body"><p class="hint">Carico…</p></div>
       </section>
 
       <!-- SOCIAL -->
@@ -280,6 +293,7 @@
         <div class="more-list">
           <button class="more-row" data-go="building"><span class="ico">🌌</span><span class="txt"><b>Universo</b><small>Palazzi, piani, stanze e collegamenti</small></span><span class="chev">›</span></button>
           <button class="more-row" data-go="portfolio"><span class="ico">💼</span><span class="txt"><b>Portafoglio</b><small>Il portafoglio simulato</small></span><span class="chev">›</span></button>
+          <button class="more-row" data-go="costs"><span class="ico">💰</span><span class="txt"><b>Spesa</b><small id="more-costs-state">Quanto costano palazzi e agenti, budget</small></span><b class="pill hidden" id="more-costs-badge">!</b><span class="chev">›</span></button>
           <button class="more-row" data-go="social"><span class="ico">📣</span><span class="txt"><b>Social</b><small id="more-social-state">Instagram, Threads, LinkedIn, X · foto e video</small></span><b class="pill hidden" id="more-social-badge">!</b><span class="chev">›</span></button>
           <button class="more-row" data-go="broker"><span class="ico">🔌</span><span class="txt"><b>Broker e sicurezza</b><small id="more-broker-state">Conto cTrader, STOP e limiti</small></span><b class="pill hidden" id="more-broker-badge">STOP</b><span class="chev">›</span></button>
           <button class="more-row" data-go="log"><span class="ico">📜</span><span class="txt"><b>Attività</b><small>Tutto quello che fanno gli agenti</small></span><span class="chev">›</span></button>
@@ -370,6 +384,7 @@
           <label class="inline"><input type="checkbox" name="onlyWatchlist" /> Solo watchlist</label>
         </div>
         <label class="inline"><input type="checkbox" name="enabled" /> Attivo (lo scheduler lo esegue)</label>
+        <label class="inline"><input type="checkbox" name="onlyOnNews" /> Solo con novità: quando tocca a lui lavora solo se nelle stanze che legge c'è qualcosa di nuovo (risparmia)</label>
       </fieldset>
 
       <fieldset>
