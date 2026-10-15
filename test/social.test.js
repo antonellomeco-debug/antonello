@@ -114,6 +114,9 @@ test("grafiche disegnate dagli agenti: SVG → JPEG nel formato giusto, con foto
     `<!DOCTYPE svg [<!ENTITY x SYSTEM "file:///etc/passwd">]><svg/>`,
     `<svg xmlns="http://www.w3.org/2000/svg" onload="x()"/>`,
     `<svg xmlns="http://www.w3.org/2000/svg"><style>@import url(https://e.com/a.css);</style></svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg"><text>href="#</text><image href="file:///etc/passwd"/></svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg"><style>rect{fill:u\\72l(x)}</style></svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg"><image href=file:///etc/passwd /></svg>`,
   ]) {
     await assert.rejects(media.createGraphic({ svg, format: "square" }), /svg/, svg);
   }
@@ -128,7 +131,12 @@ test("Instagram: post proposto → approvazione → pubblicato (foto 3:4 ritagli
   assert.equal(a.status, "pending");
   assert.equal(a.post.media[0].id, photo.id);
   fake.fetched.length = 0;
-  const done = await social.decidePost(a.id, true);
+  const started = await social.decidePost(a.id, true);
+  assert.equal(started.status, "executing", "l'approvazione risponde subito, la pubblicazione continua in sottofondo");
+  await assert.rejects(social.decidePost(a.id, false), /già decisa/, "non si può più scartare un post che sta partendo");
+  assert.throws(() => social.cancelPost(r.post_id), /solo i post in attesa/);
+  await social.whenIdle();
+  const done = getState().approvals.find((x) => x.id === a.id);
   assert.equal(done.status, "executed", JSON.stringify(done));
   assert.match(done.post.url, /^https:\/\/www\.instagram\.com\/p\//);
   assert.equal(fake.fetched.length, 1);
@@ -209,7 +217,9 @@ test("thread: le risposte a un proprio post partono dopo di lui (anche se approv
   assert.equal((await social.decidePost(ap(second).id, true)).status, "scheduled");
   // Il limite di 1 post al giorno su X è già stato usato nella prova di X: si alza per il primo post.
   social.setNetworkSettings("x", { maxPerDay: 10 });
-  assert.equal((await social.decidePost(ap(first).id, true)).status, "executed");
+  await social.decidePost(ap(first).id, true);
+  await social.whenIdle();
+  assert.equal(ap(first).status, "executed");
   const file = path.join(DATA, "social.json");
   const saved = JSON.parse(fs.readFileSync(file, "utf8"));
   saved.posts.find((p) => p.id === second.post_id).publishAt = new Date(Date.now() - 1000).toISOString();
@@ -226,6 +236,30 @@ test("thread: le risposte a un proprio post partono dopo di lui (anche se approv
   assert.equal(r.status, "published");
   await assert.rejects(social.proposePost(agent, { network: "instagram", text: "x", reply_to: first.post_id, media: [graphic.id], reason: "x" }), /solo per i thread/);
   social.setNetworkSettings("x", { maxPerDay: 5 });
+});
+
+test("due approvazioni insieme non superano il massimo del giorno; id e date non validi rifiutati", async () => {
+  social.setNetworkSettings("linkedin", { auto: false, maxPerDay: 10 });
+  if (!social.socialStatus().networks.find((n) => n.id === "linkedin").account) await connect("linkedin");
+  const today = social.socialStatus().networks.find((n) => n.id === "linkedin").today;
+  social.setNetworkSettings("linkedin", { maxPerDay: today + 1 });
+  const a1 = await social.proposePost(agent, { network: "linkedin", text: "Uno", reason: "x" });
+  const a2 = await social.proposePost(agent, { network: "linkedin", text: "Due", reason: "x" });
+  const ids = [a1, a2].map((r) => getState().approvals.find((x) => x.postId === r.post_id).id);
+  await Promise.all(ids.map((id) => social.decidePost(id, true)));
+  await social.whenIdle();
+  const st = ids.map((id) => getState().approvals.find((x) => x.id === id).status).sort();
+  assert.deepEqual(st, ["executed", "failed"]);
+  social.setNetworkSettings("linkedin", { auto: false, maxPerDay: 2 });
+  await assert.rejects(social.proposePost(agent, { network: "threads", text: "x", reply_to: "123?method=delete#", reason: "x" }), /id non valido/);
+  await assert.rejects(social.comments("instagram", "1/../me"), /id non valido/);
+  assert.throws(() => social.parseRomeTime("2026-02-30 10:00"), /non è una data e ora valida/);
+  assert.throws(() => social.parseRomeTime("2026-10-16 25:00"), /non è una data e ora valida/);
+  const { xLength } = await import("../lib/social/networks.js");
+  assert.equal(xLength("ciao"), 4);
+  assert.equal(xLength("🚀👍🏽👨‍👩‍👧"), 6);
+  assert.equal(xLength("vedi https://example.com/un/link/lunghissimo/davvero"), 28);
+  await assert.rejects(social.proposePost(agent, { network: "x", text: "🚀".repeat(141), reason: "x" }), /come li conta X/);
 });
 
 test("massimo di post al giorno e post a 0 = pubblicazione ferma", async () => {

@@ -159,7 +159,7 @@ export function postMediaStrip(list = []) {
 }
 
 function postCard(p) {
-  const canCancel = p.status === "scheduled" || (p.status === "pending" && !p.approvalId);
+  const canCancel = p.status === "scheduled" || p.status === "pending";
   return `<article class="card post-card ${p.status === "published" ? "decided" : ""}">
     <div class="kicker"><span>${NET_ICON[p.network] ?? ""} ${esc(NET_LABEL[p.network] ?? p.network)}</span><span class="meta">· ${esc(p.agentName ?? "")} · ${when(p.at)}</span></div>
     <p class="post-text">${esc(p.text) || "<i>(senza testo)</i>"}</p>
