@@ -400,6 +400,37 @@ dialog.small-dlg { width: min(480px, 94vw); }
 @media (hover: hover) { .more-row:hover { border-color: var(--accent); } }
 
 /* ---------- responsive ---------- */
+/* ---------- 📣 Social ---------- */
+.section-title { font-size: 15px; margin: 22px 0 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.social-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 12px; max-width: 1100px; }
+.social-card { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.social-card h3, .social-ai h3 { margin: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.social-card .net-ico { font-size: 20px; }
+.social-state { margin-left: auto; display: inline-flex; gap: 6px; align-items: center; font-size: 13px; font-weight: 400; }
+.social-card input, .social-ai input { min-width: 0; max-width: 100%; }
+.social-card .grid2 > label, .social-ai .grid2 > label { min-width: 0; }
+.row-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; }
+.social-settings { display: grid; grid-template-columns: 1fr auto; gap: 8px 10px; align-items: end; border-top: 1px solid var(--border); padding-top: 10px; }
+.social-settings label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.social-settings input[type="number"] { width: 90px; }
+.social-settings .meta { grid-column: 1 / -1; margin: 0; }
+.warn-text { color: var(--warn); }
+.social-ai { max-width: 1100px; margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+.social-ai .sub { margin: 0; }
+.media-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+.media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 12px; max-width: 1100px; margin-top: 10px; }
+.media-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+.media-card img, .media-card video { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; display: block; background: var(--surface-2); }
+.media-body { padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+.media-body .media-title { font-weight: 600; }
+.media-body textarea { resize: vertical; min-height: 44px; }
+.media-body .meta { margin: 0; font-size: 11px; }
+.media-body .btn { align-self: flex-start; }
+.post-text { white-space: pre-wrap; word-break: break-word; margin: 6px 0; }
+.post-media { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.post-media img, .post-media video { height: 120px; width: auto; max-width: 200px; border-radius: 8px; object-fit: cover; background: var(--surface-2); display: block; }
+.post-card .post-text { max-height: 12em; overflow: auto; }
+
 @media (max-width: 1180px) {
   .app { grid-template-columns: 76px 1fr 320px; }
   .stats { grid-template-columns: repeat(3, auto); }
@@ -547,6 +578,8 @@ dialog.small-dlg { width: min(480px, 94vw); }
   .link-form select, .link-form .btn { flex: 1 1 100%; }
   .copy-row code { flex: 1 1 100%; }
   label { font-size: 13px; }
+  .social-settings { grid-template-columns: 1fr; }
+  .media-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .stats, .elevator, .pnl-card, .roster { backdrop-filter: none; }
 }
 
@@ -577,3 +610,4 @@ dialog.small-dlg { width: min(480px, 94vw); }
   .agent-label { padding: 6px 12px 6px 6px; font-size: 13px; }
   .agent-label .av { width: 26px; height: 26px; font-size: 15px; }
 }
+.media-head .meta, #media-progress .meta, .media-body .meta { color: var(--muted); font-size: 12px; }

@@ -3,6 +3,7 @@
 import { Office3D } from "./office3d.js";
 import { VoiceRecorder, recordingSupported, micErrorText, MAX_SECONDS } from "./recorder.js";
 import * as speech from "./speech.js";
+import { initSocial, loadSocial, renderSocial, renderPostApproval } from "./social.js";
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -26,7 +27,7 @@ const voice = { status: null, rec: null, sending: false, speakTurn: false };
 const phoneMQ = matchMedia("(max-width: 860px)");
 const touchMQ = matchMedia("(hover: none) and (pointer: coarse)");
 // Sezioni che sul telefono stanno dentro "Altro".
-const MORE_VIEWS = ["building", "portfolio", "broker", "log"];
+const MORE_VIEWS = ["building", "social", "portfolio", "broker", "log"];
 
 // ---------- utilità sul palazzo ----------
 const B = () => state.office.building;
@@ -343,6 +344,7 @@ function showView(view) {
   renderView();
   syncOffice3d();
   if (view === "broker") loadBrokerAccounts();
+  if (view === "social") loadSocial().then(() => state.view === "social" && renderSocial(), () => {});
   if (view === "chat") $("#chat-body").scrollTop = $("#chat-body").scrollHeight;
   else if (phoneMQ.matches && document.activeElement?.closest(".chat-form")) document.activeElement.blur(); // chiude la tastiera
 }
@@ -374,6 +376,7 @@ function renderView() {
   else if (state.view === "log") renderLog();
   else if (state.view === "portfolio") renderPortfolio();
   else if (state.view === "broker") renderBroker();
+  else if (state.view === "social") renderSocial();
 }
 
 // ---------- ufficio ----------
@@ -727,12 +730,13 @@ roomDlg.querySelectorAll("[data-close]").forEach((b) => (b.onclick = () => roomD
 function renderApprovals() {
   const list = state.approvals;
   if (!list.length) {
-    $("#approvals-list").innerHTML = `<p class="empty">Nessuna proposta. Quando un agente vuole comprare o vendere, la trovi qui.</p>`;
+    $("#approvals-list").innerHTML = `<p class="empty">Nessuna proposta. Quando un agente vuole comprare, vendere o pubblicare un post, la trovi qui.</p>`;
     return;
   }
-  const label = { pending: "", executed: "✔ Eseguito", rejected: "Scartato", failed: "✖ Non eseguito", executing: "In esecuzione…", uncertain: "⚠️ Esito incerto" };
+  const label = { pending: "", executed: "✔ Eseguito", rejected: "Scartato", failed: "✖ Non eseguito", executing: "In esecuzione…", uncertain: "⚠️ Esito incerto", scheduled: "🕒 Programmato" };
   $("#approvals-list").innerHTML = list
     .map((a) => {
+      if (a.kind === "post") return renderPostApproval(a, label);
       const o = a.order;
       const pending = a.status === "pending";
       const t = a.target;
@@ -2089,6 +2093,10 @@ function handleEvent(ev) {
         if (state.view === "broker") loadBrokerAccounts();
       }
       break;
+    case "social":
+      if (state.view === "social") loadSocial().then(() => state.view === "social" && renderSocial(), () => {});
+      refreshSocialBadge();
+      break;
     case "broker":
     case "safety":
       loadBroker();
@@ -2160,10 +2168,31 @@ async function start() {
   syncRoster();
   connectEvents();
   await loadAll();
-  if (location.hash === "#broker") {
-    showView("broker");
+  if (location.hash === "#broker" || location.hash === "#social") {
+    showView(location.hash.slice(1));
     history.replaceState(null, "", location.pathname);
   }
+  refreshSocialBadge();
+}
+initSocial(api);
+/** Avviso "!" su 📣 Social quando un accesso è scaduto o sta per scadere. */
+let socialBadgeTimer = null;
+function refreshSocialBadge() {
+  clearTimeout(socialBadgeTimer);
+  socialBadgeTimer = setTimeout(async () => {
+    try {
+      const st = await loadSocial();
+      const bad = st.networks.filter((n) => n.account && (n.account.expired || n.account.expiresSoon || n.account.problem));
+      $("#badge-social").classList.toggle("hidden", !bad.length);
+      $("#more-social-badge").classList.toggle("hidden", !bad.length);
+      const linked = st.networks.filter((n) => n.account).map((n) => n.label);
+      $("#more-social-state").textContent = bad.length
+        ? `Da ricollegare: ${bad.map((n) => n.label).join(", ")}`
+        : linked.length ? `Collegati: ${linked.join(", ")}` : "Instagram, Threads, LinkedIn, X · foto e video";
+    } catch {
+      // nessuna risposta: si riprova al prossimo evento
+    }
+  }, 300);
 }
 start();
 setInterval(refreshPortfolio, 60_000);
