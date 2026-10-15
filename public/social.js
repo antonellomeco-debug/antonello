@@ -123,9 +123,10 @@ function aiCard(st) {
     <p class="sub">Senza chiave gli agenti disegnano lo stesso le grafiche (testi, caroselli, copertine) e usano le tue foto. Con la chiave di <b>Gemini</b> di Google possono anche creare immagini nuove (circa 0,07 $ l'una, sommati alla spesa nell'app).</p>
     <details class="howto"><summary>Come si fa</summary><ol>
       <li>Apri <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> ed entra con il tuo account Google.</li>
-      <li>Premi <b>Crea chiave API</b> (Create API key) e copiala.</li>
+      <li>Premi <b>Crea chiave API</b> (Create API key) e copiala tutta con il pulsante <b>Copia</b> (inizia con «AQ.» oppure con «AIza»).</li>
       <li>Le immagini non sono nel piano gratuito: in AI Studio apri <b>Billing</b> (Fatturazione) e collega una carta. Puoi mettere un tetto di spesa nella console Google Cloud.</li>
-      <li>Incolla la chiave qui sotto e premi Salva.</li>
+      <li>Incolla la chiave qui sotto e premi Salva: l'app la prova subito con Google e ti dice se funziona.</li>
+      <li>Se Google rifiuta una chiave «AQ.», creane una classica: <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">console.cloud.google.com/apis/credentials</a> → <b>Crea credenziali</b> → <b>Chiave API</b>, nello stesso progetto (con «Generative Language API» attiva).</li>
     </ol></details>
     <form class="grid2" id="ai-form" autocomplete="off">
       <label>Chiave di Gemini <input name="key" type="password" spellcheck="false" autocomplete="off" placeholder="${ai.configured ? "già salvata (scrivi per cambiarla)" : "AIza…"}" /></label>
@@ -374,9 +375,18 @@ function bindEvents() {
       renderSocial();
     } else if (f.id === "ai-form") {
       if (!f.key.value.trim()) return;
-      status = await api("/api/social/ai", { method: "PUT", body: JSON.stringify({ key: f.key.value }) });
+      const btn = f.querySelector("button[type=submit]");
+      btn.disabled = true;
+      btn.textContent = "Provo la chiave…";
+      try {
+        status = await api("/api/social/ai", { method: "PUT", body: JSON.stringify({ key: f.key.value }) });
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Salva";
+      }
       document.activeElement?.blur();
       renderSocial();
+      alert(status.aiNote ? `Chiave salvata. ${status.aiNote}` : "✔ Chiave salvata e provata con Google: le immagini con l'IA sono attive.");
     }
   }));
   view.addEventListener("change", act(async (e) => {

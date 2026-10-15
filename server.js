@@ -422,10 +422,14 @@ const netParam = (req) => {
   return net;
 };
 app.get("/api/social", (_req, res) => res.json(social.socialStatus()));
-app.put("/api/social/ai", handle((req) => {
-  setGeminiKey(req.body?.key);
-  return social.socialStatus();
-}));
+app.put("/api/social/ai", async (req, res) => {
+  try {
+    const r = await setGeminiKey(req.body?.key);
+    res.json({ ...social.socialStatus(), aiNote: r.note ?? null });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
 app.put("/api/social/:net/app", handle((req) => social.setApp(netParam(req), req.body ?? {})));
 app.post("/api/social/:net/auth", handle((req) => social.startAuth(netParam(req))));
 app.post("/api/social/:net/unlink", handle((req) => social.disconnect(netParam(req))));

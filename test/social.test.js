@@ -342,8 +342,12 @@ test("proposta su un social non collegato, scollegamento, stato per gli agenti",
 
 test("immagini con l'IA (Gemini): chiave, modello di riserva, costo, rifiuto", async () => {
   await assert.rejects(generateImage({ prompt: "una tazza di caffè", format: "square" }), /chiave di Gemini/);
-  assert.throws(() => setGeminiKey("corta"), /non sembra giusta/);
-  assert.equal(setGeminiKey("AIzaSyA-chiave-di-prova-1234567890").configured, true);
+  await assert.rejects(setGeminiKey("corta"), /non sembra giusta/);
+  await assert.rejects(setGeminiKey("AIzaSyA-chiave-sbagliata-1234567890"), /non è valida/);
+  await assert.rejects(setGeminiKey("AQ.rifiutata-Ab8RN6chiave-nuova_1234567890"), /non accetta ancora questo tipo di chiave/);
+  // Le chiavi nuove di AI Studio iniziano con «AQ.» e hanno un punto; spazi e a capo copiati per sbaglio si tolgono.
+  assert.equal((await setGeminiKey(" AQ.Ab8RN6LnuovaChiave-di_prova.1234567890\n")).configured, true);
+  assert.equal((await setGeminiKey("AIzaSyA-chiave-di-prova-1234567890")).configured, true);
   const img = await generateImage({ prompt: "una tazza di caffè su un tavolo di legno, luce del mattino", format: "portrait", reference: [photo.id], by: "Grafico" });
   assert.equal(img.model, "gemini-2.5-flash-image", "il primo modello non c'è: si usa il successivo");
   assert.equal(img.origin, "ai");
