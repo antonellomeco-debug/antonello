@@ -653,3 +653,7 @@ dialog.small-dlg { width: min(480px, 94vw); }
 #costs-all { margin-top: 8px; }
 .share-steps { margin: 6px 0; padding-left: 20px; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .share-steps b { color: var(--text); }
+.requests { margin-bottom: 14px; }
+.requests .section-title { margin-top: 0; }
+.request-card { border-color: #6f7dff66; }
+.request-card textarea { width: 100%; resize: vertical; margin-top: 6px; }

@@ -149,8 +149,13 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   `navigator.share` con i file; per Instagram solo i file) e **Fatto** (= approvazione → `published`, «Pubblicato da te»).
   Strade aperte se servirà l'automatico: un familiare crea l'app Meta e aggiunge l'utente come tester, oppure un servizio
   intermediario a pagamento.
-- L'utente ha la pagina «Palazzo Social» (artifact claude.ai) con 7 messaggi per Orion: palazzo con 4 piani
-  (Instagram, LinkedIn, Threads, X), 5 stanze per piano (Direzione, Trend, Studio, Redazione, Analisi), 29 agenti.
+- L'utente ha la pagina «Palazzo Social» (artifact claude.ai) con 8 messaggi per Orion: palazzo con 4 piani
+  (Instagram, LinkedIn, Threads, X), 5 stanze per piano (Direzione, Trend, Studio, Redazione, Analisi), 29 agenti; il
+  messaggio 8 aggiunge un «Brand Manager» per piano (KIT PROFILO: bio, info, copertine; domande all'utente con RICHIESTA).
+- **Domande degli agenti** (16 ottobre 2026): `postNote` con etichetta RICHIESTA (o testo «RICHIESTA PER L'UTENTE») crea
+  `state.requests`; in cima ad ✅ Approvazioni l'utente risponde (con 📎 allegato nell'archivio) → `answerRequest` scrive
+  la nota «RISPOSTA DELL'UTENTE» nella stanza dell'agente (`agentId: "utente"`). Contano nel numerino di Approvazioni.
+  Grafiche: formati `banner_x` 1500×500 e `banner_linkedin` 1584×396. Test: `test/requests.test.js`.
 
 ## Spesa e risparmio (15 ottobre 2026)
 

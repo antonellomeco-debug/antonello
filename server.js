@@ -7,7 +7,7 @@ import { office } from "./lib/office.js";
 import { PUBLIC_DIR, STRATEGIES_DIR, ROOT } from "./lib/paths.js";
 import path from "node:path";
 import { runAgent, isRunning } from "./lib/runner.js";
-import { getState, resetState, bus, log, persistNow, persist, costScope } from "./lib/store.js";
+import { getState, resetState, bus, log, persistNow, persist, costScope, answerRequest } from "./lib/store.js";
 import { portfolioValue, decide, monitorAccounts, settleInFlight, closeAgentPositionsEverywhere, stopNewOrders, recoverInterruptedApprovals } from "./lib/broker.js";
 import * as ctrader from "./lib/ctrader/service.js";
 import { codeFromInput } from "./lib/ctrader/oauth.js";
@@ -207,7 +207,7 @@ app.get("/api/stats", (_req, res) => {
     notes: notes.length,
     trades: st.portfolio.trades.length,
     brokerTrades: (st.brokerTrades ?? []).length,
-    pending: st.approvals.filter((a) => a.status === "pending").length,
+    pending: st.approvals.filter((a) => a.status === "pending").length + (st.requests ?? []).filter((r) => r.status === "open").length,
     stop: safety.isStopped(),
     broker: ctrader.isReady() ? (office.building().floors.some((f) => f.trading?.mode === "ctrader") ? "in uso" : "collegato") : "no",
     costUsd: st.usage.costUsd,
@@ -227,6 +227,21 @@ app.put("/api/schedule", handle((req) => {
 }));
 
 app.get("/api/approvals", (_req, res) => res.json(getState().approvals.slice().reverse()));
+// Domande degli agenti all'utente (note RICHIESTA): aperte e le ultime chiuse.
+app.get("/api/requests", (_req, res) => {
+  const all = (getState().requests ?? []).slice().reverse();
+  res.json([...all.filter((r) => r.status === "open"), ...all.filter((r) => r.status !== "open").slice(0, 10)]);
+});
+app.post("/api/requests/:id/answer", handle((req) => {
+  const r = answerRequest(req.params.id, req.body?.text);
+  bus.emit("event", { type: "stats" });
+  return r;
+}));
+app.post("/api/requests/:id/dismiss", handle((req) => {
+  const r = answerRequest(req.params.id, "", { dismiss: true });
+  bus.emit("event", { type: "stats" });
+  return r;
+}));
 app.post("/api/approvals/:id", async (req, res) => {
   try {
     const a = getState().approvals.find((x) => x.id === req.params.id);
