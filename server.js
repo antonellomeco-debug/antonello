@@ -25,6 +25,11 @@ import { securityHeaders, failClosed, hostCheck, originCheck } from "./lib/guard
 import * as auth from "./lib/auth.js";
 import { exportZip, importZip, backupFileName, confirmImportWorked } from "./lib/backup.js";
 import * as voice from "./lib/voice.js";
+import * as social from "./lib/social/index.js";
+import * as media from "./lib/social/media.js";
+import { setGeminiKey } from "./lib/social/imagegen.js";
+import crypto from "node:crypto";
+import { pipeline } from "node:stream/promises";
 
 const STARTED_AT = new Date().toISOString();
 const URL_APP = PUBLIC_URL ?? `http://localhost:${PORT}`;
@@ -56,9 +61,24 @@ app.get("/login", (req, res) => {
   if (auth.isLoggedIn(req)) return res.redirect(302, auth.safeNext(req.query.next));
   res.sendFile(path.join(PUBLIC_DIR, "login.html"), (err) => err && !res.headersSent && res.status(404).send("Pagina di accesso non trovata."));
 });
-// Il ritorno da cTrader è permesso anche senza accesso se porta lo "state" dell'ultimo «Collega cTrader»:
+// File dell'archivio per i social: Instagram e Threads li scaricano da qui, senza accesso. L'indirizzo contiene un
+// codice casuale lungo (impossibile da indovinare); senza quel codice la risposta è "non trovato".
+app.get("/m/:name", (req, res) => {
+  const f = /^[A-Za-z0-9_-]{20,40}(-t\.jpg|\.[a-z0-9]{2,4})$/.test(req.params.name) ? media.fileForPublicName(req.params.name) : null;
+  if (!f) return res.status(404).type("text/plain").send("Non trovato");
+  res.set({ "Cache-Control": "private, max-age=86400", "X-Robots-Tag": "noindex" });
+  res.type(f.mime);
+  res.sendFile(f.file, (err) => err && !res.headersSent && res.status(404).end());
+});
+
+// Il ritorno da cTrader (o da un social) è permesso anche senza accesso se porta lo "state" dell'ultimo «Collega»:
 // sull'iPhone l'app sulla schermata Home e Safari non condividono i cookie.
-app.use(auth.requireSession({ allow: (req) => req.method === "GET" && req.path === "/ctrader/callback" && ctrader.pendingStateMatches(String(req.query.state ?? "")) }));
+app.use(auth.requireSession({
+  allow: (req) =>
+    req.method === "GET" &&
+    ((req.path === "/ctrader/callback" && ctrader.pendingStateMatches(String(req.query.state ?? ""))) ||
+      (req.path === "/social/callback" && social.pendingStateMatches(String(req.query.state ?? "")))),
+}));
 
 app.use(express.json({ limit: "1mb" }));
 // sw.js (app installabile sul telefono) va sempre ricontrollato, così le nuove versioni arrivano subito.
@@ -206,7 +226,8 @@ app.put("/api/schedule", handle((req) => {
 app.get("/api/approvals", (_req, res) => res.json(getState().approvals.slice().reverse()));
 app.post("/api/approvals/:id", async (req, res) => {
   try {
-    res.json(await decide(req.params.id, Boolean(req.body?.approve)));
+    const a = getState().approvals.find((x) => x.id === req.params.id);
+    res.json(a?.kind === "post" ? await social.decidePost(req.params.id, Boolean(req.body?.approve)) : await decide(req.params.id, Boolean(req.body?.approve)));
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
@@ -360,6 +381,87 @@ app.post("/api/chat/reset", handle(() => resetChat()));
 // ---------- messaggi vocali ----------
 // L'app registra la voce e manda un WAV (16 kHz, un canale); il server lo trascrive (lib/voice.js) e lo passa a
 // Orion come un messaggio scritto. La prima volta si scarica il riconoscimento della voce (circa 560 MB).
+// ---------- social (📣 Social) ----------
+const socialPage = (title, text, ok) =>
+  `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title><body style="font-family:system-ui;background:#0f1420;color:#e8ecf4;display:grid;place-items:center;min-height:100vh;margin:0;padding:16px;box-sizing:border-box">` +
+  `<div style="max-width:520px;text-align:center"><h1>${ok ? "✅" : "⚠️"} ${title}</h1><p>${text}</p><p><a style="color:#7cc4ff" href="/#social">Torna all'app</a></p></div>`;
+const escPage = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const netParam = (req) => {
+  const net = String(req.params.net ?? "");
+  if (!social.NETWORK_IDS.includes(net)) throw new Error("social sconosciuto");
+  return net;
+};
+app.get("/api/social", (_req, res) => res.json(social.socialStatus()));
+app.put("/api/social/ai", handle((req) => {
+  setGeminiKey(req.body?.key);
+  return social.socialStatus();
+}));
+app.put("/api/social/:net/app", handle((req) => social.setApp(netParam(req), req.body ?? {})));
+app.post("/api/social/:net/auth", handle((req) => social.startAuth(netParam(req))));
+app.post("/api/social/:net/unlink", handle((req) => social.disconnect(netParam(req))));
+app.put("/api/social/:net/settings", handle((req) => social.setNetworkSettings(netParam(req), { auto: req.body?.auto, maxPerDay: req.body?.maxPerDay })));
+app.post("/api/social/posts/:id/cancel", handle((req) => social.cancelPost(req.params.id)));
+// Ritorno dal sito del social dopo l'accesso, con il codice e lo "state" nell'indirizzo.
+app.get("/social/callback", async (req, res) => {
+  const loggedIn = auth.isLoggedIn(req);
+  const state = String(req.query.state ?? "");
+  if (req.query.error) {
+    if (social.pendingStateMatches(state)) social.pendingCancel(state);
+    return res.status(400).send(socialPage("Collegamento annullato", escPage(req.query.error_description ?? req.query.error_reason ?? req.query.error), false));
+  }
+  try {
+    const r = await social.finishAuth(state, String(req.query.code ?? ""));
+    if (loggedIn) return res.redirect("/#social");
+    res.send(socialPage(`${escPage(social.NETWORKS[r.network].label)} collegato`, `Collegato come <b>${escPage(r.username)}</b>. Puoi chiudere questa pagina e tornare all'app.`, true));
+  } catch (e) {
+    res.status(400).send(socialPage("Collegamento non riuscito", escPage(e.message), false));
+  }
+});
+
+// Archivio di foto e video. Il caricamento arriva "grezzo" (il file così com'è) e va subito su disco.
+app.get("/api/media", (_req, res) => res.json(media.listMedia()));
+app.put("/api/media/:id", handle((req) => media.updateMedia(req.params.id, req.body ?? {})));
+app.delete("/api/media/:id", handle((req) => media.deleteMedia(req.params.id)));
+app.post("/api/media", async (req, res) => {
+  const type = String(req.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+  const max = type.startsWith("video/") ? media.MAX_VIDEO_BYTES : media.MAX_IMAGE_BYTES;
+  const declared = Number(req.get("content-length")) || 0;
+  const tooBig = `File troppo grande: massimo ${Math.round(max / 1024 / 1024)} MB${type.startsWith("video/") ? " per i video" : " per le foto"}.`;
+  if (declared > max) return res.status(413).json({ error: tooBig });
+  try {
+    media.assertSpace(declared);
+  } catch (e) {
+    return res.status(507).json({ error: e.message });
+  }
+  const tmp = path.join(media.MEDIA_DIR, `.upload-${crypto.randomUUID()}`);
+  let size = 0;
+  try {
+    fs.mkdirSync(media.MEDIA_DIR, { recursive: true });
+    await pipeline(
+      req,
+      async function* (src) {
+        for await (const chunk of src) {
+          size += chunk.length;
+          if (size > max) throw Object.assign(new Error(tooBig), { status: 413 });
+          yield chunk;
+        }
+      },
+      fs.createWriteStream(tmp),
+    );
+    if (!size) throw new Error("File vuoto.");
+    let name = "";
+    try {
+      name = decodeURIComponent(req.get("x-file-name") ?? "");
+    } catch {
+      // nome non leggibile: resta vuoto
+    }
+    res.json(await media.ingestUpload(tmp, { name, mime: type }));
+  } catch (e) {
+    fs.rmSync(tmp, { force: true });
+    if (!res.headersSent) res.status(e.status ?? 400).json({ error: e.message });
+  }
+});
+
 app.get("/api/voice", (_req, res) => res.json(voice.publicStatus()));
 app.post("/api/voice/prepare", handle(() => voice.prepare()));
 app.post("/api/chat/voice", express.raw({ type: ["audio/wav", "audio/x-wav", "audio/wave"], limit: "6mb" }), async (req, res) => {
@@ -619,6 +721,28 @@ function openBrowser() {
 // All'avvio: dati importati e ordini rimasti a metà da una chiusura improvvisa.
 if (importedAtBoot) log("programma", "info", `Dati della copia importata messi al loro posto (${importedAtBoot} file).`);
 recoverInterruptedApprovals();
+social.recoverInterruptedPosts();
+// Caricamenti rimasti a metà da una chiusura improvvisa.
+try {
+  for (const f of fs.readdirSync(media.MEDIA_DIR)) if (f.startsWith(".upload-")) fs.rmSync(path.join(media.MEDIA_DIR, f), { force: true });
+} catch {
+  // nessun archivio ancora
+}
+// Post programmati: si pubblicano all'ora scelta. I codici d'accesso dei social si rinnovano per tempo.
+let publishing = false;
+setInterval(async () => {
+  if (shuttingDown || publishing) return;
+  publishing = true;
+  try {
+    await social.publishDue();
+  } catch (err) {
+    log("social", "error", `Post programmati: ${err.message}`);
+  } finally {
+    publishing = false;
+  }
+}, 30_000);
+setInterval(() => social.refreshTokens().catch(() => {}), 3600_000);
+setTimeout(() => social.refreshTokens().catch(() => {}), 60_000).unref();
 // Dopo un'importazione: se il programma resta acceso due minuti e mezzo (più di un giro dello scheduler e del controllo
 // dei conti) o si chiude in modo ordinato, i dati nuovi vanno bene.
 if (importedAtBoot) setTimeout(confirmImportWorked, 150_000).unref();
