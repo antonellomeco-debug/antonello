@@ -119,6 +119,21 @@ Per **chiudere** il programma: clicca sulla finestra del Terminale e premi **con
 - **Approvazioni**: quando un agente vuole comprare o vendere, compare un pallino rosso. Tu scegli **Fallo per me** o **Scarta**.
 - **All'inizio è tutto simulato**: il portafoglio parte con 100.000 € finti e nessun ordine va in borsa davvero. Per usare i prezzi e un conto del tuo broker vedi la **Parte 4**.
 
+### L'universo: più palazzi
+
+L'app è un **universo**: ogni **palazzo** è un settore diverso, per esempio il **Palazzo Investimenti** (quello di
+partenza, con il piano Gold e tutti i tuoi agenti), un **Palazzo Social**, un **Palazzo Ricerche**. Ogni palazzo ha i
+suoi piani, stanze e agenti, e Orion li coordina tutti.
+
+- Nell'**Ufficio**, la barra in alto: **🌌 Universo** mostra tutti i palazzi come torri (tocca una torre per entrare);
+  tocca il nome di un palazzo per vedere solo quello, con l'ascensore dei suoi piani.
+- **Creare un palazzo**: tocca **+ Palazzo**, scrivi il nome e di cosa si occupa, poi **Salva**. Oppure chiedi a Orion:
+  *"Crea un Palazzo Social che segue le tendenze su Instagram e TikTok, con i piani e gli agenti adatti"*.
+- **Farli comunicare**: si collegano i piani, anche di palazzi diversi. Per esempio *"Fai arrivare le informazioni del
+  piano Tendenze del Palazzo Social alla Direzione degli investimenti"*.
+- Gli agenti leggono solo ciò che è **pubblico** su internet (con la ricerca web): non entrano nei tuoi account social.
+- Tutto si gestisce anche dalla sezione **🌌 Universo** (prima si chiamava Palazzo).
+
 ### Creare piani, stanze e farli comunicare
 
 Puoi farlo in due modi.
@@ -129,8 +144,8 @@ Puoi farlo in due modi.
 - *"Fai arrivare le informazioni del piano Azioni al piano Crypto, ma non il contrario"* (collegamento in un solo senso)
 - *"Scollega il piano Crypto"* oppure *"Spegni il collegamento tra Crypto e Azioni"*
 
-**Dalla sezione 🏗️ Palazzo** (barra a sinistra):
-- **+ Nuovo piano** per aggiungere un piano; **✏️ Modifica** per cambiargli nome, settore, colore o altezza;
+**Dalla sezione 🌌 Universo** (barra a sinistra):
+- **+ Piano** accanto al nome di un palazzo per aggiungere un piano in quel palazzo; **✏️ Modifica** per cambiargli nome, settore, colore, altezza o palazzo;
 - **+ Stanza** dentro un piano per aggiungere una stanza; clicca una stanza per modificarla o spostarla;
 - in **Collegamenti tra piani** scegli i due piani e la direzione (**↔** nei due sensi, **→** in un solo senso) e premi **Collega**. Con l'interruttore **Attivo/Spento** li fai comunicare solo quando vuoi.
 

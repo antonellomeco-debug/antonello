@@ -109,8 +109,9 @@ Il server ha un indirizzo nuovo: cTrader deve conoscerlo per il collegamento.
 4. Nella schermata Home compare l'icona **Agenti**: aprila e **scrivi la password una volta** (l'app installata non
    condivide l'accesso con Safari). Puoi farla ricordare all'iPhone.
 5. Come si usa:
-   - in basso ci sono **🏢 Ufficio · 💬 Orion · ✅ Approvazioni · 📝 Bacheca · ☰ Altro** (in **Altro**: palazzo,
+   - in basso ci sono **🏢 Ufficio · 💬 Orion · ✅ Approvazioni · 📝 Bacheca · ☰ Altro** (in **Altro**: universo,
      portafoglio, broker, attività, impostazioni, nuovo agente, esci);
+   - nell'Ufficio, la barra sopra il 3D sceglie **🌌 Universo** (tutti i palazzi) o un palazzo; **+ Palazzo** ne crea uno;
    - nel palazzo: un dito per girare, due per avvicinarti; **tocca un agente** per vederne il nome, **toccalo di
      nuovo** (o tocca il nome) per aprire la sua scheda;
    - in chat **Invio va a capo**: per mandare il messaggio tocca **➤**;
