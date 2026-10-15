@@ -116,6 +116,18 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   Prova nel browser: Chromium con `--use-file-for-fake-audio-capture=<wav>` (voci di prova generate con Piper
   `it_IT-paola-medium` di sherpa-onnx).
 
+## Universo con più palazzi (15 ottobre 2026)
+
+- `data/building.json`: `name` = nome dell'universo, `palaces: [{id,name,description,color}]`, ogni piano ha `palace`.
+  `loadBuilding()` migra i file vecchi (un palazzo): «Il mio palazzo» → «Palazzo Investimenti» (`palazzo-investimenti`),
+  un nome scelto resta; universo «Il mio universo». Il file si riscrive alla prima modifica. Palazzo eliminabile solo
+  vuoto e mai l'ultimo; livelli per palazzo. I palazzi comunicano con i normali collegamenti tra piani.
+- Orion: `save_palace`, `delete_palace`, `save_floor` con `palace`; stato «Stato attuale dell'universo» diviso per
+  palazzi; prompt: niente accessi privati ai social (solo `web_search`). Gli agenti ricevono il nome del loro palazzo.
+- Interfaccia: barra dei palazzi (`state.palace`, null = 🌌 Universo, ricordato in localStorage `agenti.palazzo`),
+  `office3d.setUniverse()` (torri, regista al centro, archi tra palazzi) e `setBuilding(…, key)` per un palazzo;
+  sezione 🌌 Universo (ex Palazzo) con un blocco per palazzo; finestra `#palace-dialog`. Test: `test/universe.test.js`.
+
 ## Piano Gold (XAUUSD) per Orion
 
 - L'utente ha una pagina (artifact claude.ai "Piano Gold per Orion") con i messaggi da incollare a Orion:
@@ -126,7 +138,11 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   Capo Trader e il Capo Fondamentale (le notizie orarie spingerebbero fuori CALENDARIO OGGI e LIVELLI).
   Gli agenti del piano stanno in `data/agents/` dell'utente: si cambiano solo tramite Orion o dall'interfaccia.
 
-## A che punto siamo (14 ottobre 2026)
+## A che punto siamo (15 ottobre 2026)
+
+- L'utente vuole un universo di palazzi: Investimenti (esistente), Social (monitorare i social: per ora solo
+  informazioni pubbliche con web_search), Ricerche. La struttura è pronta; i palazzi li crea lui o Orion.
+- cTrader: l'utente rifà da capo la richiesta dell'app su openapi.ctrader.com (redirect del server e localhost).
 
 - Il server su Railway è online con la password (vedi sopra). Da fare per l'utente: primo accesso, portare i dati
   dal Mac (esporta sul Mac → chiudi il programma sul Mac e toglilo dall'avvio → importa sul server), redirect

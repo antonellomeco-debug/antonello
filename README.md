@@ -45,9 +45,13 @@ La spesa API mostrata nell'ufficio è una stima calcolata dai token usati.
 
 I prezzi arrivano da Yahoo Finance (ticker come `AAPL`, `ENI.MI`, `^GSPC`). Se il servizio non risponde, l'app usa prezzi simulati e li segnala come `demo`.
 
-## Il palazzo: piani, stanze e collegamenti
+## L'universo: palazzi, piani, stanze e collegamenti
 
-Il palazzo si trova in `data/building.json`. Si modifica dall'app (sezione **🏗️ Palazzo**) o chiedendo a Orion. Al primo avvio di una nuova installazione viene copiato da [`defaults/building.json`](defaults/building.json). Chi arriva dalla versione senza piani (con `rooms.json` e `agents/` nella cartella del programma, oppure con un vecchio `data/state.json`) trova invece tutte le stanze su un unico piano: così gli agenti continuano a leggere le stesse stanze di prima. La cartella `agents/` viene importata e poi rinominata in `agents-importati`.
+L'app è un **universo** di palazzi: ogni palazzo è un settore diverso (per esempio *Palazzo Investimenti* per i mercati, *Palazzo Social*, *Palazzo Ricerche*) e ha i suoi piani, stanze e agenti. Orion è il regista di tutto l'universo. Nell'Ufficio la barra in alto sceglie cosa guardare: **🌌 Universo** (ogni palazzo è una torre, con i collegamenti tra palazzi; toccando una torre si entra) oppure un palazzo (i suoi piani in 3D, come prima). La scelta resta su ogni dispositivo.
+
+Tutto si trova in `data/building.json` (nome storico): `name` è il nome dell'universo, `palaces` l'elenco dei palazzi (`id`, `name`, `description`, `color`) e ogni piano ha il suo `palace`. I file di prima, con un solo palazzo, diventano da soli un universo con un palazzo che contiene tutti i piani (il nome di partenza «Il mio palazzo» diventa «Palazzo Investimenti», un nome scelto dall'utente resta). Un palazzo si elimina solo da vuoto e mai l'ultimo; i livelli dei piani contano dentro il loro palazzo. I palazzi **comunicano con i collegamenti tra piani**, che possono unire piani di palazzi diversi, con le stesse regole qui sotto. API: `POST/PUT/DELETE /api/palaces`, i piani accettano `palace`. Orion ha `save_palace` e `delete_palace`; gli agenti sanno in quale palazzo lavorano.
+
+Si modifica dall'app (sezione **🌌 Universo**) o chiedendo a Orion. Al primo avvio di una nuova installazione viene copiato da [`defaults/building.json`](defaults/building.json). Chi arriva dalla versione senza piani (con `rooms.json` e `agents/` nella cartella del programma, oppure con un vecchio `data/state.json`) trova invece tutte le stanze su un unico piano: così gli agenti continuano a leggere le stesse stanze di prima. La cartella `agents/` viene importata e poi rinominata in `agents-importati`.
 
 | Piano | Settore | Stanze |
 |---|---|---|
@@ -193,7 +197,7 @@ La cartella `data/` non viene mai toccata. Il riavvio automatico funziona quando
 ```
 start.js            avvia il server e lo riavvia dopo un aggiornamento
 server.js           API REST, eventi live (SSE), scheduler
-lib/building.js     palazzo: piani, stanze, collegamenti, chi può leggere cosa
+lib/building.js     universo: palazzi, piani, stanze, collegamenti, chi può leggere cosa
 lib/office.js       stato condiviso e modifiche (usato da interfaccia e Orion)
 lib/config.js       configurazione e validazione degli agenti
 lib/market.js       prezzi (cTrader, oppure Yahoo Finance + fallback demo)
