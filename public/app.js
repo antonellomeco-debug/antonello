@@ -16,7 +16,7 @@ const DEFAULT_SESSION = { auth: false, loggedIn: true, cloud: false, updater: tr
 
 const state = {
   office: null, notes: {}, log: [], approvals: [], portfolio: null, stats: null,
-  chat: { name: "", busy: false, transcript: [] }, status: {}, view: "office", room: null, editing: null,
+  chat: { name: "", busy: false, transcript: [], live: "" }, status: {}, view: "office", room: null, editing: null,
   floorFocus: null, broker: null, brokerAccounts: null, session: { ...DEFAULT_SESSION },
 };
 
@@ -1226,12 +1226,38 @@ function renderChat() {
   body.innerHTML = t.length
     ? t.map((m) => `<div class="msg ${m.role}" data-who="${esc(state.office.assistant.toUpperCase())}">${m.role === "tool" ? "⚙ " : ""}${m.voice ? '<span class="voice-tag" title="Messaggio vocale">🎤</span> ' : ""}${esc(m.text)}</div>`).join("")
     : `<div class="msg assistant" data-who="${esc(state.office.assistant.toUpperCase())}">Ciao! Sono ${esc(state.office.assistant)}, coordino gli agenti dell'ufficio. Chiedimi cosa stanno facendo, fai lavorare qualcuno o descrivimi un nuovo agente da creare.${state.office.llmReady ? "" : "\n\n🔑 Per parlarmi inserisci la chiave di Claude in ⚙️ Impostazioni."}</div>`;
-  body.scrollTop = body.scrollHeight;
+  renderLive();
   $("#chat").classList.toggle("busy", state.chat.busy);
   $("#chat-reset").disabled = state.chat.busy; // non si può azzerare mentre Orion lavora
   renderChatState();
   $("#chat-chips").innerHTML = t.length ? "" : SUGGESTIONS.map((s) => `<button class="chip" type="button">${esc(s)}</button>`).join("");
   $("#chat-chips").querySelectorAll(".chip").forEach((c) => (c.onclick = () => sendChat(c.textContent)));
+}
+
+/** Risposta di Orion mentre la scrive (eventi chat-delta): una bolla che si riempie, sostituita dal testo finale. */
+let liveFrame = 0;
+function renderLive() {
+  const body = $("#chat-body");
+  let el = $("#chat-live");
+  const text = state.chat.busy ? state.chat.live : "";
+  if (!text) {
+    el?.remove();
+  } else {
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "chat-live";
+      el.className = "msg assistant live";
+      el.dataset.who = state.office.assistant.toUpperCase();
+      body.append(el);
+    }
+    el.textContent = text;
+  }
+  body.scrollTop = body.scrollHeight;
+}
+function liveDelta(ev) {
+  if (ev.reset) state.chat.live = "";
+  if (ev.delta) state.chat.live = (state.chat.live ?? "") + ev.delta;
+  if (!liveFrame) liveFrame = requestAnimationFrame(() => ((liveFrame = 0), renderLive()));
 }
 
 async function sendChat(text) {
@@ -1498,10 +1524,21 @@ async function openSettings() {
   $("#data-status").textContent = "";
   checkForUpdate();
   renderSchedule();
+  api("/api/orion").then((o) => ($("#orion-speed").value = o.speed), () => {});
+  $("#speed-status").textContent = "";
   await renderKeyStatus();
   if (!state.office.llmReady) settingsForm.querySelector(".howto").open = true;
   settingsDlg.showModal();
 }
+
+$("#orion-speed").addEventListener("change", async (e) => {
+  try {
+    await api("/api/orion", { method: "PUT", body: JSON.stringify({ speed: e.target.value }) });
+    $("#speed-status").textContent = "✔ Salvato";
+  } catch (err) {
+    $("#speed-status").textContent = err.message;
+  }
+});
 
 async function renderKeyStatus() {
   const k = await api("/api/settings").catch(() => null);
@@ -2105,13 +2142,18 @@ function handleEvent(ev) {
     case "stats":
       refreshStatsSoon();
       break;
+    case "chat-delta":
+      liveDelta(ev);
+      break;
     case "chat":
+      if (ev.entry.role === "assistant") state.chat.live = ""; // il testo finale prende il posto di quello in diretta
       state.chat.transcript.push(ev.entry);
       renderChat();
       if (ev.entry.role === "assistant" && voice.speakTurn) speech.say(ev.entry.text);
       break;
     case "chat-status":
       state.chat.busy = ev.busy;
+      if (!ev.busy) state.chat.live = "";
       if (!ev.busy) voice.speakTurn = false; // risposta finita: i messaggi seguenti non si leggono
       renderChat();
       break;

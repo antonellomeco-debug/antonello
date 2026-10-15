@@ -6,6 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import http from "node:http";
+import { sendClaudeMessage } from "./helpers/claude-reply.js";
 
 const requests = [];
 let replies = [];
@@ -15,15 +16,14 @@ const server = http.createServer((req, res) => {
   req.on("end", () => {
     requests.push({ url: req.url, beta: req.headers["anthropic-beta"], body: JSON.parse(body || "{}") });
     const reply = replies.shift() ?? { content: [{ type: "text", text: "fine" }], stop_reason: "end_turn" };
-    res.setHeader("content-type", "application/json");
-    res.end(JSON.stringify({
+    sendClaudeMessage(res, {
       id: `msg_${requests.length}`,
       type: "message",
       role: "assistant",
       model: "claude-haiku-5-5",
       usage: { input_tokens: 100, output_tokens: 20 },
       ...reply,
-    }));
+    }, requests.at(-1).body);
   });
 });
 await new Promise((r) => server.listen(0, "127.0.0.1", r));

@@ -12,7 +12,7 @@ import { portfolioValue, decide, monitorAccounts, settleInFlight, closeAgentPosi
 import * as ctrader from "./lib/ctrader/service.js";
 import { codeFromInput } from "./lib/ctrader/oauth.js";
 import * as safety from "./lib/safety.js";
-import { chat, getTranscript, resetChat, isChatBusy, ASSISTANT_NAME } from "./lib/orchestrator.js";
+import { chat, getTranscript, resetChat, isChatBusy, ASSISTANT_NAME, getSpeed, setSpeed, SPEEDS } from "./lib/orchestrator.js";
 import { getQuote } from "./lib/market.js";
 import fs from "node:fs";
 import { exec } from "node:child_process";
@@ -377,6 +377,8 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 app.post("/api/chat/reset", handle(() => resetChat()));
+app.get("/api/orion", (_req, res) => res.json({ speed: getSpeed(), speeds: Object.keys(SPEEDS) }));
+app.put("/api/orion", handle((req) => setSpeed(String(req.body?.speed ?? ""))));
 
 // ---------- messaggi vocali ----------
 // L'app registra la voce e manda un WAV (16 kHz, un canale); il server lo trascrive (lib/voice.js) e lo passa a

@@ -611,3 +611,6 @@ dialog.small-dlg { width: min(480px, 94vw); }
   .agent-label .av { width: 26px; height: 26px; font-size: 15px; }
 }
 .media-head .meta, #media-progress .meta, .media-body .meta { color: var(--muted); font-size: 12px; }
+.msg.assistant.live::after { content: "▍"; color: var(--accent); animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .msg.assistant.live::after { animation: none; } }

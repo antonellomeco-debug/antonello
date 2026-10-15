@@ -7,6 +7,7 @@ import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
+import { sendClaudeMessage } from "./helpers/claude-reply.js";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -83,11 +84,10 @@ const claude = http.createServer((req, res) => {
   req.on("end", () => {
     claudeRequests.push(JSON.parse(body || "{}"));
     setTimeout(() => {
-      res.setHeader("content-type", "application/json");
-      res.end(JSON.stringify({
+      sendClaudeMessage(res, {
         id: `msg_${claudeRequests.length}`, type: "message", role: "assistant", model: "claude-opus-5-5",
         content: [{ type: "text", text: "Ricevuto il tuo vocale." }], stop_reason: "end_turn", usage: { input_tokens: 50, output_tokens: 10 },
-      }));
+      }, claudeRequests.at(-1));
     }, Number(process.env.FAKE_CLAUDE_DELAY_MS) || 0);
   });
 });
