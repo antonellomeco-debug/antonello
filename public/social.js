@@ -94,7 +94,10 @@ function networkCard(n, st) {
         ${acc ? `<button class="btn small ghost" data-unlink="${n.id}">Scollega</button>` : ""}
       </div>`
     : "";
-  const settings = `<div class="social-settings">
+  const manualNote = !acc
+    ? `<p class="hint">Senza collegamento i post degli agenti arrivano lo stesso in ✅ Approvazioni: li pubblichi tu con <b>📲 Condividi</b> (foto pronte e testo già copiato), poi tocchi <b>Fatto</b>.</p>`
+    : "";
+  const settings = `${manualNote}<div class="social-settings">
       <label>Pubblicazione
         <select data-auto="${n.id}">
           <option value="0" ${n.auto ? "" : "selected"}>Con la mia approvazione</option>
@@ -179,21 +182,109 @@ export function renderPostApproval(a, outcomeLabel) {
   const outcome = a.status === "scheduled"
     ? `🕒 Approvato: parte ${p.publishAt ? when(p.publishAt) : "all'ora scelta"}`
     : a.status === "executed"
-      ? `✔ Pubblicato${p.url ? ` · <a href="${esc(p.url)}" target="_blank" rel="noopener">apri il post</a>` : ""}`
+      ? p.manual ? "✔ Pubblicato da te" : `✔ Pubblicato${p.url ? ` · <a href="${esc(p.url)}" target="_blank" rel="noopener">apri il post</a>` : ""}`
       : `${outcomeLabel[a.status] ?? esc(a.status)}${a.error ? ` — ${esc(a.error)}` : ""}`;
   return `<article class="card ${pending ? "" : "decided"}">
     <div class="kicker"><span>${NET_ICON[p.network] ?? "📣"} ${esc(what)}</span><span class="meta">· ${esc(a.agentName)} · ${when(a.at)}</span></div>
     <p class="post-text">${esc(p.text) || "<i>(senza testo)</i>"}</p>
     ${postMediaStrip(p.media)}
-    ${p.publishAt ? `<p class="meta">Da pubblicare: ${when(p.publishAt)}</p>` : ""}
+    ${p.publishAt ? `<p class="meta">${p.manual ? "Ora consigliata" : "Da pubblicare"}: ${when(p.publishAt)}</p>` : ""}
     ${p.network === "x" ? `<p class="meta">Costo su X: ${/(https?:\/\/|www\.)\S+|\b[a-z0-9-]+\.(com|it|net|org|io|ly|co|eu|me|app|dev|ai)\b/i.test(p.text ?? "") ? "0,20 $ (contiene un link)" : "0,015 $"}</p>` : ""}
     <p>${esc(p.reason) || ""}</p>
+    ${pending && p.manual ? `<ol class="share-steps">
+      <li>Tocca <b>📲 Condividi</b>: ${(p.media ?? []).length ? "le foto sono pronte e il testo è già copiato" : "il testo è pronto (ed è già copiato)"}.</li>
+      <li>Scegli <b>${esc(net)}</b>${p.network === "instagram" ? (p.format === "story" ? " → <b>Storia</b>" : " → <b>Feed</b>") : ""}${p.network === "instagram" ? ", tieni premuto nella didascalia → <b>Incolla</b>" : ""} e pubblica.</li>
+      <li>Torna qui e tocca <b>Fatto</b>.</li>
+    </ol>` : ""}
     <div class="actions">
       ${pending
-        ? `<button class="btn good" data-approve="${a.id}">${p.publishAt ? "Approva" : "Pubblica"}</button><button class="btn ghost" data-reject="${a.id}">Scarta</button>`
+        ? p.manual
+          ? `<button class="btn primary" data-share="${a.id}">📲 Condividi su ${esc(net)}</button><button class="btn good" data-approve="${a.id}">✔ Fatto</button><button class="btn ghost" data-reject="${a.id}">Scarta</button>`
+          : `<button class="btn good" data-approve="${a.id}">${p.publishAt ? "Approva" : "Pubblica"}</button><button class="btn ghost" data-reject="${a.id}">Scarta</button>`
         : `<span class="meta">${outcome}</span>`}
     </div>
   </article>`;
+}
+
+// ---------- pubblicazione a mano (social non collegati) ----------
+// La condivisione dell'iPhone (navigator.share) parte solo dentro un tocco: i file si scaricano prima, appena la
+// scheda compare (i video al primo tocco, poi si tocca di nuovo). Il testo si copia negli appunti nello stesso tocco.
+
+const shareFiles = new Map(); // id dell'approvazione → { ready, files, promise }
+
+function prepareFiles(a) {
+  let entry = shareFiles.get(a.id);
+  if (entry) return entry;
+  const media = (a.post?.media ?? []).filter((m) => !m.missing);
+  entry = { ready: false, files: [] };
+  entry.promise = Promise.all(
+    media.map(async (m, i) => {
+      const r = await fetch(m.src);
+      if (!r.ok) throw new Error(`file ${i + 1} non scaricato`);
+      const blob = await r.blob();
+      const ext = m.kind === "video" ? (m.mime === "video/quicktime" ? "mov" : "mp4") : "jpg";
+      return new File([blob], `${a.post.network}-${i + 1}.${ext}`, { type: blob.type || m.mime });
+    }),
+  ).then(
+    (files) => Object.assign(entry, { ready: true, files }),
+    (err) => {
+      shareFiles.delete(a.id);
+      throw err;
+    },
+  );
+  shareFiles.set(a.id, entry);
+  return entry;
+}
+
+/** Collega i pulsanti «📲 Condividi» delle schede e prepara in anticipo le foto (non i video, che pesano). */
+export function bindShareButtons(container, approvals) {
+  for (const a of approvals) {
+    const media = a.post?.media ?? [];
+    if (a.kind === "post" && a.status === "pending" && a.post?.manual && media.length && media.every((m) => m.kind !== "video")) {
+      prepareFiles(a).promise.catch(() => {});
+    }
+  }
+  container.querySelectorAll("[data-share]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      const a = approvals.find((x) => x.id === btn.dataset.share);
+      if (a) sharePost(a, btn);
+    }),
+  );
+}
+
+async function sharePost(a, btn) {
+  const p = a.post;
+  const label = btn.textContent;
+  // Prima di tutto (dentro il tocco) il testo negli appunti: su Instagram si incolla nella didascalia.
+  navigator.clipboard?.writeText(p.text ?? "").catch(() => {});
+  const entry = prepareFiles(a);
+  if (!entry.ready) {
+    btn.disabled = true;
+    btn.textContent = "Preparo i file…";
+    try {
+      await entry.promise;
+      btn.textContent = "📲 Tocca di nuovo per condividere";
+    } catch (err) {
+      btn.textContent = label;
+      alert(`Non riesco a preparare i file: ${err.message}`);
+    } finally {
+      btn.disabled = false;
+    }
+    return;
+  }
+  // Instagram ignora il testo condiviso (e con il testo a volte non compare tra le app): solo i file.
+  const data = entry.files.length ? (p.network === "instagram" ? { files: entry.files } : { files: entry.files, text: p.text }) : { text: p.text };
+  if (navigator.share && (!data.files || navigator.canShare?.(data))) {
+    try {
+      await navigator.share(data);
+    } catch (err) {
+      if (err.name !== "AbortError") alert(`Condivisione non riuscita: ${err.message}`);
+    }
+    return;
+  }
+  // Computer senza condivisione: testo copiato e file da salvare.
+  for (const m of p.media ?? []) if (!m.missing) window.open(m.src, "_blank", "noopener");
+  alert(`Testo copiato negli appunti.${(p.media ?? []).length ? " Le foto e i video si aprono in nuove schede: salvali" : ""} e pubblica dall'app o dal sito del social, poi torna qui e tocca «Fatto».`);
 }
 
 export async function loadSocial() {
