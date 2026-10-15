@@ -179,6 +179,7 @@ app.get("/api/stats", (_req, res) => {
   res.json({
     working: office.agents().filter((a) => isRunning(a.id)).length,
     agents: office.agents().length,
+    palaces: office.building().palaces.length,
     floors: office.building().floors.length,
     rooms: office.building().rooms.length,
     scheduled: office.agents().filter((a) => a.enabled && a.everyMinutes > 0).length,
@@ -225,7 +226,7 @@ const brokerStatus = () => ({
   redirectUri: REDIRECT_URI,
   safety: safety.getSafety(),
   liveConfirm: safety.LIVE_CONFIRM,
-  floors: office.building().floors.map((f) => ({ id: f.id, name: f.name, color: f.color, trading: f.trading ?? { mode: "paper" } })),
+  floors: office.building().floors.map((f) => ({ id: f.id, name: f.name, palace: f.palace, color: f.color, trading: f.trading ?? { mode: "paper" } })),
   trades: (getState().brokerTrades ?? []).slice(-50).reverse(),
 });
 /** Conti usati da almeno un piano. */
@@ -408,6 +409,9 @@ app.delete(
 
 // ---------- palazzo: piani, stanze, collegamenti ----------
 app.put("/api/building", handle((req) => office.renameBuilding(req.body?.name)));
+app.post("/api/palaces", handle((req) => office.savePalace({ ...req.body, id: undefined })));
+app.put("/api/palaces/:id", handle((req) => office.savePalace({ ...req.body, id: req.params.id })));
+app.delete("/api/palaces/:id", handle((req) => office.deletePalace(req.params.id)));
 app.post("/api/floors", handle((req) => office.saveFloor({ ...req.body, id: undefined })));
 app.put("/api/floors/:id", handle((req) => office.saveFloor({ ...req.body, id: req.params.id })));
 app.delete("/api/floors/:id", handle((req) => office.deleteFloor(req.params.id)));
