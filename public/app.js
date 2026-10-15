@@ -33,6 +33,32 @@ const B = () => state.office.building;
 const floorById = (id) => B().floors.find((f) => f.id === id);
 const roomById = (id) => B().rooms.find((r) => r.id === id);
 const floorOfRoom = (roomId) => roomById(roomId)?.floor;
+/** "1 piano", "3 piani". */
+const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+// Universo: più palazzi, ogni piano sta in un palazzo.
+const palaces = () => B().palaces ?? [];
+const palaceById = (id) => palaces().find((p) => p.id === id);
+const floorsOf = (palaceId) => B().floors.filter((f) => f.palace === palaceId);
+/** Nome del piano, con il palazzo quando ce n'è più d'uno (es. "Piano Tendenze · Palazzo Social"). */
+const floorLabel = (f) => (!f ? "" : palaces().length > 1 ? `${f.name} · ${palaceById(f.palace)?.name ?? ""}` : f.name);
+/** Agenti e stanze di un palazzo. */
+function palaceStats(palaceId) {
+  const ids = new Set(floorsOf(palaceId).map((f) => f.id));
+  const rooms = B().rooms.filter((r) => ids.has(r.floor));
+  const roomIds = new Set(rooms.map((r) => r.id));
+  return { floors: ids.size, rooms: rooms.length, agents: state.office.agents.filter((a) => roomIds.has(a.room)).length, roomIds };
+}
+/** Le opzioni dei piani raggruppate per palazzo (per i menu a tendina). */
+function floorOptions(filter = () => true) {
+  const opt = (f) => `<option value="${esc(f.id)}">${esc(f.name)}</option>`;
+  if (palaces().length < 2) return B().floors.filter(filter).map(opt).join("");
+  return palaces()
+    .map((p) => {
+      const fl = floorsOf(p.id).filter(filter);
+      return fl.length ? `<optgroup label="${esc(p.name)}">${fl.map(opt).join("")}</optgroup>` : "";
+    })
+    .join("");
+}
 /** true se gli agenti del piano `to` leggono le bacheche del piano `from` (stessa regola del server). */
 function flowsInto(from, to) {
   if (from === to) return true;
@@ -100,11 +126,8 @@ async function loadOffice() {
   state.office = await api("/api/office");
   for (const a of state.office.agents) state.status[a.id] ??= { status: a.running ? "working" : "idle" };
   const { building, agents, assistant } = state.office;
-  $("#office-sub").textContent =
-    `${building.name}: ${agents.length} agenti in ${building.rooms.length} stanze su ${building.floors.length} piani, coordinati da ${assistant}. ` +
-    (touchMQ.matches
-      ? "Scegli un piano nell'ascensore, gira il palazzo con un dito e avvicinati con due; tocca un agente per vederne il nome, tocca il nome per aprire la scheda."
-      : "Scegli un piano nell'ascensore, trascina per girare, passa sopra un agente per vederne il nome, clicca una scrivania per aprire la scheda.");
+  resolvePalace();
+  updateOfficeSub();
   $("#touch-hint").textContent = touchMQ.matches
     ? "Tocca un agente per il nome, tocca il nome per la scheda"
     : "Passa sopra un agente per il nome, clicca per la scheda";
@@ -123,19 +146,104 @@ async function loadOffice() {
         state.floorFocus = id;
         renderElevator();
       },
+      onPalaceClick: (id) => selectPalace(id),
     });
     syncOffice3d();
   }
   // Il palazzo 3D si ricostruisce solo se è cambiato (non a ogni riallineamento con il server).
-  const shape = JSON.stringify([building, agents.map(({ running, lastRun, ...a }) => a)]);
-  if (shape !== state.officeShape) office3d.setBuilding(building, agents);
+  const shape = JSON.stringify([state.palace, building, agents.map(({ running, lastRun, ...a }) => a)]);
+  if (shape !== state.officeShape) drawScene();
   state.officeShape = shape;
   state.floorFocus = office3d.focused;
   for (const [id, s] of Object.entries(state.status)) office3d.setStatus(id, s.status, s.detail);
+  renderPalaceBar();
   renderElevator();
   renderRoster();
   renderFilter();
   if (state.view === "building") renderBuilding();
+}
+
+// ---------- universo: quale palazzo si guarda ----------
+// state.palace = id del palazzo in vista, oppure null = 🌌 tutto l'universo. Ricordato su ogni dispositivo.
+const PALACE_PREF = "agenti.palazzo";
+
+function resolvePalace() {
+  const ids = palaces().map((p) => p.id);
+  if (state.palace === null) return; // universo
+  if (state.palace && ids.includes(state.palace)) return;
+  let saved = null;
+  try {
+    saved = localStorage.getItem(PALACE_PREF);
+  } catch {
+    // memoria del browser non disponibile
+  }
+  if (state.palace === undefined && saved === "*") state.palace = null;
+  else state.palace = ids.includes(saved) ? saved : ids.length > 1 ? null : ids[0] ?? null;
+}
+
+function selectPalace(id) {
+  state.palace = id ?? null;
+  try {
+    localStorage.setItem(PALACE_PREF, id ?? "*");
+  } catch {
+    // vale fino alla chiusura
+  }
+  state.officeShape = null;
+  if (office3d) drawScene();
+  state.floorFocus = office3d?.focused ?? null;
+  updateOfficeSub();
+  renderPalaceBar();
+  renderElevator();
+  renderRoster();
+}
+
+/** Disegna il palazzo scelto (solo i suoi piani, stanze e collegamenti interni) oppure tutto l'universo. */
+function drawScene() {
+  const { building, agents } = state.office;
+  if (state.palace == null) return office3d.setUniverse(building, agents);
+  const floors = building.floors.filter((f) => f.palace === state.palace);
+  const ids = new Set(floors.map((f) => f.id));
+  office3d.setBuilding(
+    {
+      name: palaceById(state.palace)?.name ?? "",
+      floors,
+      rooms: building.rooms.filter((r) => ids.has(r.floor)),
+      links: building.links.filter((l) => ids.has(l.from) && ids.has(l.to)),
+    },
+    agents,
+    state.palace,
+  );
+}
+
+function updateOfficeSub() {
+  const { building, agents, assistant } = state.office;
+  const p = state.palace ? palaceById(state.palace) : null;
+  let text;
+  if (p) {
+    const st = palaceStats(p.id);
+    text =
+      `${p.name}: ${count(st.agents, "agente", "agenti")} in ${count(st.rooms, "stanza", "stanze")} su ${count(st.floors, "piano", "piani")}, coordinati da ${assistant}. ` +
+      (touchMQ.matches
+        ? "Scegli un piano nell'ascensore, gira il palazzo con un dito e avvicinati con due; tocca un agente per vederne il nome, tocca il nome per aprire la scheda."
+        : "Scegli un piano nell'ascensore, trascina per girare, passa sopra un agente per vederne il nome, clicca una scrivania per aprire la scheda.");
+  } else {
+    text =
+      `${building.name}: ${count(palaces().length, "palazzo", "palazzi")} e ${count(agents.length, "agente", "agenti")}, coordinati da ${assistant}. ` +
+      (touchMQ.matches ? "Tocca un palazzo per entrare." : "Clicca un palazzo per entrare, trascina per girare.");
+  }
+  $("#office-sub").textContent = text;
+}
+
+/** Barra sopra il palco: 🌌 Universo, un pulsante per palazzo, + Palazzo. */
+function renderPalaceBar() {
+  const chip = (id, html, title, c) =>
+    `<button class="palace-chip ${state.palace === id ? "active" : ""}" data-palace="${esc(id ?? "")}" title="${esc(title)}"${c ? ` style="--c:${esc(c)}"` : ""}>${html}</button>`;
+  $("#palace-bar").innerHTML =
+    chip(null, "🌌 Universo", "Tutti i palazzi") +
+    palaces().map((p) => chip(p.id, `<i></i>${esc(p.name)}`, p.description || p.name, p.color)).join("") +
+    `<button class="palace-chip add" id="palace-add" title="Crea un nuovo palazzo">+ Palazzo</button>`;
+  $("#palace-bar").querySelectorAll("[data-palace]").forEach((b) => (b.onclick = () => selectPalace(b.dataset.palace || null)));
+  $("#palace-add").onclick = () => openPalaceEditor(null);
 }
 
 async function loadAll() {
@@ -164,7 +272,7 @@ async function refreshStats() {
   if (!s) return;
   // Sul telefono la striscia dei numeri inizia con "da approvare" e "spesa API" (classi stat-pending e stat-cost).
   const cells = [
-    [s.working, "al lavoro ora"], [s.agents, "agenti"], [s.floors, "piani"], [s.rooms, "stanze"], [s.notes, "note in bacheca"],
+    [s.working, "al lavoro ora"], [s.agents, "agenti"], ...(s.palaces > 1 ? [[s.palaces, "palazzi"]] : []), [s.floors, "piani"], [s.rooms, "stanze"], [s.notes, "note in bacheca"],
     [s.trades + (s.brokerTrades ?? 0), "ordini eseguiti"], [s.pending, "da approvare", `stat-pending clickable ${s.pending ? "alert" : ""}`],
     [`$${fmt(s.costUsd)}`, "spesa API (stima)", "stat-cost"],
     [state.office.llmReady ? "sì" : "no", "Claude collegato", "stat-key clickable"], [s.scheduled, "programmati"],
@@ -271,9 +379,13 @@ function renderView() {
 // ---------- ufficio ----------
 
 function renderRoster() {
-  const agents = state.office.agents;
-  $("#roster-sum").textContent = `Elenco completo dei ${agents.length} agenti`;
-  const room = (id) => `${roomById(id)?.name ?? id} · ${floorById(floorOfRoom(id))?.name ?? ""}`;
+  const p = state.palace ? palaceById(state.palace) : null;
+  const inPalace = p ? palaceStats(p.id).roomIds : null;
+  const agents = state.office.agents.filter((a) => !inPalace || inPalace.has(a.room));
+  $("#roster-sum").textContent = p
+    ? agents.length === 1 ? `L'agente di ${p.name}` : `Elenco dei ${agents.length} agenti di ${p.name}`
+    : `Elenco completo dei ${agents.length} agenti`;
+  const room = (id) => `${roomById(id)?.name ?? id} · ${p ? floorById(floorOfRoom(id))?.name ?? "" : floorLabel(floorById(floorOfRoom(id)))}`;
   $("#roster-list").innerHTML = agents
     .map((a) => `<div class="roster-row" data-id="${esc(a.id)}">
       <span>${esc(a.avatar)}</span>
@@ -298,11 +410,24 @@ $("#roster-sum").addEventListener("click", (e) => phoneMQ.matches && e.preventDe
 /** Pulsantiera "ascensore": tutto il palazzo + un pulsante per piano (dal più alto). */
 function renderElevator() {
   const el = $("#elevator");
-  const floors = B().floors.slice().reverse();
+  if (state.palace == null) {
+    // Universo: un pulsante per palazzo.
+    el.innerHTML =
+      palaces()
+        .map((p) => {
+          const st = palaceStats(p.id);
+          return `<button class="lift" data-palace="${esc(p.id)}" title="${esc(p.description || p.name)}"><span class="lift-dot" style="--c:${esc(p.color)}"></span><span class="lift-name">${esc(p.name)}</span><small>${count(st.floors, "piano", "piani")} · ${count(st.agents, "agente", "agenti")}</small></button>`;
+        })
+        .join("") + `<button class="lift add" id="lift-add" title="Crea un nuovo palazzo">+ Palazzo</button>`;
+    el.querySelectorAll(".lift[data-palace]").forEach((b) => (b.onclick = () => selectPalace(b.dataset.palace)));
+    $("#lift-add").onclick = () => openPalaceEditor(null);
+    return;
+  }
+  const floors = floorsOf(state.palace).slice().reverse();
   const btn = (id, html, title) =>
     `<button class="lift ${state.floorFocus === id ? "active" : ""}" data-floor="${id ?? ""}" title="${esc(title)}">${html}</button>`;
   el.innerHTML =
-    btn(null, `<span class="lift-ico">🏢</span><span class="lift-name">Tutto il palazzo</span>`, B().name) +
+    btn(null, `<span class="lift-ico">🏢</span><span class="lift-name">Tutto il palazzo</span>`, palaceById(state.palace)?.name ?? "") +
     floors
       .map((f) => {
         const n = state.office.agents.filter((a) => floorOfRoom(a.room) === f.id).length;
@@ -310,36 +435,33 @@ function renderElevator() {
         return btn(
           f.id,
           `<span class="lift-dot" style="--c:${esc(f.color)}"></span><span class="lift-name">${esc(f.name)}</span>` +
-            `<small>${esc(f.sector || "")}${f.sector ? " · " : ""}${n} agenti${linked ? " · 🔗" : ""}</small>`,
+            `<small>${esc(f.sector || "")}${f.sector ? " · " : ""}${count(n, "agente", "agenti")}${linked ? " · 🔗" : ""}</small>`,
           f.description || f.name,
         );
       })
       .join("") +
     `<button class="lift add" id="lift-add" title="Aggiungi un piano">+ Piano</button>`;
   el.querySelectorAll(".lift[data-floor]").forEach((b) => (b.onclick = () => office3d.focusFloor(b.dataset.floor || null)));
-  $("#lift-add").onclick = () => openFloorEditor(null);
+  $("#lift-add").onclick = () => openFloorEditor(null, state.palace);
 }
 
 // ---------- palazzo: piani, stanze, collegamenti ----------
 
 function renderBuilding() {
   const b = B();
-  $("#building-title").textContent = `🏗️ ${b.name}`;
+  $("#building-title").textContent = `🌌 ${b.name}`;
   const agentsIn = (roomId) => state.office.agents.filter((a) => a.room === roomId);
-  $("#floors-list").innerHTML = b.floors
-    .slice()
-    .reverse()
-    .map((f) => {
+  const floorCard = (f) => {
       const rooms = b.rooms.filter((r) => r.floor === f.id);
       const conns = b.floors
         .filter((o) => o.id !== f.id)
         .map((o) => ({ o, recv: flowsInto(o.id, f.id), send: flowsInto(f.id, o.id) }))
         .filter((c) => c.recv || c.send)
-        .map((c) => `<span class="conn">${c.recv && c.send ? "↔" : c.recv ? "← riceve da" : "→ invia a"} ${esc(c.o.name)}</span>`)
+        .map((c) => `<span class="conn">${c.recv && c.send ? "↔" : c.recv ? "← riceve da" : "→ invia a"} ${esc(c.o.palace === f.palace ? c.o.name : floorLabel(c.o))}</span>`)
         .concat(
           b.links
             .filter((l) => !l.active && (l.from === f.id || l.to === f.id))
-            .map((l) => `<span class="conn none">⏸ collegamento spento con ${esc(floorById(l.from === f.id ? l.to : l.from)?.name ?? "")}</span>`),
+            .map((l) => `<span class="conn none">⏸ collegamento spento con ${esc(floorLabel(floorById(l.from === f.id ? l.to : l.from)))}</span>`),
         )
         .join("");
       return `<article class="card floor-card" style="--c:${esc(f.color)}">
@@ -360,15 +482,33 @@ function renderBuilding() {
         </div>
         <div class="conns">${conns || '<span class="conn none">Nessun collegamento: questo piano lavora da solo</span>'}</div>
       </article>`;
+  };
+  $("#floors-list").innerHTML = palaces()
+    .map((p) => {
+      const st = palaceStats(p.id);
+      const floors = floorsOf(p.id).slice().reverse();
+      return `<section class="palace-block">
+        <header class="palace-head" style="--c:${esc(p.color)}">
+          <span class="palace-dot"></span>
+          <div class="palace-title"><h2>${esc(p.name)}</h2><small>${esc(p.description || "")}${p.description ? " · " : ""}${count(st.floors, "piano", "piani")} · ${count(st.rooms, "stanza", "stanze")} · ${count(st.agents, "agente", "agenti")}</small></div>
+          <button class="btn small" data-edit-palace="${esc(p.id)}">✏️ Modifica</button>
+          <button class="btn small" data-show-palace="${esc(p.id)}">👁 Vedi</button>
+          <button class="btn small primary" data-new-floor="${esc(p.id)}">+ Piano</button>
+        </header>
+        ${floors.map(floorCard).join("") || `<p class="empty">Nessun piano in questo palazzo. Crea il primo con «+ Piano», oppure chiedi a Orion di prepararli.</p>`}
+      </section>`;
     })
-    .join("") || `<p class="empty">Nessun piano. Crea il primo con "+ Nuovo piano".</p>`;
+    .join("");
+  $("#floors-list").querySelectorAll("[data-edit-palace]").forEach((x) => (x.onclick = () => openPalaceEditor(palaceById(x.dataset.editPalace))));
+  $("#floors-list").querySelectorAll("[data-show-palace]").forEach((x) => (x.onclick = () => showPalaceInOffice(x.dataset.showPalace)));
+  $("#floors-list").querySelectorAll("[data-new-floor]").forEach((x) => (x.onclick = () => openFloorEditor(null, x.dataset.newFloor)));
 
   $("#floors-list").querySelectorAll("[data-edit-floor]").forEach((x) => (x.onclick = () => openFloorEditor(floorById(x.dataset.editFloor))));
   $("#floors-list").querySelectorAll("[data-show-floor]").forEach((x) => (x.onclick = () => showFloorInOffice(x.dataset.showFloor)));
   $("#floors-list").querySelectorAll("[data-edit-room]").forEach((x) => (x.onclick = () => openRoomEditor(roomById(x.dataset.editRoom))));
   $("#floors-list").querySelectorAll("[data-new-room]").forEach((x) => (x.onclick = () => openRoomEditor(null, x.dataset.newRoom)));
 
-  const name = (id) => esc(floorById(id)?.name ?? id);
+  const name = (id) => esc(floorLabel(floorById(id)) || id);
   $("#links-list").innerHTML =
     b.links
       .map(
@@ -408,7 +548,7 @@ function renderBuilding() {
   });
 
   const lf = $("#link-form");
-  const opts = b.floors.map((f) => `<option value="${esc(f.id)}">${esc(f.name)}</option>`).join("");
+  const opts = floorOptions();
   const keep = { from: lf.from.value, to: lf.to.value };
   lf.from.innerHTML = opts;
   lf.to.innerHTML = opts;
@@ -432,12 +572,20 @@ $("#link-form").addEventListener("submit", async (e) => {
 
 function showFloorInOffice(floorId) {
   document.querySelector('.nav[data-view="office"]').click();
+  const palace = floorById(floorId)?.palace;
+  if (palace && palace !== state.palace) selectPalace(palace);
   requestAnimationFrame(() => office3d.focusFloor(floorId));
 }
 
-$("#new-floor").onclick = () => openFloorEditor(null);
+function showPalaceInOffice(palaceId) {
+  document.querySelector('.nav[data-view="office"]').click();
+  selectPalace(palaceId);
+}
+
+$("#new-floor").onclick = () => openFloorEditor(null, state.palace ?? palaces()[0]?.id);
+$("#new-palace").onclick = () => openPalaceEditor(null);
 $("#rename-building").onclick = async () => {
-  const name = prompt("Nome del palazzo:", B().name);
+  const name = prompt("Nome dell'universo:", B().name);
   if (name == null) return;
   await api("/api/building", { method: "PUT", body: JSON.stringify({ name }) }).catch((e) => alert(e.message));
 };
@@ -445,21 +593,32 @@ $("#rename-building").onclick = async () => {
 // Finestra piano
 const floorDlg = $("#floor-dialog");
 const floorForm = $("#floor-form");
-function openFloorEditor(floor) {
+/** Livello proposto per un piano nuovo: sopra l'ultimo piano del suo palazzo. */
+const nextLevel = (palaceId) => Math.max(-1, ...floorsOf(palaceId).map((f) => f.level)) + 1;
+
+function openFloorEditor(floor, palaceId) {
   state.editingFloor = floor?.id ?? null;
   $("#floor-title").textContent = floor ? `Modifica: ${floor.name}` : "Nuovo piano";
+  floorForm.palace.innerHTML = palaces().map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("");
+  floorForm.palace.value = floor?.palace ?? palaceId ?? state.palace ?? palaces()[0]?.id;
+  floorForm.palace.closest("label").classList.toggle("hidden", palaces().length < 2 && !!floor);
   floorForm.name.value = floor?.name ?? "";
   floorForm.sector.value = floor?.sector ?? "";
   floorForm.description.value = floor?.description ?? "";
-  floorForm.level.value = floor?.level ?? Math.max(-1, ...B().floors.map((f) => f.level)) + 1;
+  floorForm.level.value = floor?.level ?? nextLevel(floorForm.palace.value);
   floorForm.color.value = floor?.color ?? ["#2fb7c4", "#f06292", "#8bc34a", "#ff8a3d", "#7986cb"][B().floors.length % 5];
   $("#floor-delete").classList.toggle("hidden", !floor);
   $("#floor-errors").textContent = "";
   floorDlg.showModal();
 }
+// Piano nuovo: cambiando palazzo si propone il livello giusto per quel palazzo.
+floorForm.palace.addEventListener("change", () => {
+  if (!state.editingFloor) floorForm.level.value = nextLevel(floorForm.palace.value);
+});
 floorForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const body = {
+    palace: floorForm.palace.value,
     name: floorForm.name.value,
     sector: floorForm.sector.value,
     description: floorForm.description.value,
@@ -485,13 +644,53 @@ $("#floor-delete").onclick = async () => {
 };
 floorDlg.querySelectorAll("[data-close]").forEach((b) => (b.onclick = () => floorDlg.close()));
 
+// Finestra palazzo
+const palaceDlg = $("#palace-dialog");
+const palaceForm = $("#palace-form");
+function openPalaceEditor(palace) {
+  state.editingPalace = palace?.id ?? null;
+  $("#palace-title").textContent = palace ? `Modifica: ${palace.name}` : "Nuovo palazzo";
+  palaceForm.name.value = palace?.name ?? "";
+  palaceForm.description.value = palace?.description ?? "";
+  palaceForm.color.value = palace?.color ?? ["#f06292", "#2fb7c4", "#ffb84d", "#8bc34a", "#a371f7", "#ff8a3d"][palaces().length % 6];
+  $("#palace-delete").classList.toggle("hidden", !palace || palaces().length < 2);
+  $("#palace-errors").textContent = "";
+  palaceDlg.showModal();
+}
+palaceForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const body = { name: palaceForm.name.value, description: palaceForm.description.value, color: palaceForm.color.value };
+  try {
+    const id = state.editingPalace;
+    const res = await api(id ? `/api/palaces/${encodeURIComponent(id)}` : "/api/palaces", { method: id ? "PUT" : "POST", body: JSON.stringify(body) });
+    palaceDlg.close();
+    if (!id && res?.id) {
+      // Palazzo nuovo: lo si apre subito, vuoto, pronto per i piani.
+      await loadOffice();
+      selectPalace(res.id);
+    }
+  } catch (err) {
+    $("#palace-errors").textContent = err.message;
+  }
+});
+$("#palace-delete").onclick = async () => {
+  if (!confirm("Eliminare questo palazzo? (Deve essere vuoto: niente piani.)")) return;
+  try {
+    await api(`/api/palaces/${encodeURIComponent(state.editingPalace)}`, { method: "DELETE" });
+    palaceDlg.close();
+  } catch (err) {
+    $("#palace-errors").textContent = err.message;
+  }
+};
+palaceDlg.querySelectorAll("[data-close]").forEach((b) => (b.onclick = () => palaceDlg.close()));
+
 // Finestra stanza
 const roomDlg = $("#room-dialog");
 const roomForm = $("#room-form");
 function openRoomEditor(room, floorId) {
   state.editingRoom = room?.id ?? null;
   $("#room-title").textContent = room ? `Modifica: ${room.name}` : "Nuova stanza";
-  roomForm.floor.innerHTML = B().floors.map((f) => `<option value="${esc(f.id)}">${esc(f.name)}</option>`).join("");
+  roomForm.floor.innerHTML = floorOptions();
   roomForm.name.value = room?.name ?? "";
   roomForm.floor.value = room?.floor ?? floorId ?? B().floors[0]?.id;
   roomForm.description.value = room?.description ?? "";
@@ -771,7 +970,7 @@ function renderBroker() {
       ${b.floors.slice().reverse().map((f) => {
         const cur = f.trading?.mode === "ctrader" ? String(f.trading.accountId) : "paper";
         const missing = cur !== "paper" && !accountById(cur);
-        return `<tr><td><span class="floor-dot inline" style="--c:${esc(f.color)}"></span>${esc(f.name)}</td><td>
+        return `<tr><td><span class="floor-dot inline" style="--c:${esc(f.color)}"></span>${esc(floorLabel(floorById(f.id) ?? f))}</td><td>
           <select data-floor-trading="${esc(f.id)}">
             <option value="paper" ${cur === "paper" ? "selected" : ""}>Portafoglio simulato</option>
             ${b.accounts.map((a) => `<option value="${a.ctidTraderAccountId}" ${cur === String(a.ctidTraderAccountId) ? "selected" : ""} ${a.isLive && !live ? "disabled" : ""}>
@@ -1644,7 +1843,10 @@ function openEditor(agent) {
   const isNew = !agent;
   agent ??= {
     id: "", name: "", avatar: "🤖", mode: "llm", enabled: true, everyMinutes: 0,
-    room: B().rooms.find((r) => r.floor === state.floorFocus)?.id ?? B().rooms[0]?.id,
+    room:
+      B().rooms.find((r) => r.floor === state.floorFocus)?.id ??
+      (state.palace ? B().rooms.find((r) => floorById(r.floor)?.palace === state.palace)?.id : null) ??
+      B().rooms[0]?.id,
     watchlist: [], readsFrom: [], tools: ["get_quote", "get_indicators", "read_notes", "post_note"], canTrade: false,
     limits: { maxOrderPct: 10, maxPositionPct: 20, onlyWatchlist: true, requireApproval: true },
     model: "claude-opus-5-5", effort: "medium", instructions: "", strategy: state.office.strategies[0], params: {},
@@ -1658,7 +1860,7 @@ function openEditor(agent) {
     .map((f) => {
       const rooms = B().rooms.filter((r) => r.floor === f.id);
       if (!rooms.length) return "";
-      return `<optgroup label="${esc(f.name)}">${rooms.map((r) => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join("")}</optgroup>`;
+      return `<optgroup label="${esc(floorLabel(f))}">${rooms.map((r) => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join("")}</optgroup>`;
     })
     .join("");
   form.strategy.innerHTML = state.office.strategies.map((s) => `<option>${esc(s)}</option>`).join("");
@@ -1699,14 +1901,14 @@ function renderReadsFrom(roomId, selected) {
   const sameFloor = B().rooms.filter((r) => r.floor === myFloor && r.id !== roomId);
   checkboxes($("#reads-checks"), "readsFrom", sameFloor.map((r) => [r.id, r.name]), selected);
   const others = B().floors.filter((f) => f.id !== myFloor);
-  const receives = others.filter((f) => flowsInto(f.id, myFloor)).map((f) => esc(f.name));
-  const sends = others.filter((f) => flowsInto(myFloor, f.id)).map((f) => esc(f.name));
+  const receives = others.filter((f) => flowsInto(f.id, myFloor)).map((f) => esc(floorLabel(f)));
+  const sends = others.filter((f) => flowsInto(myFloor, f.id)).map((f) => esc(floorLabel(f)));
   $("#reads-linked").innerHTML =
     (receives.length
       ? `🔗 Legge in automatico anche le bacheche dei piani collegati: <b>${receives.join(", ")}</b>.`
       : "Non riceve informazioni da altri piani: legge solo il proprio.") +
     (sends.length ? ` Le sue note arrivano a: <b>${sends.join(", ")}</b>.` : "") +
-    " I collegamenti si gestiscono in 🏗️ Palazzo.";
+    " I collegamenti si gestiscono in 🌌 Universo.";
 }
 form.room.addEventListener("change", () => {
   const selected = [...form.querySelectorAll('input[name="readsFrom"]:checked')].map((i) => i.value);

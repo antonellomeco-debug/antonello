@@ -1,20 +1,26 @@
 // Palazzo 3D: piani sovrapposti attorno a una colonna centrale (il regista sta in cima).
 // Ogni piano ha le sue isole-stanza con scrivanie e agenti; i collegamenti tra piani sono archi luminosi
 // percorsi da "messaggi" che si muovono nel verso in cui viaggiano le informazioni.
+// Vista Universo (setUniverse): ogni palazzo è una torre di piani colorati, il regista sta al centro e i
+// collegamenti tra piani di palazzi diversi sono archi tra le torri. Toccando una torre si entra nel palazzo.
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 
 const FLOOR_GAP = 15;
+const TOWER_GAP = 3.4; // distanza tra i piani di una torre nella vista Universo
+const TOWER_R = 4;
 const DESK_SPACING = 3;
 // Telefoni e schermi piccoli: grafica più leggera (meno batteria e meno calore).
 const LOW_POWER = matchMedia("(pointer: coarse)").matches || Math.min(innerWidth, screen.width || innerWidth) <= 860;
 
 export class Office3D {
-  constructor(container, { onAgentClick, onFloorFocus, assistantName }) {
+  constructor(container, { onAgentClick, onFloorFocus, onPalaceClick, assistantName }) {
     this.container = container;
     this.onAgentClick = onAgentClick;
     this.onFloorFocus = onFloorFocus;
+    this.onPalaceClick = onPalaceClick;
+    this.mode = "palace"; // "palace" (un palazzo con i suoi piani) oppure "universe" (tutti i palazzi)
     this.assistantName = assistantName;
     this.agentObjs = new Map(); // id -> { head, ring, monitor, el, label, talk, status, floorId }
     this.clickables = [];
@@ -149,13 +155,11 @@ export class Office3D {
 
   // ---------- costruzione del palazzo ----------
 
-  /** building: { floors, rooms, links }, agents: [...] */
-  setBuilding(building, agents) {
-    const before = { focused: this.focused, floors: this.floors.size, topY: this.topY };
+  /** Toglie la scena precedente: etichette HTML e memoria della scheda video. */
+  clearWorld() {
     if (this.hideTimer) this.hovered = null; // un'etichetta che stava per sparire non ricompare dopo la ricostruzione
     clearTimeout(this.hideTimer);
     this.hideTimer = null;
-    // Rimuove la versione precedente: etichette HTML e memoria della scheda video.
     this.world.traverse((o) => {
       if (o.isCSS2DObject) o.element.remove();
       o.geometry?.dispose();
@@ -168,6 +172,20 @@ export class Office3D {
     this.agentObjs.clear();
     this.clickables = [];
     this.flows = [];
+    this.towerTop = 0;
+  }
+
+  /**
+   * building: { floors, rooms, links } di un palazzo, agents: [...].
+   * key: quale palazzo è (cambiando palazzo, o tornando dall'universo, l'inquadratura riparte da capo).
+   */
+  setBuilding(building, agents, key = null) {
+    const changed = this.mode !== "palace" || key !== this.sceneKey;
+    if (changed) this.focused = null;
+    this.mode = "palace";
+    this.sceneKey = key;
+    const before = { focused: this.focused, floors: this.floors.size, topY: this.topY };
+    this.clearWorld();
 
     const floors = building.floors; // già ordinati dal piano più basso
     this.topY = Math.max(0, (floors.length - 1) * FLOOR_GAP);
@@ -182,7 +200,12 @@ export class Office3D {
 
     // Mantiene la vista corrente se il piano esiste ancora.
     if (this.focused && !this.floors.has(this.focused)) this.focused = null;
-    if (!this.initialized) {
+    if (changed && this.initialized) {
+      this.focused = floors.length === 1 ? floors[0].id : null;
+      this.flyTo(this.cameraFor(this.focused));
+      this.fly.thenRotate = true;
+      this.onFloorFocus?.(this.focused);
+    } else if (!this.initialized) {
       this.initialized = true;
       this.focused = floors.length === 1 ? floors[0].id : null;
       const view = this.cameraFor(this.focused);
@@ -193,6 +216,159 @@ export class Office3D {
       // Il piano guardato è sparito, oppure il palazzo è cambiato in altezza: si rifà l'inquadratura.
       this.flyTo(this.cameraFor(this.focused));
       this.onFloorFocus?.(this.focused);
+    }
+    this.applyFocus();
+  }
+
+  /**
+   * Vista Universo: universe = { palaces, floors, rooms, links }. Ogni palazzo è una torre (un disco colorato per
+   * piano, un puntino per agente); al centro il regista; archi per i collegamenti tra piani di palazzi diversi.
+   */
+  setUniverse(universe, agents) {
+    const changed = this.mode !== "universe";
+    this.mode = "universe";
+    this.sceneKey = null;
+    this.focused = null;
+    this.clearWorld();
+    const palaces = universe.palaces;
+    const n = palaces.length;
+    const radius = n <= 1 ? 0 : Math.max(16, n * 6.5);
+    const tops = [];
+    const floorPos = new Map(); // id del piano -> posizione nel mondo (per gli archi tra palazzi)
+    palaces.forEach((p, i) => {
+      const angle = (i / Math.max(n, 1)) * Math.PI * 2 + Math.PI / 2;
+      const pos = new THREE.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
+      const floors = universe.floors.filter((f) => f.palace === p.id); // dal più basso
+      const tower = new THREE.Group();
+      tower.position.copy(pos);
+      const color = new THREE.Color(p.color ?? "#6f7dff");
+      const height = Math.max(1, floors.length) * TOWER_GAP;
+      tops.push({ pos, height });
+
+      // Base e colonna del palazzo.
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(TOWER_R + 1.6, 0.08, 6, 64), new THREE.MeshBasicMaterial({ color }));
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = -1;
+      tower.add(ring);
+      const glow = new THREE.Mesh(
+        new THREE.CircleGeometry(TOWER_R + 1.6, 48),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false }),
+      );
+      glow.rotation.x = -Math.PI / 2;
+      glow.position.y = -1;
+      tower.add(glow);
+      const column = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.5, 0.5, height + 2, 16, 1, true),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false }),
+      );
+      column.position.y = height / 2 - 1;
+      tower.add(column);
+
+      if (!floors.length) {
+        // Palazzo ancora vuoto: un piano "fantasma" tratteggiato.
+        const ghost = new THREE.Mesh(
+          new THREE.CylinderGeometry(TOWER_R, TOWER_R, 0.5, 32, 1, true),
+          new THREE.MeshBasicMaterial({ color, wireframe: true, transparent: true, opacity: 0.35 }),
+        );
+        tower.add(ghost);
+      }
+      floors.forEach((f, j) => {
+        const y = j * TOWER_GAP;
+        const fc = new THREE.Color(f.color ?? p.color ?? "#6f7dff");
+        const slab = new THREE.Mesh(
+          new THREE.CylinderGeometry(TOWER_R, TOWER_R, 0.55, 40),
+          new THREE.MeshStandardMaterial({ color: fc, emissive: fc, emissiveIntensity: 0.35, metalness: 0.3, roughness: 0.5, transparent: true, opacity: 0.85 }),
+        );
+        slab.position.y = y;
+        tower.add(slab);
+        const edge = new THREE.Mesh(new THREE.TorusGeometry(TOWER_R, 0.06, 6, 64), new THREE.MeshBasicMaterial({ color: fc }));
+        edge.rotation.x = Math.PI / 2;
+        edge.position.y = y + 0.3;
+        tower.add(edge);
+        // Un puntino per agente sul bordo del piano.
+        const here = agents.filter((a) => universe.rooms.some((r) => r.id === a.room && r.floor === f.id));
+        here.slice(0, 32).forEach((a, k) => {
+          const ang = (k / Math.max(here.length, 1)) * Math.PI * 2;
+          const dot = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+          dot.position.set(Math.cos(ang) * (TOWER_R - 0.9), y + 0.5, Math.sin(ang) * (TOWER_R - 0.9));
+          tower.add(dot);
+        });
+        floorPos.set(f.id, pos.clone().setY(y));
+      });
+
+      // Zona cliccabile (invisibile) grande quanto la torre.
+      const hit = new THREE.Mesh(
+        new THREE.CylinderGeometry(TOWER_R + 1.6, TOWER_R + 1.6, height + 3, 16),
+        new THREE.MeshBasicMaterial({ visible: false }),
+      );
+      hit.position.y = height / 2 - 1;
+      hit.userData.palaceId = p.id;
+      tower.add(hit);
+      this.clickables.push(hit);
+
+      const el = document.createElement("div");
+      el.className = "palace-label";
+      el.style.setProperty("--c", p.color ?? "#6f7dff");
+      el.innerHTML = "<b></b><small></small>";
+      el.querySelector("b").textContent = p.name;
+      const nAgents = agents.filter((a) => universe.rooms.some((r) => r.id === a.room && floors.some((f) => f.id === r.floor))).length;
+      const count = (k, one, many) => `${k} ${k === 1 ? one : many}`;
+      el.querySelector("small").textContent = floors.length ? `${count(floors.length, "piano", "piani")} · ${count(nAgents, "agente", "agenti")}` : "vuoto: tocca per entrare";
+      el.addEventListener("click", () => this.onPalaceClick?.(p.id));
+      const label = new CSS2DObject(el);
+      label.position.set(0, height + 1.2, 0);
+      tower.add(label);
+      this.world.add(tower);
+    });
+
+    // Il regista al centro, più in alto di tutte le torri, con un filo verso ciascuna.
+    this.towerTop = Math.max(TOWER_GAP, ...tops.map((t) => t.height));
+    this.topY = this.towerTop + 2;
+    this.buildCore(0);
+    for (const t of tops) {
+      if (!radius) break;
+      const line = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, this.topY + 6, 0), t.pos.clone().setY(t.height)]),
+        new THREE.LineBasicMaterial({ color: 0x8fa2ff, transparent: true, opacity: 0.18 }),
+      );
+      this.world.add(line);
+    }
+
+    // Collegamenti tra piani di palazzi diversi.
+    universe.links.forEach((link) => {
+      const a = floorPos.get(link.from);
+      const b = floorPos.get(link.to);
+      const pa = universe.floors.find((f) => f.id === link.from)?.palace;
+      const pb = universe.floors.find((f) => f.id === link.to)?.palace;
+      if (!a || !b || pa === pb) return;
+      const mid = a.clone().add(b).multiplyScalar(0.5).setY(Math.max(a.y, b.y) + 6 + a.distanceTo(b) * 0.12);
+      const curve = new THREE.QuadraticBezierCurve3(a, mid, b);
+      const mat = link.active
+        ? new THREE.LineBasicMaterial({ color: 0x7cffc4, transparent: true, opacity: 0.85 })
+        : new THREE.LineDashedMaterial({ color: 0x6b7090, dashSize: 0.8, gapSize: 0.6, transparent: true, opacity: 0.6 });
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getPoints(60)), mat);
+      if (!link.active) line.computeLineDistances();
+      this.world.add(line);
+      if (!link.active) return;
+      for (const w of link.direction === "both" ? [1, -1] : [1]) {
+        for (let i = 0; i < 2; i++) {
+          const m = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+          this.world.add(m);
+          this.flows.push({ mesh: m, curve, way: w, offset: i * 0.5 + (w < 0 ? 0.25 : 0) });
+        }
+      }
+    });
+
+    this.universeRadius = radius;
+    const view = this.cameraFor(null);
+    if (!this.initialized) {
+      this.initialized = true;
+      this.fitLimits(view);
+      this.camera.position.copy(view.camera);
+      this.controls.target.copy(view.target);
+    } else if (changed) {
+      this.flyTo(view);
+      this.fly.thenRotate = true;
     }
     this.applyFocus();
   }
@@ -523,6 +699,12 @@ export class Office3D {
       const up = Math.min(dist * 0.35, FLOOR_GAP * 0.8);
       return { target: new THREE.Vector3(0, f.y - 1, 0), camera: new THREE.Vector3(0, f.y + up, Math.sqrt(dist * dist - up * up)) };
     }
+    if (this.mode === "universe") {
+      const r = (this.universeRadius ?? 0) + TOWER_R + 4;
+      const h = this.towerTop ?? 0;
+      const dist = this.fitDistance(r + 2, h / 2 + 8) + 6;
+      return { target: new THREE.Vector3(0, h / 2, 0), camera: new THREE.Vector3(0, h / 2 + dist * 0.45, dist * 0.9) };
+    }
     const h = this.topY ?? 0;
     const maxR = Math.max(12, ...[...this.floors.values()].map((f) => f.ringRadius));
     const dist = this.fitDistance(maxR + 10, h / 2 + 12) + 8;
@@ -627,7 +809,8 @@ export class Office3D {
       if (touch) this.showLabel(null); // tocco nel vuoto: il nome sparisce
       return;
     }
-    const { floorId, agentId, roomId } = hit.userData;
+    const { floorId, agentId, roomId, palaceId } = hit.userData;
+    if (palaceId) return this.onPalaceClick?.(palaceId); // vista Universo: si entra nel palazzo
     if (floorId && floorId !== this.focused) return this.focusFloor(floorId); // prima si entra nel piano
     if (agentId) {
       // Con il dito: il primo tocco mostra il nome; un secondo tocco (o il tocco sul nome) apre la scheda.
