@@ -135,6 +135,22 @@ di consumo su Railway). Il programma tiene la memoria occupata solo per qualche 
 Se l'iPhone continua a chiedere il permesso del microfono: **Impostazioni → App → Safari → Microfono → Consenti**.
 In alternativa puoi sempre dettare con il **microfono della tastiera** dell'iPhone.
 
+## Social (Instagram, LinkedIn, Threads, X)
+
+1. Apri **📣 Social** (sull'iPhone: **☰ Altro → 📣 Social**).
+2. Per ogni social che vuoi usare apri **«Come si fa (una volta sola)»** e segui i passi: crei la tua app di
+   sviluppatore, incolli l'indirizzo di ritorno che vedi lì, poi copi **ID** e **Secret** nei due campi e premi **Salva**.
+   Il Secret non si chiede mai in chat e non si vede più dopo averlo salvato.
+3. Premi **🔗 Collega**: si apre la pagina del social, accedi e conferma. Torni nell'app con «collegato».
+4. In **Foto e video** premi **⬆️ Carica foto o video** e scegli dal rullino. Sotto ogni file scrivi due parole su cosa
+   mostra: aiuta gli agenti.
+5. I post degli agenti arrivano in **✅ Approvazioni** con testo e immagini: **Pubblica** o **Scarta**. Se un social lo
+   metti su **Automatica**, gli agenti pubblicano da soli (sempre entro il massimo di post al giorno che scegli).
+6. **LinkedIn** dopo 60 giorni chiede di essere ricollegato: compare un **!** su 📣 Social, premi **Ricollega**.
+   **X** si paga a consumo (0,015 $ a post, 0,20 $ se contiene un link): tieni un po' di credito su console.x.com.
+
+Foto e video restano nel volume del server e **non** entrano nella copia dei dati (sono grandi): tieni gli originali.
+
 ## Aggiornamenti e copie di sicurezza
 
 - **Gli aggiornamenti arrivano da soli:** quando pubblico una nuova versione, Railway la installa in 2–4 minuti

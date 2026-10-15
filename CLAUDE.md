@@ -25,6 +25,7 @@ possono **collegare** (anche in un solo senso) per scambiarsi le informazioni. *
 si parla in chat e che può creare/modificare piani, stanze, agenti e collegamenti.
 
 - Agenti `llm` (Claude con strumenti, `lib/runner.js` + `lib/tools.js`) o `rule` (strategie JS in `strategies/`).
+- Approvazioni: anche i post per i social (`kind: "post"`), decisi da `lib/social/index.js`.
 - Approvazioni: gli agenti propongono ordini, l'utente sceglie "Fallo per me" o "Scarta".
 - Dati utente in `data/` (mai toccata dagli aggiornamenti); valori iniziali in `defaults/`.
 - Struttura dei file e dettagli: `README.md`. Guida per l'utente: `GUIDA-MAC.md` (Parte 4 = cTrader).
@@ -128,6 +129,22 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   `office3d.setUniverse()` (torri, regista al centro, archi tra palazzi) e `setBuilding(…, key)` per un palazzo;
   sezione 🌌 Universo (ex Palazzo) con un blocco per palazzo; finestra `#palace-dialog`. Test: `test/universe.test.js`.
 
+## Social: Instagram, Threads, LinkedIn, X (15 ottobre 2026)
+
+- `lib/social/`: `networks.js` (OAuth e API dei quattro social), `index.js` (app, account, post, approvazioni
+  `kind: "post"`, pubblicazione automatica solo dall'interfaccia, `publish_at`, massimo al giorno, rinnovo dei codici,
+  `<dati>/social.json` 600), `media.js` (archivio `<dati>/media/`, `/m/<codice>` pubblico per Meta, JPEG con `sharp`,
+  grafiche SVG con caratteri in `assets/fonts/`), `imagegen.js` (Gemini, chiave `geminiKey` in settings). Interfaccia
+  `public/social.js` (sezione 📣 Social, schede dei post in Approvazioni). Strumenti agenti: social_status,
+  social_publish, social_stats, social_comments, media_list, media_view (immagine nel tool_result), create_graphic,
+  generate_image; Orion: social_status, media_list. Redirect: `<PUBLIC_URL>/social/callback` (uno per tutti i social).
+- Dal container i server dei social e developers.facebook.com non sono raggiungibili: si prova con
+  `test/helpers/fake-social.js` (`SOCIAL_API_BASE`). Al primo collegamento vero chiedere all'utente il messaggio
+  d'errore esatto (mai il Secret). Punti incerti da verificare dal vero: forma della risposta del codice di Instagram,
+  versione di LinkedIn, `/2/media/upload` di X, nomi dei modelli di Gemini.
+- L'utente ha la pagina «Palazzo Social» (artifact claude.ai) con 7 messaggi per Orion: palazzo con 4 piani
+  (Instagram, LinkedIn, Threads, X), 5 stanze per piano (Direzione, Trend, Studio, Redazione, Analisi), 29 agenti.
+
 ## Piano Gold (XAUUSD) per Orion
 
 - L'utente ha una pagina (artifact claude.ai "Piano Gold per Orion") con i messaggi da incollare a Orion:
@@ -140,8 +157,8 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
 
 ## A che punto siamo (15 ottobre 2026)
 
-- L'utente vuole un universo di palazzi: Investimenti (esistente), Social (monitorare i social: per ora solo
-  informazioni pubbliche con web_search), Ricerche. La struttura è pronta; i palazzi li crea lui o Orion.
+- L'utente vuole un universo di palazzi: Investimenti (esistente), Social (ora con i suoi account collegati, vedi sopra),
+  Ricerche. La struttura è pronta; i palazzi li crea lui o Orion.
 - cTrader: l'utente rifà da capo la richiesta dell'app su openapi.ctrader.com (redirect del server e localhost).
 
 - Il server su Railway è online con la password (vedi sopra). Da fare per l'utente: primo accesso, portare i dati
