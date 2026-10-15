@@ -3,7 +3,7 @@
 import { Office3D } from "./office3d.js";
 import { VoiceRecorder, recordingSupported, micErrorText, MAX_SECONDS } from "./recorder.js";
 import * as speech from "./speech.js";
-import { initSocial, loadSocial, renderSocial, renderPostApproval } from "./social.js";
+import { initSocial, loadSocial, renderSocial, renderPostApproval, bindShareButtons } from "./social.js";
 import { initCosts, renderCosts, loadCosts } from "./costs.js";
 
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -781,6 +781,7 @@ function renderApprovals() {
       }
     }),
   );
+  bindShareButtons($("#approvals-list"), list);
 }
 
 /** Esito di una proposta già decisa (sui conti cTrader il prezzo resta con tutti i decimali). */

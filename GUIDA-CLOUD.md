@@ -149,6 +149,10 @@ In alternativa puoi sempre dettare con il **microfono della tastiera** dell'iPho
 6. **LinkedIn** dopo 60 giorni chiede di essere ricollegato: compare un **!** su 📣 Social, premi **Ricollega**.
    **X** si paga a consumo (0,015 $ a post, 0,20 $ se contiene un link): tieni un po' di credito su console.x.com.
 
+**Social non collegati** (per esempio se Meta non ti manda il codice): gli agenti lavorano lo stesso. I loro post arrivano
+in ✅ Approvazioni con il pulsante **📲 Condividi**: lo tocchi, scegli l'app del social (le foto sono già pronte e il testo
+è già copiato: su Instagram tieni premuto nella didascalia → Incolla), pubblichi e torni a toccare **Fatto**.
+
 Foto e video restano nel volume del server e **non** entrano nella copia dei dati (sono grandi): tieni gli originali.
 
 ## Aggiornamenti e copie di sicurezza

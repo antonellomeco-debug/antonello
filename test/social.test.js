@@ -316,9 +316,19 @@ test("statistiche e commenti (X costa anche leggere)", async () => {
 
 test("proposta su un social non collegato, scollegamento, stato per gli agenti", async () => {
   social.disconnect("linkedin");
-  await assert.rejects(social.proposePost(agent, { network: "linkedin", text: "x", reason: "x" }), /non è collegato/);
+  // Non collegato: il post va in Approvazioni e l'utente lo pubblica a mano («📲 Condividi», poi «Fatto»).
+  const man = await social.proposePost(agent, { network: "linkedin", text: "Post da pubblicare a mano", reason: "x" });
+  assert.equal(man.status, "pending_manual");
+  const ap = getState().approvals.find((x) => x.postId === man.post_id);
+  assert.equal(ap.post.manual, true);
+  const done = await social.decidePost(ap.id, true);
+  assert.equal(done.status, "executed");
+  assert.equal(done.post.manual, true);
+  assert.equal(done.post.status, "published");
+  await assert.rejects(social.proposePost(agent, { network: "linkedin", text: "x", reply_to: "123", reason: "x" }), /non è collegato: le risposte/);
   const s = social.statusForAgents();
   assert.match(s.social.find((n) => n.network === "linkedin").collegato, /^no/);
+  assert.match(s.social.find((n) => n.network === "linkedin").pubblicazione, /a mano/);
   assert.match(s.social.find((n) => n.network === "x").pubblicazione, /automatica/);
   // Un post rimasto "in pubblicazione" per una chiusura improvvisa diventa "esito incerto".
   const file = path.join(DATA, "social.json");

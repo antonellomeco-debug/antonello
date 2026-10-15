@@ -142,6 +142,13 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   `test/helpers/fake-social.js` (`SOCIAL_API_BASE`). Al primo collegamento vero chiedere all'utente il messaggio
   d'errore esatto (mai il Secret). Punti incerti da verificare dal vero: forma della risposta del codice di Instagram,
   versione di LinkedIn, `/2/media/upload` di X, nomi dei modelli di Gemini.
+- **Pubblicazione a mano** (16 ottobre 2026): Meta non manda all'utente il codice SMS (account sviluppatore bloccato) e
+  LinkedIn non gli lascia creare la Pagina (pochi collegamenti); X è collegato. Un social non collegato funziona «a mano»:
+  `social_publish` crea un post `manual: true` (`status: "pending_manual"` per l'agente, niente reply_to), in Approvazioni
+  il pulsante **📲 Condividi** (`bindShareButtons` in `public/social.js`: foto scaricate prima, testo negli appunti,
+  `navigator.share` con i file; per Instagram solo i file) e **Fatto** (= approvazione → `published`, «Pubblicato da te»).
+  Strade aperte se servirà l'automatico: un familiare crea l'app Meta e aggiunge l'utente come tester, oppure un servizio
+  intermediario a pagamento.
 - L'utente ha la pagina «Palazzo Social» (artifact claude.ai) con 7 messaggi per Orion: palazzo con 4 piani
   (Instagram, LinkedIn, Threads, X), 5 stanze per piano (Direzione, Trend, Studio, Redazione, Analisi), 29 agenti.
 
