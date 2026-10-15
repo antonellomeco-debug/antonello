@@ -11,10 +11,11 @@ const B = await import("../lib/building.js");
 
 const building = () => ({
   name: "Test",
+  palaces: [{ id: "investimenti", name: "Investimenti", description: "", color: "#6f7dff" }],
   floors: [
-    { id: "terra", name: "Terra", level: 0, color: "#4f8cff" },
-    { id: "azioni", name: "Azioni", level: 1, color: "#22b07d" },
-    { id: "crypto", name: "Crypto", level: 2, color: "#e5534b" },
+    { id: "terra", palace: "investimenti", name: "Terra", level: 0, color: "#4f8cff" },
+    { id: "azioni", palace: "investimenti", name: "Azioni", level: 1, color: "#22b07d" },
+    { id: "crypto", palace: "investimenti", name: "Crypto", level: 2, color: "#e5534b" },
   ],
   rooms: [
     { id: "direzione", floor: "terra", name: "Direzione", color: "#a371f7" },
@@ -84,4 +85,61 @@ test("prima installazione: crea palazzo e agenti nella cartella dati", () => {
   const b = B.loadBuilding();
   assert.ok(b.floors.length >= 1 && b.rooms.length >= 1);
   assert.ok(fs.readdirSync(path.join(tmp, "agents")).length > 0);
+});
+
+// ---------- universo: più palazzi ----------
+
+test("file di prima (un solo palazzo): diventa un universo con un palazzo che contiene tutti i piani", () => {
+  const file = path.join(tmp, "building.json");
+  const keep = fs.readFileSync(file, "utf8");
+  fs.writeFileSync(file, JSON.stringify({ name: "Il mio palazzo", floors: [{ id: "a", name: "A", level: 0, color: "#4f8cff" }], rooms: [], links: [] }));
+  let b = B.loadBuilding();
+  assert.equal(b.name, "Il mio universo");
+  assert.deepEqual(b.palaces.map((p) => [p.id, p.name]), [["palazzo-investimenti", "Palazzo Investimenti"]]);
+  assert.equal(b.floors[0].palace, "palazzo-investimenti");
+  // Un nome scelto dall'utente resta il nome del palazzo.
+  fs.writeFileSync(file, JSON.stringify({ name: "Torre Gold", floors: [{ id: "a", name: "A", level: 0, color: "#4f8cff" }] }));
+  b = B.loadBuilding();
+  assert.deepEqual([b.name, b.palaces[0].name, b.floors[0].palace], ["Il mio universo", "Torre Gold", "torre-gold"]);
+  // Salvato e riletto: resta uguale.
+  B.saveBuilding(b);
+  const again = B.loadBuilding();
+  assert.deepEqual(again.palaces, b.palaces);
+  assert.equal(again.name, "Il mio universo");
+  fs.writeFileSync(file, keep);
+});
+
+test("palazzi: creazione, nomi doppi, piani nel palazzo giusto con i loro livelli, eliminazione", () => {
+  const b = building();
+  const social = B.upsertPalace(b, { name: "Palazzo Social", description: "Monitora i miei social" });
+  assert.equal(social.id, "palazzo-social");
+  assert.match(social.color, /^#[0-9a-f]{6}$/i);
+  assert.throws(() => B.upsertPalace(b, { name: "palazzo social" }), /esiste già/);
+  assert.throws(() => B.upsertPalace(b, { name: " " }), /nome/);
+  const f = B.upsertFloor(b, { name: "Piano Instagram", palace: social.id });
+  assert.equal(f.palace, social.id);
+  assert.equal(f.level, 0, "primo piano del palazzo nuovo: livello 0, non dopo i piani degli altri palazzi");
+  assert.equal(B.upsertFloor(b, { name: "Piano TikTok", palace: social.id }).level, 1);
+  assert.equal(B.upsertFloor(b, { name: "Senza palazzo" }).palace, "investimenti", "senza palazzo: il primo");
+  assert.throws(() => B.upsertFloor(b, { name: "X", palace: "inesistente" }), /palazzo "inesistente" non esiste/);
+  assert.throws(() => B.deletePalace(b, social.id), /ancora 2 piani/);
+  B.deleteFloor(b, f.id);
+  B.deleteFloor(b, "piano-tiktok");
+  B.deletePalace(b, social.id);
+  assert.deepEqual(b.palaces.map((p) => p.id), ["investimenti"]);
+  assert.throws(() => B.deletePalace(b, "investimenti"), /unico palazzo/);
+  const renamed = B.upsertPalace(b, { id: "investimenti", name: "Palazzo Borsa" });
+  assert.deepEqual([renamed.id, renamed.name], ["investimenti", "Palazzo Borsa"], "rinominare non cambia il codice");
+});
+
+test("palazzi diversi comunicano con i collegamenti tra i loro piani", () => {
+  const b = building();
+  const social = B.upsertPalace(b, { name: "Social" });
+  const f = B.upsertFloor(b, { name: "Monitor", palace: social.id });
+  B.upsertRoom(b, { name: "Sala Trend", floor: f.id });
+  B.setLink(b, { from: f.id, to: "terra", direction: "one-way", active: true });
+  const cio = { room: "direzione", readsFrom: [] };
+  assert.ok(B.readableRooms(cio, b).some((r) => r.id === "sala-trend"), "la Direzione legge il palazzo Social");
+  const trend = { room: "sala-trend", readsFrom: [] };
+  assert.ok(!B.readableRooms(trend, b).some((r) => r.id === "direzione"), "a senso unico: il Social non legge la Direzione");
 });
