@@ -16,7 +16,7 @@ const when = (iso) => new Date(iso).toLocaleString("it-IT", { day: "2-digit", mo
 const DEFAULT_SESSION = { auth: false, loggedIn: true, cloud: false, updater: true, publicUrl: null, volumeOk: true };
 
 const state = {
-  office: null, notes: {}, log: [], approvals: [], portfolio: null, stats: null,
+  office: null, notes: {}, log: [], approvals: [], requests: [], portfolio: null, stats: null,
   chat: { name: "", busy: false, transcript: [], live: "" }, status: {}, view: "office", room: null, editing: null,
   floorFocus: null, broker: null, brokerAccounts: null, session: { ...DEFAULT_SESSION },
 };
@@ -253,6 +253,7 @@ async function loadAll() {
   [state.notes, state.log, state.approvals, state.chat] = await Promise.all([
     api("/api/notes"), api("/api/log"), api("/api/approvals"), api("/api/chat"),
   ]);
+  state.requests = await api("/api/requests").catch(() => []);
   await loadBroker();
   if (!state.chat.busy) voice.speakTurn = false; // risposta finita mentre la diretta era interrotta
   refreshVoiceStatus();
@@ -735,10 +736,94 @@ roomDlg.querySelectorAll("[data-close]").forEach((b) => (b.onclick = () => roomD
 
 // ---------- approvazioni ----------
 
+// ---------- domande degli agenti ----------
+// Note con l'etichetta RICHIESTA: in cima ad Approvazioni, con la risposta (e un allegato) che torna nella stanza.
+
+const requestDrafts = new Map(); // id → testo scritto e non ancora mandato (le schede si ridisegnano spesso)
+let requestFileFor = null;
+
+function renderRequests() {
+  const el = $("#requests-list");
+  const open = state.requests.filter((r) => r.status === "open");
+  const closed = state.requests.filter((r) => r.status !== "open").slice(0, 3);
+  const roomName = (id) => state.office?.rooms.find((r) => r.id === id)?.name ?? id;
+  el.innerHTML = open.length || closed.length
+    ? `<h2 class="section-title">📩 Domande degli agenti${open.length ? ` (${open.length})` : ""}</h2>` +
+      open.map((r) => `<article class="card request-card">
+        <div class="kicker"><span>📩 Domanda</span><span class="meta">· ${esc(r.agentName)} · ${esc(roomName(r.roomId))} · ${when(r.at)}</span></div>
+        <p class="post-text">${esc(r.text)}</p>
+        <textarea rows="3" data-req-text="${esc(r.id)}" placeholder="Scrivi la risposta (se serve una foto, un logo o un video, allegalo)…">${esc(requestDrafts.get(r.id) ?? "")}</textarea>
+        <div class="actions">
+          <button class="btn good" data-req-answer="${esc(r.id)}">Invia risposta</button>
+          <button class="btn ghost" data-req-file="${esc(r.id)}">📎 Allega foto o video</button>
+          <button class="btn ghost" data-req-dismiss="${esc(r.id)}">Non serve</button>
+        </div>
+      </article>`).join("") +
+      closed.map((r) => `<article class="card decided request-card"><div class="kicker"><span>📩 ${r.status === "answered" ? "Risposta inviata" : "Domanda chiusa"}</span><span class="meta">· ${esc(r.agentName)} · ${when(r.closedAt ?? r.at)}</span></div>
+        <p class="post-text">${esc(r.text.slice(0, 200))}${r.text.length > 200 ? "…" : ""}</p>${r.answer ? `<p class="meta">Tu: ${esc(r.answer.slice(0, 200))}${r.answer.length > 200 ? "…" : ""}</p>` : ""}</article>`).join("")
+    : "";
+  el.querySelectorAll("[data-req-text]").forEach((t) => t.addEventListener("input", () => requestDrafts.set(t.dataset.reqText, t.value)));
+  el.querySelectorAll("[data-req-answer],[data-req-dismiss]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      const id = b.dataset.reqAnswer ?? b.dataset.reqDismiss;
+      b.disabled = true;
+      try {
+        const r = b.dataset.reqAnswer
+          ? await api(`/api/requests/${id}/answer`, { method: "POST", body: JSON.stringify({ text: requestDrafts.get(id) ?? "" }) })
+          : await api(`/api/requests/${id}/dismiss`, { method: "POST" });
+        requestDrafts.delete(id);
+        upsertRequest(r);
+      } catch (err) {
+        alert(err.message);
+        b.disabled = false;
+      }
+    }),
+  );
+  el.querySelectorAll("[data-req-file]").forEach((b) =>
+    b.addEventListener("click", () => {
+      requestFileFor = b.dataset.reqFile;
+      $("#request-file").click();
+    }),
+  );
+}
+
+function upsertRequest(r) {
+  const i = state.requests.findIndex((x) => x.id === r.id);
+  if (i >= 0) state.requests[i] = r;
+  else state.requests.unshift(r);
+  if (state.view === "approvals") renderRequests();
+  refreshStatsSoon();
+}
+
+/** Allegato alla risposta: va nell'archivio (📣 Social → Foto e video) e nella risposta si scrive il suo id. */
+$("#request-file").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  const id = requestFileFor;
+  if (!file || !id) return;
+  const btn = $(`[data-req-file="${CSS.escape(id)}"]`);
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Carico…";
+  }
+  try {
+    const res = await fetch("/api/media", { method: "POST", headers: { "Content-Type": file.type || "application/octet-stream", "X-File-Name": encodeURIComponent(file.name) }, body: file });
+    const m = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(m.error ?? `errore ${res.status}`);
+    const line = `[Allegato: ${m.kind === "video" ? "video" : "foto"} «${m.title}», id ${m.id} nell'archivio]`;
+    requestDrafts.set(id, `${requestDrafts.get(id) ?? ""}${requestDrafts.get(id) ? "\n" : ""}${line}`);
+    renderRequests();
+  } catch (err) {
+    alert(`Caricamento non riuscito: ${err.message}`);
+    renderRequests();
+  }
+});
+
 function renderApprovals() {
+  renderRequests();
   const list = state.approvals;
   if (!list.length) {
-    $("#approvals-list").innerHTML = `<p class="empty">Nessuna proposta. Quando un agente vuole comprare, vendere o pubblicare un post, la trovi qui.</p>`;
+    $("#approvals-list").innerHTML = `<p class="empty">Nessuna proposta. Quando un agente vuole comprare, vendere o pubblicare un post, la trovi qui (in alto, le sue eventuali domande per te).</p>`;
     return;
   }
   const label = { pending: "", executed: "✔ Eseguito", rejected: "Scartato", failed: "✖ Non eseguito", executing: "In esecuzione…", uncertain: "⚠️ Esito incerto", scheduled: "🕒 Programmato" };
@@ -2124,6 +2209,9 @@ function handleEvent(ev) {
     case "log":
       state.log.push(ev.entry);
       if (state.view === "log") renderLog();
+      break;
+    case "request":
+      upsertRequest(ev.request);
       break;
     case "approval": {
       const i = state.approvals.findIndex((a) => a.id === ev.approval.id);
