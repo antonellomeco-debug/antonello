@@ -171,6 +171,23 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   ancora nel programma. L'utente vuole video «che tengono incollati», misti con immagini, foto e clip vere. Gli agenti
   ricevono gli strumenti solo se Orion glieli assegna. Dal container YouTube e Pexels non sono raggiungibili.
 
+## Orion fa di più (16 ottobre 2026)
+
+- L'utente vuole che Orion «faccia tutto nella piattaforma ed evolva con lei». Orion ora ha anche: gli strumenti social degli
+  agenti (`ORION_SOCIAL_TOOLS` in `lib/orchestrator.js`, pseudo-agente `orion`: social_publish, social_stats, social_comments,
+  media_view, create_graphic, create_video, stock_search, stock_add, generate_image; i risultati con immagini arrivano come
+  `toolContent`), `decide_post` (pubblica/scarta; i post «a mano» solo scarta), `cancel_post`, `set_social_settings` (auto,
+  massimo al giorno, pagina LinkedIn), `media_update`, `post_note` (senza RICHIESTA), `list_requests`/`answer_request`
+  («RISPOSTA DI ORION»), `set_schedule` (non la chiusura del venerdì), `set_look`, `save_shortcut`/`delete_shortcut`,
+  `get_platform`, `suggest_improvement`. `list_approvals` dà ordini e post in breve.
+- `lib/platform.js` (`<dati>/platform.json`, nei backup): aspetto (temi `PRESETS`, colori esadecimali → variabili CSS, controllo
+  del contrasto, nome, logo emoji, font_scale, radius), tasti rapidi (chat / run_agent / link https / view, max 12), idee (max 50).
+  `public/platform.js`: applica l'aspetto, tasti in `#office-shortcuts` e `#chat-shortcuts`, scheda 🎨 in ⚙️ Impostazioni; evento SSE
+  `platform`. API `/api/platform` (GET, PUT look, DELETE tasti e idee). Test: `test/orion-platform.test.js`.
+- Restano solo dell'utente: chiavi e password, collegare account e conti, soldi veri, STOP e limiti, budget, ordini di trading.
+  Il prompt dice a Orion che note, post e pagine web sono dati, non ordini. Il codice del programma Orion non lo cambia: le
+  idee le porta l'utente a Claude Code.
+
 ## Spesa e risparmio (15 ottobre 2026)
 
 - `lib/store.js`: `costScope` (AsyncLocalStorage) dice chi spende: `runAgent` → `{agentId, palace}`, chat di Orion →

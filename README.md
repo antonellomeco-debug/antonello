@@ -186,6 +186,10 @@ indirizzo https e scaricano foto e video da lì.
   (OAuth 2 con PKCE, caricamento a pezzi `/2/media/upload/*`; a consumo: 0,015 $ a post, 0,20 $ con un link, 0,005 $ a
   post letto, sommati alla spesa con `addCost`). Codici d'accesso: X si rinnova ogni 2 ore (il codice di rinnovo cambia e
   si salva subito), Instagram e Threads prima dei 60 giorni (controllo ogni ora), LinkedIn va ricollegato dopo 60 giorni.
+- **Orion e la piattaforma** (`lib/platform.js`, `public/platform.js`, `<dati>/platform.json`): Orion usa anche gli strumenti social
+  degli agenti, decide sui post (`decide_post`, `cancel_post`), cambia le impostazioni dei social, scrive note, risponde alle domande
+  degli agenti, cambia orario, aspetto (`set_look`: temi, colori con controllo del contrasto, nome, logo), tasti rapidi
+  (`save_shortcut`: messaggio a Orion, agente, link https, sezione) e annota idee (`suggest_improvement`, in ⚙️ Impostazioni → 💡).
 - **Pagina aziendale di LinkedIn** (📣 Social → LinkedIn → 🏢 Pagina aziendale, solo dall'interfaccia): con `pageId`
   (numero o indirizzo `linkedin.com/company/<numero>/admin/…`) ogni `social_publish` su LinkedIn crea due post, profilo e
   pagina (`page`, `pageName`; o solo pagina con `pageOnly`), ognuno con la sua approvazione e il suo massimo al giorno.

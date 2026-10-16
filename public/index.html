@@ -61,6 +61,8 @@
             <button class="btn primary desktop-only" id="new-agent">+ Nuovo agente</button>
           </div>
         </header>
+        <!-- Tasti rapidi creati da Orion (lib/platform.js). -->
+        <nav class="shortcuts hidden" id="office-shortcuts" aria-label="Tasti rapidi"></nav>
         <!-- Palazzi dell'universo: 🌌 tutti insieme oppure uno alla volta. -->
         <nav class="palace-bar" id="palace-bar" aria-label="Palazzi"></nav>
         <!-- Su computer l'elenco degli agenti sta sopra il palco 3D; su telefono sotto, sempre aperto. -->
@@ -322,6 +324,7 @@
         <button class="btn ghost small" id="chat-reset" title="Nuova conversazione">↺</button>
       </header>
       <div class="chat-body" id="chat-body"></div>
+      <nav class="shortcuts hidden" id="chat-shortcuts" aria-label="Tasti rapidi"></nav>
       <div class="chips" id="chat-chips"></div>
       <form class="chat-form" id="chat-form">
         <textarea id="chat-input" rows="1" placeholder="Scrivi un messaggio…"></textarea>
@@ -510,6 +513,19 @@
           <span class="hint" id="speed-status"></span>
         </div>
         <p class="hint">Vale solo per Orion: gli agenti usano il modello scelto nella loro scheda. Le risposte compaiono mentre Orion le scrive.</p>
+      </fieldset>
+
+      <fieldset class="update-box" id="platform-box">
+        <legend>🎨 Aspetto, tasti rapidi e idee</legend>
+        <p class="hint">Li cambia soprattutto Orion: chiedigli per esempio «metti il tema oceano», «aggiungi un tasto che fa lavorare la Rassegna Notizie» o «che pulsanti mancano?».</p>
+        <div class="row wrap">
+          <label>Tema <select id="look-preset"></select></label>
+          <button type="button" class="btn ghost" id="look-reset">Aspetto originale</button>
+        </div>
+        <div id="platform-shortcuts"></div>
+        <h4 class="platform-h">💡 Idee di Orion per migliorare il programma</h4>
+        <p class="hint">Cose che Orion non può fare da solo: copiale e dalle a chi sviluppa il programma.</p>
+        <div id="platform-ideas"></div>
       </fieldset>
 
       <fieldset class="update-box" id="schedule-box">
