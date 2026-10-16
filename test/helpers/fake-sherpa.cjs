@@ -1,4 +1,4 @@
-// Finto sherpa-onnx-node per le prove dei messaggi vocali (VOICE_ENGINE): niente modello da 564 MB.
+// Finto sherpa-onnx-node per le prove dei messaggi vocali (VOICE_ENGINE) e della voce dei video (TTS_ENGINE).
 // "Trascrive" dicendo quanti secondi di audio ha ricevuto; con 3,0 s esatti restituisce una frase che Whisper
 // inventa sul silenzio, per provare il filtro. FAKE_SHERPA_FAIL=load fa fallire il caricamento del modello;
 // FAKE_SHERPA_DELAY_MS rende lenta la trascrizione.
@@ -28,4 +28,19 @@ class OfflineRecognizer {
   }
 }
 
-module.exports = { OfflineRecognizer };
+// Finta voce narrante (TTS_ENGINE): un tono che dura 0,06 s per lettera; "ERRORE" nel testo fa fallire la lettura.
+class OfflineTts {
+  constructor(config) {
+    if (!fs.existsSync(config.model.vits.model)) throw new Error(`manca ${config.model.vits.model}`);
+    this.sampleRate = 22050;
+  }
+  generate({ text, speed = 1 }) {
+    if (/ERRORE/.test(text)) throw new Error("voce rotta");
+    const n = Math.round((22050 * 0.06 * text.length) / speed);
+    const samples = new Float32Array(n);
+    for (let i = 0; i < n; i++) samples[i] = 0.3 * Math.sin((2 * Math.PI * 220 * i) / 22050);
+    return { samples, sampleRate: 22050 };
+  }
+}
+
+module.exports = { OfflineRecognizer, OfflineTts };

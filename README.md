@@ -201,10 +201,19 @@ indirizzo https e scaricano foto e video da lì.
   `media_view` manda la foto all'agente come immagine. **Immagini IA** (`generate_image`, `lib/social/imagegen.js`):
   Gemini con la chiave dell'utente (`geminiKey` in `settings.json`), modelli `gemini-3.1-flash-image-preview` poi
   `gemini-2.5-flash-image`, circa 0,07 $ a immagine.
-- **Video montati** (`create_video`, `lib/social/video.js`): schermate SVG, foto o spezzoni dell'archivio (con
-  `overlay_svg` sopra), zoom lento, transizioni `xfade`, musica caricata dall'utente (archivio: MP3/M4A/AAC/WAV, `kind:
-  "audio"`, mai da sola in un post) oppure audio muto; formati story 1080×1920, portrait, square, landscape 1280×720;
-  massimo 20 schermate e 90 s; un montaggio per volta. ffmpeg: `FFMPEG_PATH`, poi il pacchetto facoltativo `ffmpeg-static`
+- **Video montati** (`create_video`, `lib/social/video.js`): schermate con sfondo clip/foto dell'archivio, SVG oppure solo
+  colore; `headline` animato (pop, slide, typewriter, fade; `*parola*` nel colore d'accento) e sottotitoli parola per parola
+  della voce, entrambi in un file ASS disegnato da libass (caratteri copiati in una cartella di lavoro, ffmpeg con `cwd`);
+  `voice` = frase della voce narrante (la schermata dura quanto la frase); movimenti punch/zoom/pan (zoompan), transizioni
+  `xfade` (anche `mix`, 0,35 s), barra di avanzamento, "whoosh" e "pop" generati con lavfi, musica dell'archivio
+  (MP3/M4A/AAC/WAV, `kind: "audio"`, mai da sola in un post) abbassata sotto la voce con `sidechaincompress`; formati
+  story 1080×1920, portrait, square, landscape 1280×720; massimo 30 schermate e 90 s; un montaggio per volta.
+- **Voce narrante** (`lib/social/tts.js` + `tts-worker.js`): Piper `it_IT-paola-medium` di sherpa-onnx (65 MB da GitHub alla
+  prima richiesta, SHA-256 fissato, in `<dati>/models/tts-paola/`), una frase per volta per conoscerne la durata; tempi delle
+  parole stimati in proporzione alle lettere. Prove: `TTS_ENGINE` (finto in `test/helpers/fake-sherpa.cjs`), `TTS_MODEL_URL`.
+- **Repertorio** (`lib/social/stock.js`, strumenti `stock_search` con le anteprime da guardare e `stock_add`): Pexels con la
+  chiave gratuita dell'utente (`pexelsKey` in settings, scheda in 📣 Social); file MP4 col lato lungo fino a 2048, nell'archivio
+  con `origin: "stock"` e `source: "pexels:<id>"` (non si riscarica). Dal container Pexels non è raggiungibile: finto server. ffmpeg: `FFMPEG_PATH`, poi il pacchetto facoltativo `ffmpeg-static`
   (scarica il programma da GitHub all'installazione), poi quello del sistema. Copertina (`thumb`) visibile con `media_view`.
   Test: `test/video.test.js`.
 - Test: `test/social.test.js` e `test/social-server.test.js` con il finto server `test/helpers/fake-social.js`

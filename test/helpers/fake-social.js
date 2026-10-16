@@ -1,4 +1,4 @@
-// Finto server di Instagram, Threads, LinkedIn, X e Gemini per le prove (SOCIAL_API_BASE): risponde come le API
+// Finto server di Instagram, Threads, LinkedIn, X, Gemini e Pexels per le prove (SOCIAL_API_BASE): risponde come le API
 // vere ai percorsi /<host originale>/<percorso>. Le pagine di accesso approvano subito e rimandano al redirect_uri.
 // Instagram e Threads scaricano davvero foto e video dagli indirizzi pubblici, come fanno i server di Meta.
 // Si può anche avviare da solo: node test/helpers/fake-social.js [porta] (per le prove nel browser).
@@ -12,7 +12,7 @@ export async function startFakeSocial({ port = 0 } = {}) {
   const calls = [];
   const fetched = [];
   const challenges = new Map(); // codice di X → code_challenge
-  const opts = { geminiFirstModel404: true, videoPolls: 1, failPublish: null };
+  const opts = { geminiFirstModel404: true, videoPolls: 1, failPublish: null, stockVideo: null };
   let seq = 0;
   const polls = new Map();
 
@@ -182,6 +182,38 @@ export async function startFakeSocial({ port = 0 } = {}) {
         if (!req.headers["x-goog-api-key"]) return json(400, { error: { code: 400, message: "API key not valid." } });
         if (/vietat/i.test(body.contents?.[0]?.parts?.[0]?.text ?? "")) return json(200, { candidates: [{ finishReason: "IMAGE_SAFETY", content: { parts: [] } }] });
         return json(200, { candidates: [{ content: { parts: [{ text: "Ecco l'immagine" }, { inlineData: { mimeType: "image/png", data: PNG.toString("base64") } }] }, finishReason: "STOP" }] });
+      }
+      // ---------------- Pexels (video e foto di repertorio)
+      if (host === "api.pexels.com") {
+        const k = String(req.headers.authorization ?? "");
+        if (!k || k.includes("Sbagliata")) return json(401, { error: "Unauthorized" });
+        if (p === "/v1/curated") return json(200, { photos: [] });
+        if (p === "/videos/search") {
+          if (q.query === "niente") return json(200, { videos: [] });
+          return json(200, {
+            videos: [1, 2].map((n) => ({
+              id: 900 + n, width: 1080, height: 1920, duration: 8 + n, url: `https://www.pexels.com/video/business-meeting-${900 + n}/`,
+              image: `https://images.pexels.com/videos/${900 + n}/preview.jpeg`, user: { name: `Autore ${n}` },
+              video_files: [
+                { id: 1, quality: "uhd", file_type: "video/mp4", width: 2160, height: 3840, link: `https://videos.pexels.com/video-files/${900 + n}/uhd.mp4` },
+                { id: 2, quality: "hd", file_type: "video/mp4", width: 1080, height: 1920, link: `https://videos.pexels.com/video-files/${900 + n}/hd.mp4` },
+                { id: 3, quality: "sd", file_type: "video/mp4", width: 540, height: 960, link: `https://videos.pexels.com/video-files/${900 + n}/sd.mp4` },
+              ],
+            })),
+          });
+        }
+        if (p === "/v1/search") {
+          return json(200, { photos: [{ id: 501, width: 3000, height: 4000, url: "https://www.pexels.com/photo/milan-skyline-501/", alt: "Milano di sera", photographer: "Foto Grafo", src: { medium: "https://images.pexels.com/photos/501/m.jpeg", large2x: "https://images.pexels.com/photos/501/l.jpeg" } }] });
+        }
+      }
+      if (host === "images.pexels.com") {
+        res.writeHead(200, { "content-type": "image/png" });
+        return res.end(PNG);
+      }
+      if (host === "videos.pexels.com") {
+        fetched.push({ url: p, status: 200 });
+        res.writeHead(200, { "content-type": "video/mp4" });
+        return res.end(opts.stockVideo ?? Buffer.alloc(4096));
       }
       json(404, { error: { message: `percorso finto sconosciuto: ${host}${p}` } });
     } catch (err) {
