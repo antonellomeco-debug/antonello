@@ -152,6 +152,11 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
 - L'utente ha la pagina «Palazzo Social» (artifact claude.ai) con 8 messaggi per Orion: palazzo con 4 piani
   (Instagram, LinkedIn, Threads, X), 5 stanze per piano (Direzione, Trend, Studio, Redazione, Analisi), 29 agenti; il
   messaggio 8 aggiunge un «Brand Manager» per piano (KIT PROFILO: bio, info, copertine; domande all'utente con RICHIESTA).
+- **Pagina LinkedIn** (16 ottobre 2026): l'utente vuole i post anche sulla sua pagina aziendale **Venturo** (id `146737411`).
+  Impostazione in 📣 Social → LinkedIn (`pageId`, `pageName`, `pageOnly`, `pageApi`): un post per il profilo e uno per la
+  pagina. Finché LinkedIn non approva la «Community Management API» (`w_organization_social`, verifica della pagina,
+  dati dell'azienda, informativa privacy; può chiedere un'app nuova solo per quel prodotto) la pagina è «a mano».
+  Test nel finto server (`li-token-org`).
 - **Domande degli agenti** (16 ottobre 2026): `postNote` con etichetta RICHIESTA (o testo «RICHIESTA PER L'UTENTE») crea
   `state.requests`; in cima ad ✅ Approvazioni l'utente risponde (con 📎 allegato nell'archivio) → `answerRequest` scrive
   la nota «RISPOSTA DELL'UTENTE» nella stanza dell'agente (`agentId: "utente"`). Contano nel numerino di Approvazioni.

@@ -186,6 +186,13 @@ indirizzo https e scaricano foto e video da lì.
   (OAuth 2 con PKCE, caricamento a pezzi `/2/media/upload/*`; a consumo: 0,015 $ a post, 0,20 $ con un link, 0,005 $ a
   post letto, sommati alla spesa con `addCost`). Codici d'accesso: X si rinnova ogni 2 ore (il codice di rinnovo cambia e
   si salva subito), Instagram e Threads prima dei 60 giorni (controllo ogni ora), LinkedIn va ricollegato dopo 60 giorni.
+- **Pagina aziendale di LinkedIn** (📣 Social → LinkedIn → 🏢 Pagina aziendale, solo dall'interfaccia): con `pageId`
+  (numero o indirizzo `linkedin.com/company/<numero>/admin/…`) ogni `social_publish` su LinkedIn crea due post, profilo e
+  pagina (`page`, `pageName`; o solo pagina con `pageOnly`), ognuno con la sua approvazione e il suo massimo al giorno.
+  Sulla pagina si pubblica con `author: urn:li:organization:<numero>` solo se l'accesso comprende `w_organization_social`
+  (prodotto «Community Management API», da far approvare a LinkedIn; casella `pageApi` → si chiede il permesso al
+  ricollegamento, permessi concessi salvati in `account.scopes`); altrimenti il post della pagina è «a mano»
+  (🏢 Apri la pagina: testo copiato e pagina di amministrazione aperta; 📲 Salva i file).
 - **Post** (`lib/social/index.js`, dati in `<dati>/social.json`, file con permessi 600): `social_publish` crea un post
   `pending` con un'approvazione `kind: "post"` in ✅ Approvazioni; con la pubblicazione **automatica** (si attiva solo
   dall'interfaccia, per ogni social) parte subito. `publish_at` (ora italiana) → `scheduled`, pubblicato dal giro di ogni

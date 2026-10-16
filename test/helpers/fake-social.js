@@ -39,6 +39,7 @@ export async function startFakeSocial({ port = 0 } = {}) {
       back.searchParams.set("code", `${host}-code-${++seq}`);
       back.searchParams.set("state", q.state);
       if (host === "x.com") challenges.set(back.searchParams.get("code"), q.code_challenge);
+      if (host === "www.linkedin.com") challenges.set(back.searchParams.get("code"), q.scope);
       res.writeHead(302, { location: back.toString() });
       res.end();
     };
@@ -122,7 +123,12 @@ export async function startFakeSocial({ port = 0 } = {}) {
       }
       // ---------------- LinkedIn
       if (host === "www.linkedin.com" && p === "/oauth/v2/authorization") return consent();
-      if (host === "www.linkedin.com" && p === "/oauth/v2/accessToken") return json(200, { access_token: "li-token", expires_in: 5183999, scope: "openid,profile,w_member_social" });
+      if (host === "www.linkedin.com" && p === "/oauth/v2/accessToken") {
+        // Come LinkedIn: concede i permessi chiesti (w_organization_social solo con la pagina approvata).
+        const asked = String(challenges.get(body.code) ?? "").split(" ");
+        const org = asked.includes("w_organization_social");
+        return json(200, { access_token: org ? "li-token-org" : "li-token", expires_in: 5183999, scope: ["openid", "profile", "w_member_social", ...(org ? ["w_organization_social"] : [])].join(",") });
+      }
       if (host === "api.linkedin.com") {
         if (p === "/v2/userinfo") return json(200, { sub: "abc123", name: "Antonello Prova" });
         if (!req.headers["linkedin-version"] || req.headers["x-restli-protocol-version"] !== "2.0.0") return json(400, { message: "VERSION_MISSING", status: 400 });
@@ -130,7 +136,10 @@ export async function startFakeSocial({ port = 0 } = {}) {
           const id = `urn:li:image:img${++seq}`;
           return json(200, { value: { uploadUrlExpiresAt: Date.now() + 3600_000, uploadUrl: `https://upload.linkedin.com/put/${encodeURIComponent(id)}`, image: id } });
         }
-        if (p === "/rest/posts") return json(201, {}, { "x-restli-id": `urn:li:share:${++seq}` });
+        if (p === "/rest/posts") {
+          if (String(body.author).startsWith("urn:li:organization:") && req.headers.authorization !== "Bearer li-token-org") return json(403, { message: "Not enough permissions to access: partnerApiPostsExternal.CREATE.20261001", status: 403 });
+          return json(201, {}, { "x-restli-id": `urn:li:share:${++seq}` });
+        }
       }
       if (host === "upload.linkedin.com") {
         res.writeHead(201, { etag: `etag-${seq}` });
