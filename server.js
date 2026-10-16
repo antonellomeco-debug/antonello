@@ -30,6 +30,7 @@ import * as social from "./lib/social/index.js";
 import * as media from "./lib/social/media.js";
 import { setGeminiKey } from "./lib/social/imagegen.js";
 import { setStockKey } from "./lib/social/stock.js";
+import { setGoogleTtsKey, setVideoVoice, previewVoice } from "./lib/social/googletts.js";
 import { shutdownTts } from "./lib/social/tts.js";
 import crypto from "node:crypto";
 import { pipeline } from "node:stream/promises";
@@ -424,6 +425,24 @@ const netParam = (req) => {
   return net;
 };
 app.get("/api/social", (_req, res) => res.json(social.socialStatus()));
+// Voce dei video: chiave di Google, scelta della voce e ascolto di prova (pochi caratteri, dentro la quota gratuita).
+app.put("/api/social/voice/key", async (req, res) => {
+  try {
+    await setGoogleTtsKey(req.body?.key);
+    res.json(social.socialStatus());
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+app.put("/api/social/voice", handle((req) => (setVideoVoice(req.body?.name), social.socialStatus())));
+app.post("/api/social/voice/preview", async (req, res) => {
+  try {
+    const wav = await previewVoice(String(req.body?.name ?? ""));
+    res.set("content-type", "audio/wav").set("cache-control", "no-store").send(wav);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
 app.put("/api/social/stock", async (req, res) => {
   try {
     const r = await setStockKey(String(req.body?.provider ?? "pexels"), req.body?.key);

@@ -160,7 +160,10 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   optionalDependencies, con libass): reel con clip/foto/schermate di testo, voce narrante italiana gratuita (Piper paola via
   sherpa-onnx, `lib/social/tts.js`, scaricata alla prima richiesta), sottotitoli parola per parola, titoli animati, transizioni,
   barra, effetti, musica dell'archivio abbassata sotto la voce. Repertorio Pixabay o Pexels (`stock_search`/`stock_add`, chiavi
-  gratuite dell'utente in 📣 Social; Pexels a ottobre 2026 ha messo in pausa le chiavi nuove: si usa Pixabay). L'utente vuole video «che tengono incollati», misti con immagini, foto e clip vere. Gli agenti
+  gratuite dell'utente in 📣 Social; Pexels a ottobre 2026 ha messo in pausa le chiavi nuove: si usa Pixabay). Voce: l'utente non voleva Paola; ha scelto le voci **Google Chirp 3 HD**
+  (`lib/social/googletts.js`, chiave sua, gratis fino a 1 milione di caratteri al mese, poi si torna alla voce del server). Provate
+  anche Kokoro (`kokoro-multi-lang-v1_0`, `lang: "it"`, if_sara 35, im_nicola 36, miscele di voci in voices.bin): funzionano, non
+  ancora nel programma. L'utente vuole video «che tengono incollati», misti con immagini, foto e clip vere. Gli agenti
   ricevono gli strumenti solo se Orion glieli assegna. Dal container YouTube e Pexels non sono raggiungibili.
 
 ## Spesa e risparmio (15 ottobre 2026)

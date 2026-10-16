@@ -211,6 +211,11 @@ indirizzo https e scaricano foto e video da lì.
 - **Voce narrante** (`lib/social/tts.js` + `tts-worker.js`): Piper `it_IT-paola-medium` di sherpa-onnx (65 MB da GitHub alla
   prima richiesta, SHA-256 fissato, in `<dati>/models/tts-paola/`), una frase per volta per conoscerne la durata; tempi delle
   parole stimati in proporzione alle lettere. Prove: `TTS_ENGINE` (finto in `test/helpers/fake-sherpa.cjs`), `TTS_MODEL_URL`.
+- **Voce di Google** (`lib/social/googletts.js`, scheda «🎙️ Voce dei video» in 📣 Social): chiave `googleTtsKey` (Cloud
+  Text-to-Speech, header `x-goog-api-key`), elenco delle voci `it-IT` chiesto a Google (`googleVoices`, prima le Chirp 3 HD),
+  scelta in `videoVoice` ("local" = Piper), ascolto di prova (`POST /api/social/voice/preview`, CSP `media-src blob:`).
+  Caratteri contati in `ttsUsage` per mese: oltre 950.000 (gratis fino a 1 milione) o se Google non risponde si usa la voce
+  del server. `speakingRate` rifiutato da una voce → si riprova senza. Audio in comune: `lib/social/wav.js`.
 - **Repertorio** (`lib/social/stock.js`, strumenti `stock_search` con le anteprime da guardare e `stock_add`): Pixabay
   (`pixabayKey`, chiave nell'indirizzo, video senza filtro di orientamento: si mettono prima quelli adatti) e/o Pexels
   (`pexelsKey`), chiavi gratuite dell'utente nella scheda di 📣 Social; con due chiavi i risultati si alternano; ricerche
