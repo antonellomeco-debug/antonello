@@ -185,11 +185,11 @@ test("errori chiari per l'agente e nessun file a metà", async () => {
 });
 
 test("repertorio Pexels: chiave provata, ricerca con anteprime, scarico nell'archivio (una volta sola)", async () => {
-  await assert.rejects(stock.searchStock({ query: "office" }), /chiave gratuita di Pexels/);
+  await assert.rejects(stock.searchStock({ query: "office" }), /chiave gratuita di Pixabay/);
   await assert.rejects(stock.setPexelsKey("corta"), /non sembra giusta/);
   await assert.rejects(stock.setPexelsKey("ChiaveSbagliata0123456789abcdef"), /non è valida/);
   const st = await stock.setPexelsKey(" ChiaveGiusta0123456789abcdefXYZ ");
-  assert.deepEqual([st.configured, st.hint], [true, "…fXYZ"]);
+  assert.deepEqual([st.configured, st.pexels.hint], [true, "…fXYZ"]);
   const a = { id: "video_maker", name: "Video Maker", room: "sala", mode: "llm", instructions: "x", tools: ["stock_search", "stock_add", "create_video"], model: "claude-haiku-5-5", effort: "low", watchlist: [] };
   const found = await runTool(a, "stock_search", { query: "business meeting", orientation: "portrait" });
   const images = found.toolContent.filter((c) => c.type === "image");
@@ -219,6 +219,32 @@ test("repertorio Pexels: chiave provata, ricerca con anteprime, scarico nell'arc
   const v = await runTool(a, "create_video", { format: "square", title: "Con repertorio", slides: [{ media: added.id, seconds: 1.5, headline: "Riunione" }] });
   assert.equal(v.kind, "video");
   assert.equal((await stock.setPexelsKey("")).configured, false);
+});
+
+test("repertorio Pixabay: chiave nell'indirizzo, video verticali prima per i reel, file non 4K, ricerche ricordate", async () => {
+  await assert.rejects(stock.setStockKey("pixabay", "12345678-ChiaveSbagliata00000000000"), /non è valida/);
+  const st = await stock.setStockKey("pixabay", "12345678-0123456789abcdef0123456789ab");
+  assert.deepEqual([st.configured, st.pixabay.configured, st.pexels.configured], [true, true, false]);
+  const a = { id: "video_maker", name: "Video Maker", room: "sala", mode: "llm", instructions: "x", tools: ["stock_search", "stock_add"], model: "claude-haiku-5-5", effort: "low", watchlist: [] };
+  const before = fake.calls.filter((c) => c.host === "pixabay.com").length;
+  const found = await runTool(a, "stock_search", { query: "office", orientation: "portrait", limit: 2 });
+  const list = JSON.parse(found.toolContent.at(-1).text).items;
+  assert.deepEqual(list.map((x) => x.id), ["xv302", "xv301"], "il video verticale per primo");
+  assert.equal(list[0].source, "Pixabay");
+  assert.equal(found.toolContent.filter((c) => c.type === "image").length, 2);
+  const call = fake.calls.filter((c) => c.host === "pixabay.com").at(-1);
+  assert.equal(call.query.key, "12345678-0123456789abcdef0123456789ab");
+  await runTool(a, "stock_search", { query: "Office", orientation: "portrait", limit: 2 });
+  assert.equal(fake.calls.filter((c) => c.host === "pixabay.com").length, before + 1, "la stessa ricerca si ricorda per 24 ore");
+  const added = await runTool(a, "stock_add", { id: "xv302" });
+  assert.deepEqual([added.kind, added.origin], ["video", "stock"]);
+  assert.match(added.description, /Utente Pixabay su Pixabay/);
+  assert.ok(fake.fetched.some((f) => f.url === "/video/302/medium.mp4"), "il file più grande sotto il 4K (il large è 4K)");
+  await runTool(a, "stock_search", { query: "team", kind: "photo" });
+  const pic = await runTool(a, "stock_add", { id: "xp401" });
+  assert.equal(pic.kind, "image");
+  assert.ok(fake.fetched.some((f) => f.url === "/photo/401_1280.jpg"));
+  assert.equal((await stock.setStockKey("pixabay", "")).configured, false);
 });
 
 test("agente: gli strumenti dei video sono validi e media_view mostra la copertina del video", async () => {

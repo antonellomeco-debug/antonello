@@ -211,9 +211,11 @@ indirizzo https e scaricano foto e video da lì.
 - **Voce narrante** (`lib/social/tts.js` + `tts-worker.js`): Piper `it_IT-paola-medium` di sherpa-onnx (65 MB da GitHub alla
   prima richiesta, SHA-256 fissato, in `<dati>/models/tts-paola/`), una frase per volta per conoscerne la durata; tempi delle
   parole stimati in proporzione alle lettere. Prove: `TTS_ENGINE` (finto in `test/helpers/fake-sherpa.cjs`), `TTS_MODEL_URL`.
-- **Repertorio** (`lib/social/stock.js`, strumenti `stock_search` con le anteprime da guardare e `stock_add`): Pexels con la
-  chiave gratuita dell'utente (`pexelsKey` in settings, scheda in 📣 Social); file MP4 col lato lungo fino a 2048, nell'archivio
-  con `origin: "stock"` e `source: "pexels:<id>"` (non si riscarica). Dal container Pexels non è raggiungibile: finto server. ffmpeg: `FFMPEG_PATH`, poi il pacchetto facoltativo `ffmpeg-static`
+- **Repertorio** (`lib/social/stock.js`, strumenti `stock_search` con le anteprime da guardare e `stock_add`): Pixabay
+  (`pixabayKey`, chiave nell'indirizzo, video senza filtro di orientamento: si mettono prima quelli adatti) e/o Pexels
+  (`pexelsKey`), chiavi gratuite dell'utente nella scheda di 📣 Social; con due chiavi i risultati si alternano; ricerche
+  ricordate 24 ore; file MP4 col lato lungo fino a 2048, nell'archivio con `origin: "stock"` e `source: "pixabay:<id>"` o
+  `"pexels:<id>"` (non si riscarica). Dal container Pixabay e Pexels non sono raggiungibili: finto server. ffmpeg: `FFMPEG_PATH`, poi il pacchetto facoltativo `ffmpeg-static`
   (scarica il programma da GitHub all'installazione), poi quello del sistema. Copertina (`thumb`) visibile con `media_view`.
   Test: `test/video.test.js`.
 - Test: `test/social.test.js` e `test/social-server.test.js` con il finto server `test/helpers/fake-social.js`
