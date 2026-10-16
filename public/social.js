@@ -160,6 +160,56 @@ function stockCard(st) {
     ${form("pexels", "Chiave di Pexels", sk.pexels)}`;
 }
 
+const voiceLabel = (v) => `${v.name.split("-").pop()}${v.gender ? ` (${v.gender})` : ""}`;
+
+function voiceCard(st) {
+  const vc = st.voice ?? { google: {}, voices: [], selected: "local", usage: { chars: 0, free: 1000000 } };
+  const current = vc.selected === "local" ? "voce gratuita del server" : voiceLabel(vc.voices.find((v) => v.name === vc.selected) ?? { name: vc.selected });
+  const nf = new Intl.NumberFormat("it-IT");
+  const options = [`<option value="local"${vc.selected === "local" ? " selected" : ""}>Voce gratuita del server (Paola)</option>`]
+    .concat(vc.voices.map((v) => `<option value="${esc(v.name)}"${v.name === vc.selected ? " selected" : ""}>Google · ${esc(voiceLabel(v))}</option>`))
+    .join("");
+  return `<h3>🎙️ Voce dei video <span class="social-state"><span class="acct demo">${esc(current)}</span></span></h3>
+    <p class="sub">La voce narrante dei reel. Con la chiave di <b>Google</b> puoi scegliere tra le voci «Chirp 3 HD», molto naturali (uomini e donne). Google regala <b>1 milione di caratteri al mese</b> (circa 2.000 reel): l'app conta i caratteri e oltre 950.000 nel mese torna da sola alla voce gratuita del server, così non paghi mai senza saperlo.</p>
+    <details class="howto"><summary>Chiave di Google, passo passo (10 minuti, una volta sola)</summary><ol>
+      <li>Apri <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">console.cloud.google.com</a> ed entra con il tuo account Google (se è la prima volta accetta le condizioni).</li>
+      <li>In alto a sinistra scegli un progetto (va bene quello di Gemini) oppure premi <b>Nuovo progetto</b> e chiamalo «Venturo».</li>
+      <li>Menu ☰ → <b>Fatturazione</b> → collega un account di fatturazione con la tua carta. Serve a Google anche per la parte gratuita.</li>
+      <li>Apri <a href="https://console.cloud.google.com/apis/library/texttospeech.googleapis.com" target="_blank" rel="noopener">Cloud Text-to-Speech API</a> e premi <b>Abilita</b> (Enable).</li>
+      <li>Menu ☰ → <b>API e servizi</b> → <b>Credenziali</b> → <b>Crea credenziali</b> → <b>Chiave API</b>. Copia la chiave (inizia con «AIza»).</li>
+      <li>Consigliato: premi <b>Modifica chiave</b> → <b>Limita chiave</b> → scegli solo «Cloud Text-to-Speech API» → Salva.</li>
+      <li>Incolla la chiave qui sotto e premi Salva: l'app chiede subito a Google l'elenco delle voci italiane.</li>
+    </ol></details>
+    <form class="grid2" id="voice-key-form" autocomplete="off">
+      <label>Chiave di Google ${vc.google.configured ? `(salvata, ${esc(vc.google.hint)})` : "(non ancora messa)"}<input name="key" type="password" spellcheck="false" autocomplete="off" placeholder="${vc.google.configured ? "già salvata (scrivi per cambiarla)" : "AIza…"}" /></label>
+      <div class="row-actions"><button class="btn small primary" type="submit">Salva</button>${vc.google.configured ? `<button class="btn small ghost" type="button" id="voice-key-remove">Togli la chiave</button>` : ""}</div>
+    </form>
+    <div class="grid2">
+      <label>Voce dei video <select id="voice-select">${options}</select></label>
+      <div class="row-actions">${vc.voices.length ? `<button class="btn small" type="button" id="voice-preview">▶️ Ascolta</button>` : ""}</div>
+    </div>
+    ${vc.google.configured ? `<p class="meta">Caratteri di Google usati questo mese: ${nf.format(vc.usage.chars)} su ${nf.format(vc.usage.free)} gratuiti.</p>` : ""}`;
+}
+
+let previewAudio = null;
+/** Fa sentire una frase di prova con la voce scelta nell'elenco (la voce del server non ha l'ascolto). */
+async function playPreview(btn) {
+  const name = $("#voice-select").value;
+  if (name === "local") return alert("La voce gratuita del server si sente nei video di prova: scegli una voce di Google per l'ascolto.");
+  btn.disabled = true;
+  btn.textContent = "Preparo…";
+  try {
+    const res = await fetch("/api/social/voice/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `errore ${res.status}`);
+    previewAudio?.pause();
+    previewAudio = new Audio(URL.createObjectURL(await res.blob()));
+    await previewAudio.play();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "▶️ Ascolta";
+  }
+}
+
 function mediaCard(m) {
   const visual = m.kind === "video"
     ? videoTag(m)
@@ -334,6 +384,7 @@ export function renderSocial() {
   }
   if (!isEditing($("#social-ai"))) $("#social-ai").innerHTML = aiCard(status);
   if (!isEditing($("#social-stock"))) $("#social-stock").innerHTML = stockCard(status);
+  if (!isEditing($("#social-voice"))) $("#social-voice").innerHTML = voiceCard(status);
   $("#media-usage").textContent = `${status.media.count} file · ${mb(status.media.bytes)}`;
   if (!isEditing($("#media-grid"))) {
     $("#media-grid").innerHTML = mediaList?.length
@@ -387,6 +438,12 @@ function bindEvents() {
       await api(`/api/social/posts/${t.dataset.postCancel}/cancel`, { method: "POST" });
       await loadSocial();
       renderSocial();
+    } else if (t.id === "voice-preview") {
+      await playPreview(t);
+    } else if (t.id === "voice-key-remove") {
+      if (!confirm("Togliere la chiave di Google? I video useranno la voce gratuita del server.")) return;
+      status = await api("/api/social/voice/key", { method: "PUT", body: JSON.stringify({ key: "" }) });
+      renderSocial();
     } else if (t.dataset.stockRemove) {
       const name = t.dataset.stockRemove === "pixabay" ? "Pixabay" : "Pexels";
       if (!confirm(`Togliere la chiave di ${name}?`)) return;
@@ -407,6 +464,20 @@ function bindEvents() {
       ui.editingApp.delete(net);
       document.activeElement?.blur();
       renderSocial();
+    } else if (f.id === "voice-key-form") {
+      if (!f.key.value.trim()) return;
+      const btn = f.querySelector("button[type=submit]");
+      btn.disabled = true;
+      btn.textContent = "Chiedo le voci a Google…";
+      try {
+        status = await api("/api/social/voice/key", { method: "PUT", body: JSON.stringify({ key: f.key.value }) });
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Salva";
+      }
+      document.activeElement?.blur();
+      renderSocial();
+      alert(`✔ Chiave salvata: ${status.voice.voices.length} voci italiane di Google. Scegline una nell'elenco e premi ▶️ Ascolta per sentirla.`);
     } else if (f.dataset.stockForm) {
       if (!f.key.value.trim()) return;
       const btn = f.querySelector("button[type=submit]");
@@ -440,6 +511,11 @@ function bindEvents() {
   }));
   view.addEventListener("change", act(async (e) => {
     const t = e.target;
+    if (t.id === "voice-select") {
+      status = await api("/api/social/voice", { method: "PUT", body: JSON.stringify({ name: t.value }) });
+      renderSocial();
+      return;
+    }
     if (t.dataset.auto) {
       const on = t.value === "1";
       if (on && !confirm(`Pubblicazione AUTOMATICA su ${NET_LABEL[t.dataset.auto]}: gli agenti pubblicheranno a tuo nome senza chiederti niente (sempre entro il massimo di post al giorno). Vuoi attivarla?`)) {

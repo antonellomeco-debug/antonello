@@ -247,6 +247,40 @@ test("repertorio Pixabay: chiave nell'indirizzo, video verticali prima per i ree
   assert.equal((await stock.setStockKey("pixabay", "")).configured, false);
 });
 
+test("voce di Google: chiave provata, voci italiane, scelta, ascolto, video con la voce di Google, ritorno alla voce del server", async () => {
+  const g = await import("../lib/social/googletts.js");
+  const { updateSettings } = await import("../lib/settings.js");
+  await assert.rejects(g.setGoogleTtsKey("AIzaChiaveSbagliata000000000000000000"), /non è valida/);
+  await assert.rejects(g.setGoogleTtsKey("AIzaChiaveSpenta00000000000000000000000"), /Cloud Text-to-Speech/);
+  const st = await g.setGoogleTtsKey("AIzaChiaveGiusta000000000000000000000");
+  assert.deepEqual(st.voices.map((v) => v.name), ["it-IT-Chirp3-HD-Aoede", "it-IT-Chirp3-HD-Puck"], "solo le voci Chirp 3 HD italiane");
+  assert.equal(st.selected, "it-IT-Chirp3-HD-Puck", "di partenza una voce maschile");
+  assert.throws(() => g.setVideoVoice("it-IT-Inventata"), /sconosciuta/);
+  assert.equal(g.setVideoVoice("it-IT-Chirp3-HD-Aoede").selected, "it-IT-Chirp3-HD-Aoede");
+  const wav = await g.previewVoice("it-IT-Chirp3-HD-Aoede");
+  assert.equal(wav.toString("ascii", 0, 4), "RIFF");
+
+  // Il video usa la voce di Google (con la velocità; se la voce non la accetta, si riprova senza).
+  fake.opts.ttsRejectRate = true;
+  const before = fake.calls.filter((c) => c.path === "/v1/text:synthesize").length;
+  const v = await createVideo({ format: "square", title: "Voce Google", slides: [{ headline: "Ciao", voice: "Prima frase. Seconda frase." }] });
+  const calls = fake.calls.filter((c) => c.path === "/v1/text:synthesize").slice(before);
+  assert.ok(calls.length >= 3 && calls.every((c) => c.voice === "it-IT-Chirp3-HD-Aoede"), "due frasi, più il primo tentativo con la velocità");
+  assert.equal(calls.at(-1).body.audioConfig.speakingRate, undefined, "dopo il rifiuto senza velocità");
+  assert.ok(probe(media.mediaPath(media.getMedia(v.id))).audio);
+  assert.ok(g.voiceStatus().usage.chars > 50, "caratteri contati");
+
+  // Caratteri gratuiti del mese quasi finiti: si usa la voce del server, senza chiamare Google.
+  updateSettings({ ttsUsage: { month: new Date().toISOString().slice(0, 7), chars: 949_990 } });
+  const n = fake.calls.filter((c) => c.path === "/v1/text:synthesize").length;
+  const dir = fs.mkdtempSync(path.join(DATA, "voci-g-"));
+  const [r] = await tts.synthesize(["Una frase abbastanza lunga da superare la soglia."], dir);
+  assert.ok(r.seconds > 0);
+  assert.equal(fake.calls.filter((c) => c.path === "/v1/text:synthesize").length, n);
+  assert.equal(g.setVideoVoice("local").selected, "local");
+  assert.equal((await g.setGoogleTtsKey("")).google.configured, false);
+});
+
 test("agente: gli strumenti dei video sono validi e media_view mostra la copertina del video", async () => {
   const { validate, ALL_TOOLS } = await import("../lib/config.js");
   for (const t of ["create_video", "stock_search", "stock_add"]) assert.ok(ALL_TOOLS.includes(t), t);

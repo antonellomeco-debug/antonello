@@ -12,7 +12,7 @@ export async function startFakeSocial({ port = 0 } = {}) {
   const calls = [];
   const fetched = [];
   const challenges = new Map(); // codice di X → code_challenge
-  const opts = { geminiFirstModel404: true, videoPolls: 1, failPublish: null, stockVideo: null };
+  const opts = { geminiFirstModel404: true, videoPolls: 1, failPublish: null, stockVideo: null, ttsRejectRate: false };
   let seq = 0;
   const polls = new Map();
 
@@ -204,6 +204,31 @@ export async function startFakeSocial({ port = 0 } = {}) {
         }
         if (p === "/v1/search") {
           return json(200, { photos: [{ id: 501, width: 3000, height: 4000, url: "https://www.pexels.com/photo/milan-skyline-501/", alt: "Milano di sera", photographer: "Foto Grafo", src: { medium: "https://images.pexels.com/photos/501/m.jpeg", large2x: "https://images.pexels.com/photos/501/l.jpeg" } }] });
+        }
+      }
+      // ---------------- Google Cloud Text-to-Speech (voci dei video): WAV con un tono lungo quanto il testo
+      if (host === "texttospeech.googleapis.com") {
+        const k = String(req.headers["x-goog-api-key"] ?? "");
+        if (!k || k.includes("Sbagliata")) return json(400, { error: { code: 400, message: "API key not valid. Please pass a valid API key.", status: "INVALID_ARGUMENT", details: [{ reason: "API_KEY_INVALID" }] } });
+        if (k.includes("Spenta")) return json(403, { error: { code: 403, message: "Cloud Text-to-Speech API has not been used in project 123 before or it is disabled.", status: "PERMISSION_DENIED", details: [{ reason: "SERVICE_DISABLED" }] } });
+        if (p === "/v1/voices") {
+          return json(200, { voices: [
+            { languageCodes: ["it-IT"], name: "it-IT-Chirp3-HD-Puck", ssmlGender: "MALE", naturalSampleRateHertz: 24000 },
+            { languageCodes: ["it-IT"], name: "it-IT-Chirp3-HD-Aoede", ssmlGender: "FEMALE", naturalSampleRateHertz: 24000 },
+            { languageCodes: ["it-IT"], name: "it-IT-Wavenet-C", ssmlGender: "MALE", naturalSampleRateHertz: 24000 },
+            { languageCodes: ["en-US"], name: "en-US-Chirp3-HD-Puck", ssmlGender: "MALE", naturalSampleRateHertz: 24000 },
+          ] });
+        }
+        if (p === "/v1/text:synthesize") {
+          calls.at(-1).voice = body.voice?.name;
+          if (opts.ttsRejectRate && body.audioConfig?.speakingRate != null) return json(400, { error: { code: 400, message: "speakingRate is not supported for this voice", status: "INVALID_ARGUMENT" } });
+          const rate = body.audioConfig?.sampleRateHertz ?? 24000;
+          const n = Math.round(rate * 0.05 * String(body.input?.text ?? "").length);
+          const wav = Buffer.alloc(44 + n * 2);
+          wav.write("RIFF", 0); wav.writeUInt32LE(36 + n * 2, 4); wav.write("WAVEfmt ", 8); wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+          wav.writeUInt32LE(rate, 24); wav.writeUInt32LE(rate * 2, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34); wav.write("data", 36); wav.writeUInt32LE(n * 2, 40);
+          for (let i = 0; i < n; i++) wav.writeInt16LE(Math.round(9000 * Math.sin((2 * Math.PI * 180 * i) / rate)), 44 + i * 2);
+          return json(200, { audioContent: wav.toString("base64") });
         }
       }
       // ---------------- Pixabay (la chiave va nell'indirizzo; con una chiave sbagliata risponde 400 con un testo)
