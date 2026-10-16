@@ -5,6 +5,7 @@ import { VoiceRecorder, recordingSupported, micErrorText, MAX_SECONDS } from "./
 import * as speech from "./speech.js";
 import { initSocial, loadSocial, renderSocial, renderPostApproval, bindShareButtons } from "./social.js";
 import { initCosts, renderCosts, loadCosts } from "./costs.js";
+import { initPlatform, loadPlatform, onPlatformEvent } from "./platform.js";
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -2213,6 +2214,9 @@ function handleEvent(ev) {
     case "request":
       upsertRequest(ev.request);
       break;
+    case "platform":
+      onPlatformEvent();
+      break;
     case "approval": {
       const i = state.approvals.findIndex((a) => a.id === ev.approval.id);
       if (i >= 0) state.approvals[i] = ev.approval;
@@ -2310,6 +2314,7 @@ async function start() {
   syncRoster();
   connectEvents();
   await loadAll();
+  loadPlatform();
   if (location.hash === "#broker" || location.hash === "#social") {
     showView(location.hash.slice(1));
     history.replaceState(null, "", location.pathname);
@@ -2317,6 +2322,14 @@ async function start() {
   refreshSocialBadge();
 }
 initSocial(api);
+initPlatform(api, {
+  chat: (text) => {
+    if (phoneMQ.matches) showView("chat");
+    sendChat(text);
+  },
+  showView,
+  agentName: (id) => state.office.agents.find((a) => a.id === id)?.name ?? id,
+});
 initCosts(api, { palaceName: (id) => B().palaces.find((p) => p.id === id)?.name ?? id, openAgent: (id) => openEditor(state.office.agents.find((a) => a.id === id)) });
 /** Avviso "!" su 📣 Social quando un accesso è scaduto o sta per scadere. */
 let socialBadgeTimer = null;

@@ -27,6 +27,7 @@ import { exportZip, importZip, backupFileName, confirmImportWorked } from "./lib
 import * as voice from "./lib/voice.js";
 import * as costs from "./lib/costs.js";
 import * as social from "./lib/social/index.js";
+import * as platform from "./lib/platform.js";
 import * as media from "./lib/social/media.js";
 import { setGeminiKey } from "./lib/social/imagegen.js";
 import { setStockKey } from "./lib/social/stock.js";
@@ -410,6 +411,11 @@ app.put("/api/costs/pace", handle((req) => {
 }));
 app.get("/api/orion", (_req, res) => res.json({ speed: getSpeed(), speeds: Object.keys(SPEEDS) }));
 app.put("/api/orion", handle((req) => setSpeed(String(req.body?.speed ?? ""))));
+// Aspetto, tasti rapidi e idee (li cambia soprattutto Orion; dall'app si possono togliere o tornare all'originale).
+app.get("/api/platform", (_req, res) => res.json(platform.getPlatform()));
+app.put("/api/platform/look", handle((req) => (platform.setLook(req.body ?? {}), platform.getPlatform())));
+app.delete("/api/platform/shortcuts/:id", handle((req) => (platform.deleteShortcut(String(req.params.id)), platform.getPlatform())));
+app.delete("/api/platform/ideas/:id", handle((req) => (platform.deleteIdea(String(req.params.id)), platform.getPlatform())));
 
 // ---------- messaggi vocali ----------
 // L'app registra la voce e manda un WAV (16 kHz, un canale); il server lo trascrive (lib/voice.js) e lo passa a
