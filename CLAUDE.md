@@ -156,6 +156,9 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   `state.requests`; in cima ad ✅ Approvazioni l'utente risponde (con 📎 allegato nell'archivio) → `answerRequest` scrive
   la nota «RISPOSTA DELL'UTENTE» nella stanza dell'agente (`agentId: "utente"`). Contano nel numerino di Approvazioni.
   Grafiche: formati `banner_x` 1500×500 e `banner_linkedin` 1584×396. Test: `test/requests.test.js`.
+- **Video** (16 ottobre 2026): strumento `create_video` (`lib/social/video.js`, ffmpeg da `ffmpeg-static` in
+  optionalDependencies): reel da schermate SVG, foto e spezzoni con scritte sopra, transizioni, musica caricata dall'utente
+  (archivio accetta audio). Gratis, un montaggio per volta. Gli agenti lo ricevono solo se Orion glielo assegna.
 
 ## Spesa e risparmio (15 ottobre 2026)
 

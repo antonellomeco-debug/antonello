@@ -657,3 +657,5 @@ dialog.small-dlg { width: min(480px, 94vw); }
 .requests .section-title { margin-top: 0; }
 .request-card { border-color: #6f7dff66; }
 .request-card textarea { width: 100%; resize: vertical; margin-top: 6px; }
+.media-audio { aspect-ratio: 4 / 5; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; font-size: 48px; background: var(--surface-2); padding: 0 10px; }
+.media-audio audio { width: 100%; }

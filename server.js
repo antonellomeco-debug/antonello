@@ -460,7 +460,7 @@ app.post("/api/media", async (req, res) => {
   const type = String(req.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
   const max = type.startsWith("video/") ? media.MAX_VIDEO_BYTES : media.MAX_IMAGE_BYTES;
   const declared = Number(req.get("content-length")) || 0;
-  const tooBig = `File troppo grande: massimo ${Math.round(max / 1024 / 1024)} MB${type.startsWith("video/") ? " per i video" : " per le foto"}.`;
+  const tooBig = `File troppo grande: massimo ${Math.round(max / 1024 / 1024)} MB${type.startsWith("video/") ? " per i video" : type.startsWith("audio/") ? " per le musiche" : " per le foto"}.`;
   if (declared > max) return res.status(413).json({ error: tooBig });
   try {
     media.assertSpace(declared);
