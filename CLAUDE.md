@@ -167,7 +167,10 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   anche Orion con `set_palace_pace`). Scheduler in `server.js`: `effectiveEvery`, `scheduleBlock` (avviso «spesa» una volta
   al giorno), agenti `onlyOnNews` saltano il giro se nessun altro ha scritto nelle stanze che leggono.
 - Risparmi di base: nuovi agenti Haiku + effort low, `web_search` max 3 ricerche, note lette accorciate a 2.500 caratteri.
-  Orion: `get_costs`, regole di spesa nel prompt. Interfaccia: sezione 💰 Spesa (`public/costs.js`), numero «spesa del
+  Orion: `get_costs`, regole di spesa nel prompt. **Orion leggero (16 ottobre 2026):** `list_agents` dà l'elenco breve (istruzioni
+  accorciate a 160 caratteri, filtri palace/floor/room), `get_agents` le istruzioni intere (max 10), `save_agent` su un agente
+  esistente unisce solo i campi passati, `read_notes` accorciato come per gli agenti: prima un `list_agents` con 66 agenti
+  costava decine di migliaia di token riletti a ogni passaggio (Orion = 23,6 $ su 25,8 $ del mese). Interfaccia: sezione 💰 Spesa (`public/costs.js`), numero «spesa del
   mese» in alto, casella «Solo con novità» nella scheda dell'agente. Test: `test/costs.test.js`.
 
 ## Piano Gold (XAUUSD) per Orion
