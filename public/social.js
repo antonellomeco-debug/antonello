@@ -25,7 +25,7 @@ export const POST_STATUS = {
   cancelled: "Annullato",
   uncertain: "⚠️ Esito incerto",
 };
-const ORIGIN = { upload: "Caricato da te", graphic: "Grafica di un agente", ai: "Immagine IA", video: "Video montato da un agente", variant: "Copia" };
+const ORIGIN = { upload: "Caricato da te", graphic: "Grafica di un agente", ai: "Immagine IA", video: "Video montato da un agente", stock: "Repertorio Pexels", variant: "Copia" };
 const NET_ICON = { instagram: "📸", threads: "🧵", linkedin: "💼", x: "𝕏" };
 const NET_LABEL = { instagram: "Instagram", threads: "Threads", linkedin: "LinkedIn", x: "X" };
 
@@ -136,6 +136,22 @@ function aiCard(st) {
 
 /** Video con la copertina (se c'è) e l'audio attivabile. */
 const videoTag = (m) => `<video src="${esc(m.src)}"${m.thumb ? ` poster="${esc(m.thumb)}"` : ""} preload="${m.thumb ? "none" : "metadata"}" controls playsinline></video>`;
+
+function stockCard(st) {
+  const sk = st.stock ?? {};
+  return `<h3>🎞️ Video e foto di repertorio <span class="social-state">${sk.configured ? `<span class="acct demo">attivi</span> <span class="meta">chiave ${esc(sk.hint)}</span>` : `<span class="acct paper">non attivi</span>`}</span></h3>
+    <p class="sub">Con la chiave <b>gratuita</b> di <b>Pexels</b> gli agenti cercano clip e foto vere (uffici, città, borsa, persone al lavoro) e le montano nei reel insieme alle tue foto e ai tuoi video. Uso libero anche per il brand, nessun costo.</p>
+    <details class="howto"><summary>Come si fa (2 minuti)</summary><ol>
+      <li>Apri <a href="https://www.pexels.com/api/" target="_blank" rel="noopener">www.pexels.com/api</a> e premi <b>Get Started</b> (o <b>Join</b>): crea un account gratuito con la tua email.</li>
+      <li>Compila il breve modulo (nome del progetto, es. «Venturo social», e a cosa serve, es. «video per i social del mio brand»), accetta le condizioni e conferma.</li>
+      <li>Nella pagina della tua API compare <b>Your API Key</b>: copiala tutta con il pulsante di copia.</li>
+      <li>Incollala qui sotto e premi Salva: l'app la prova subito con Pexels.</li>
+    </ol></details>
+    <form class="grid2" id="stock-form" autocomplete="off">
+      <label>Chiave di Pexels <input name="key" type="password" spellcheck="false" autocomplete="off" placeholder="${sk.configured ? "già salvata (scrivi per cambiarla)" : "incolla la chiave"}" /></label>
+      <div class="row-actions"><button class="btn small primary" type="submit">Salva</button>${sk.configured ? `<button class="btn small ghost" type="button" id="stock-remove">Togli la chiave</button>` : ""}</div>
+    </form>`;
+}
 
 function mediaCard(m) {
   const visual = m.kind === "video"
@@ -310,6 +326,7 @@ export function renderSocial() {
     $("#social-networks").innerHTML = status.networks.map((n) => networkCard(n, status)).join("");
   }
   if (!isEditing($("#social-ai"))) $("#social-ai").innerHTML = aiCard(status);
+  if (!isEditing($("#social-stock"))) $("#social-stock").innerHTML = stockCard(status);
   $("#media-usage").textContent = `${status.media.count} file · ${mb(status.media.bytes)}`;
   if (!isEditing($("#media-grid"))) {
     $("#media-grid").innerHTML = mediaList?.length
@@ -363,6 +380,10 @@ function bindEvents() {
       await api(`/api/social/posts/${t.dataset.postCancel}/cancel`, { method: "POST" });
       await loadSocial();
       renderSocial();
+    } else if (t.id === "stock-remove") {
+      if (!confirm("Togliere la chiave di Pexels? Gli agenti non potranno più cercare video e foto di repertorio.")) return;
+      status = await api("/api/social/stock", { method: "PUT", body: JSON.stringify({ key: "" }) });
+      renderSocial();
     } else if (t.id === "ai-remove") {
       if (!confirm("Togliere la chiave di Gemini? Gli agenti non potranno più creare immagini con l'IA.")) return;
       status = await api("/api/social/ai", { method: "PUT", body: JSON.stringify({ key: "" }) });
@@ -378,6 +399,20 @@ function bindEvents() {
       ui.editingApp.delete(net);
       document.activeElement?.blur();
       renderSocial();
+    } else if (f.id === "stock-form") {
+      if (!f.key.value.trim()) return;
+      const btn = f.querySelector("button[type=submit]");
+      btn.disabled = true;
+      btn.textContent = "Provo la chiave…";
+      try {
+        status = await api("/api/social/stock", { method: "PUT", body: JSON.stringify({ key: f.key.value }) });
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Salva";
+      }
+      document.activeElement?.blur();
+      renderSocial();
+      alert(status.stockNote ? `Chiave salvata. ${status.stockNote}` : "✔ Chiave salvata e provata con Pexels: i video di repertorio sono attivi.");
     } else if (f.id === "ai-form") {
       if (!f.key.value.trim()) return;
       const btn = f.querySelector("button[type=submit]");
