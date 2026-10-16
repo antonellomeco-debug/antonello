@@ -126,3 +126,29 @@ test("Orion: velocità scelta nelle impostazioni (modello e impegno) e testo in 
   assert.throws(() => setSpeed("turbo"), /Velocità/);
   setSpeed("veloce");
 });
+
+test("Orion risparmia: elenco breve degli agenti, istruzioni intere solo a richiesta, modifiche solo dei campi cambiati", async () => {
+  const long = "Scrivi post per X sul brand. ".repeat(60);
+  office.saveAgent(normalize({ id: "copy_x", name: "Copy X", room: "sala-trend", mode: "llm", instructions: long, tools: ["post_note"], model: "claude-sonnet-5-5", limits: { maxOrderPct: 5 } }));
+  requests.length = 0;
+  replies = [
+    toolUse("t1", "list_agents", { palace: "palazzo-social" }),
+    toolUse("t2", "get_agents", { ids: ["copy_x", "nessuno"] }),
+    toolUse("t3", "save_agent", { agent: { id: "copy_x", model: "claude-haiku-5-5", limits: { requireApproval: false } } }),
+    done("Fatto."),
+  ];
+  await chat(office, "Passa Copy X a Haiku");
+  const result = (i) => JSON.parse(requests[i].messages.at(-1).content[0].content);
+  const list = result(1);
+  assert.ok(list.agents.every((a) => ["sala-trend"].includes(a.room)), "solo gli agenti del palazzo chiesto");
+  const brief = list.agents.find((a) => a.id === "copy_x");
+  assert.ok(brief.instructions.length < 260 && /get_agents/.test(brief.instructions), "le istruzioni lunghe arrivano accorciate");
+  const full = result(2);
+  assert.equal(full[0].instructions, long);
+  assert.equal(full[1].error, "agente inesistente");
+  const saved = office.agents().find((a) => a.id === "copy_x");
+  assert.equal(saved.model, "claude-haiku-5-5");
+  assert.equal(saved.instructions, long, "le istruzioni restano quelle di prima");
+  assert.deepEqual([saved.limits.maxOrderPct, saved.limits.requireApproval], [5, false], "limits si unisce a quelli attuali");
+  assert.ok(result(3).saved.instructions.length < 260, "dopo il salvataggio Orion non rilegge tutto l'agente");
+});
