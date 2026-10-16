@@ -462,7 +462,7 @@ app.put("/api/social/ai", async (req, res) => {
 app.put("/api/social/:net/app", handle((req) => social.setApp(netParam(req), req.body ?? {})));
 app.post("/api/social/:net/auth", handle((req) => social.startAuth(netParam(req))));
 app.post("/api/social/:net/unlink", handle((req) => social.disconnect(netParam(req))));
-app.put("/api/social/:net/settings", handle((req) => social.setNetworkSettings(netParam(req), { auto: req.body?.auto, maxPerDay: req.body?.maxPerDay })));
+app.put("/api/social/:net/settings", handle((req) => social.setNetworkSettings(netParam(req), { auto: req.body?.auto, maxPerDay: req.body?.maxPerDay, pageId: req.body?.pageId, pageName: req.body?.pageName, pageOnly: req.body?.pageOnly, pageApi: req.body?.pageApi })));
 app.post("/api/social/posts/:id/cancel", handle((req) => social.cancelPost(req.params.id)));
 // Ritorno dal sito del social dopo l'accesso, con il codice e lo "state" nell'indirizzo.
 app.get("/social/callback", async (req, res) => {
@@ -470,7 +470,11 @@ app.get("/social/callback", async (req, res) => {
   const state = String(req.query.state ?? "");
   if (req.query.error) {
     if (social.pendingStateMatches(state)) social.pendingCancel(state);
-    return res.status(400).send(socialPage("Collegamento annullato", escPage(req.query.error_description ?? req.query.error_reason ?? req.query.error), false));
+    const scopeRefused = /scope/i.test(String(req.query.error)) && /w_organization_social/.test(String(req.query.error_description ?? ""));
+    const msg = escPage(req.query.error_description ?? req.query.error_reason ?? req.query.error);
+    return res.status(400).send(socialPage("Collegamento annullato", scopeRefused
+      ? `${msg}<br><br>LinkedIn non ha ancora dato alla tua app l'accesso alle pagine. Nell'app, in 📣 Social → LinkedIn → 🏢 Pagina aziendale, togli la spunta «LinkedIn ha approvato l'accesso alle pagine», premi Salva e poi Ricollega: i post della pagina li pubblicherai tu da Approvazioni.`
+      : msg, false));
   }
   try {
     const r = await social.finishAuth(state, String(req.query.code ?? ""));

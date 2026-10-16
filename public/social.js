@@ -106,7 +106,7 @@ function networkCard(n, st) {
       </label>
       <label>Post al giorno (massimo) <input type="number" min="0" max="50" step="1" value="${n.maxPerDay}" data-max="${n.id}" /></label>
       <p class="meta">Oggi: ${n.today} su ${n.maxPerDay}${n.id === "x" ? " · 0,015 $ a post (0,20 $ con un link)" : ""}</p>
-    </div>`;
+    </div>${n.id === "linkedin" ? pageSettings(n) : ""}`;
   return `<article class="card social-card" data-net="${n.id}">
     <h3><span class="net-ico">${n.icon}</span> ${esc(n.label)} <span class="social-state">${pill}</span></h3>
     ${warn}
@@ -115,6 +115,41 @@ function networkCard(n, st) {
     ${settings}
     ${howto(n.id, st.redirectUri, st.publicServer)}
   </article>`;
+}
+
+/** LinkedIn: pagina aziendale dove escono i post (oltre al profilo o al suo posto). */
+function pageSettings(n) {
+  const on = Boolean(n.pageId);
+  const state = !on
+    ? ""
+    : n.pageAuto
+      ? `<p class="hint">✔ Sulla pagina pubblica il programma (accesso alle pagine attivo).</p>`
+      : n.pageApi
+        ? `<p class="hint warn-text">⚠️ Hai spuntato l'accesso alle pagine: premi <b>🔗 Ricollega</b> qui sopra. Finché LinkedIn non lo concede, i post della pagina li pubblichi tu da ✅ Approvazioni.</p>`
+        : `<p class="hint">I post della pagina arrivano in ✅ Approvazioni: tocchi <b>🏢 Apri la pagina</b> (il testo è già copiato), incolli, aggiungi le foto e poi <b>Fatto</b>. Per farli uscire da soli serve il permesso di LinkedIn (vedi sotto).</p>`;
+  return `<form class="social-page" data-page-form="linkedin" autocomplete="off">
+      <h4>🏢 Pagina aziendale</h4>
+      <div class="grid2">
+        <label>Indirizzo o numero della pagina <input name="pageId" spellcheck="false" autocomplete="off" placeholder="linkedin.com/company/123456789/admin/…" value="${esc(n.pageId ?? "")}" /></label>
+        <label>Nome della pagina <input name="pageName" maxlength="80" spellcheck="false" placeholder="Venturo" value="${esc(n.pageName ?? "")}" /></label>
+      </div>
+      ${on ? `<label>Dove escono i post
+        <select name="pageOnly">
+          <option value="0" ${n.pageOnly ? "" : "selected"}>Sul mio profilo e sulla pagina</option>
+          <option value="1" ${n.pageOnly ? "selected" : ""}>Solo sulla pagina</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" name="pageApi" ${n.pageApi ? "checked" : ""} /> LinkedIn ha approvato l'accesso alle pagine della mia app («Community Management API»)</label>
+      <p class="meta">Oggi sulla pagina: ${n.pageToday ?? 0} su ${n.maxPerDay}</p>` : ""}
+      <div class="row-actions"><button class="btn small primary" type="submit">Salva</button>${on ? `<button class="btn small ghost" type="button" data-page-remove>Togli la pagina</button>` : ""}</div>
+      ${state}
+      ${on ? `<details class="howto"><summary>Come far pubblicare la pagina da sola (permesso di LinkedIn)</summary><ol>
+        <li>Apri <a href="https://www.linkedin.com/developers/apps" target="_blank" rel="noopener">linkedin.com/developers/apps</a> → la tua app → scheda <b>Products</b>.</li>
+        <li>Accanto a <b>Community Management API</b> premi <b>Request access</b> e compila il modulo (nome legale dell'azienda, indirizzo, sito, informativa privacy, a cosa serve: «pubblicare i post della mia pagina»). Se LinkedIn chiede di farlo in un'app nuova, scrivimelo e ti guido.</li>
+        <li>Devi essere <b>amministratore</b> della pagina e la pagina deve essere collegata all'app (scheda <b>Settings</b> → Company → verifica).</li>
+        <li>Quando LinkedIn approva (anche qualche settimana; a volte rifiuta), spunta la casella qui sopra, premi <b>Salva</b> e poi <b>🔗 Ricollega</b>.</li>
+      </ol></details>` : ""}
+    </form>`;
 }
 
 function aiCard(st) {
@@ -243,7 +278,7 @@ export function postMediaStrip(list = []) {
 function postCard(p) {
   const canCancel = p.status === "scheduled" || p.status === "pending";
   return `<article class="card post-card ${p.status === "published" ? "decided" : ""}">
-    <div class="kicker"><span>${NET_ICON[p.network] ?? ""} ${esc(NET_LABEL[p.network] ?? p.network)}</span><span class="meta">· ${esc(p.agentName ?? "")} · ${when(p.at)}</span></div>
+    <div class="kicker"><span>${NET_ICON[p.network] ?? ""} ${esc(NET_LABEL[p.network] ?? p.network)}${p.page ? ` · pagina ${esc(p.page.name)}` : ""}</span><span class="meta">· ${esc(p.agentName ?? "")} · ${when(p.at)}</span></div>
     <p class="post-text">${esc(p.text) || "<i>(senza testo)</i>"}</p>
     ${postMediaStrip(p.media)}
     <p class="meta">${POST_STATUS[p.status] ?? esc(p.status)}${p.status === "scheduled" && p.publishAt ? ` per ${when(p.publishAt)}` : ""}${p.publishedAt ? ` · ${when(p.publishedAt)}` : ""}${p.url ? ` · <a href="${esc(p.url)}" target="_blank" rel="noopener">apri il post</a>` : ""}</p>
@@ -256,7 +291,7 @@ function postCard(p) {
 export function renderPostApproval(a, outcomeLabel) {
   const p = a.post ?? {};
   const pending = a.status === "pending";
-  const net = NET_LABEL[p.network] ?? p.network;
+  const net = p.page ? `${NET_LABEL[p.network] ?? p.network} · pagina ${p.page.name}` : NET_LABEL[p.network] ?? p.network;
   const what = p.replyTo ? `Risposta su ${net}` : p.format === "story" ? `Storia su ${net}` : `Post su ${net}`;
   const outcome = a.status === "scheduled"
     ? `🕒 Approvato: parte ${p.publishAt ? when(p.publishAt) : "all'ora scelta"}`
@@ -270,14 +305,21 @@ export function renderPostApproval(a, outcomeLabel) {
     ${p.publishAt ? `<p class="meta">${p.manual ? "Ora consigliata" : "Da pubblicare"}: ${when(p.publishAt)}</p>` : ""}
     ${p.network === "x" ? `<p class="meta">Costo su X: ${/(https?:\/\/|www\.)\S+|\b[a-z0-9-]+\.(com|it|net|org|io|ly|co|eu|me|app|dev|ai)\b/i.test(p.text ?? "") ? "0,20 $ (contiene un link)" : "0,015 $"}</p>` : ""}
     <p>${esc(p.reason) || ""}</p>
-    ${pending && p.manual ? `<ol class="share-steps">
+    ${pending && p.manual && p.page ? `<ol class="share-steps">
+      ${(p.media ?? []).length ? `<li>Tocca <b>📲 Salva i file</b> e scegli <b>Salva immagine</b> (o <b>Salva video</b>).</li>` : ""}
+      <li>Tocca <b>🏢 Apri la pagina</b>: il testo è già copiato. Su LinkedIn premi <b>Crea</b> (o «Inizia un post») come pagina ${esc(p.page.name)}, tieni premuto → <b>Incolla</b>${(p.media ?? []).length ? ", aggiungi i file dalla galleria" : ""} e pubblica.</li>
+      <li>Torna qui e tocca <b>Fatto</b>.</li>
+    </ol>` : ""}
+    ${pending && p.manual && !p.page ? `<ol class="share-steps">
       <li>Tocca <b>📲 Condividi</b>: ${(p.media ?? []).length ? "le foto sono pronte e il testo è già copiato" : "il testo è pronto (ed è già copiato)"}.</li>
       <li>Scegli <b>${esc(net)}</b>${p.network === "instagram" ? (p.format === "story" ? " → <b>Storia</b>" : " → <b>Feed</b>") : ""}${p.network === "instagram" ? ", tieni premuto nella didascalia → <b>Incolla</b>" : ""} e pubblica.</li>
       <li>Torna qui e tocca <b>Fatto</b>.</li>
     </ol>` : ""}
     <div class="actions">
       ${pending
-        ? p.manual
+        ? p.manual && p.page
+          ? `${(p.media ?? []).length ? `<button class="btn" data-share="${a.id}">📲 Salva i file</button>` : ""}<button class="btn primary" data-open-page="${a.id}">🏢 Apri la pagina</button><button class="btn good" data-approve="${a.id}">✔ Fatto</button><button class="btn ghost" data-reject="${a.id}">Scarta</button>`
+          : p.manual
           ? `<button class="btn primary" data-share="${a.id}">📲 Condividi su ${esc(net)}</button><button class="btn good" data-approve="${a.id}">✔ Fatto</button><button class="btn ghost" data-reject="${a.id}">Scarta</button>`
           : `<button class="btn good" data-approve="${a.id}">${p.publishAt ? "Approva" : "Pubblica"}</button><button class="btn ghost" data-reject="${a.id}">Scarta</button>`
         : `<span class="meta">${outcome}</span>`}
@@ -329,6 +371,15 @@ export function bindShareButtons(container, approvals) {
       if (a) sharePost(a, btn);
     }),
   );
+  // Post della pagina aziendale: testo negli appunti (dentro il tocco) e pagina di LinkedIn da amministratore.
+  container.querySelectorAll("[data-open-page]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      const a = approvals.find((x) => x.id === btn.dataset.openPage);
+      if (!a?.post?.page) return;
+      navigator.clipboard?.writeText(a.post.text ?? "").catch(() => {});
+      window.open(`https://www.linkedin.com/company/${encodeURIComponent(a.post.page.id)}/admin/page-posts/published/`, "_blank", "noopener");
+    }),
+  );
 }
 
 async function sharePost(a, btn) {
@@ -352,7 +403,7 @@ async function sharePost(a, btn) {
     return;
   }
   // Instagram ignora il testo condiviso (e con il testo a volte non compare tra le app): solo i file.
-  const data = entry.files.length ? (p.network === "instagram" ? { files: entry.files } : { files: entry.files, text: p.text }) : { text: p.text };
+  const data = entry.files.length ? (p.network === "instagram" || p.page ? { files: entry.files } : { files: entry.files, text: p.text }) : { text: p.text };
   if (navigator.share && (!data.files || navigator.canShare?.(data))) {
     try {
       await navigator.share(data);
@@ -449,6 +500,10 @@ function bindEvents() {
       if (!confirm(`Togliere la chiave di ${name}?`)) return;
       status = await api("/api/social/stock", { method: "PUT", body: JSON.stringify({ provider: t.dataset.stockRemove, key: "" }) });
       renderSocial();
+    } else if (t.hasAttribute("data-page-remove")) {
+      if (!confirm("Togliere la pagina aziendale? I post di LinkedIn usciranno solo sul tuo profilo.")) return;
+      status = await api("/api/social/linkedin/settings", { method: "PUT", body: JSON.stringify({ pageId: "" }) });
+      renderSocial();
     } else if (t.id === "ai-remove") {
       if (!confirm("Togliere la chiave di Gemini? Gli agenti non potranno più creare immagini con l'IA.")) return;
       status = await api("/api/social/ai", { method: "PUT", body: JSON.stringify({ key: "" }) });
@@ -464,6 +519,17 @@ function bindEvents() {
       ui.editingApp.delete(net);
       document.activeElement?.blur();
       renderSocial();
+    } else if (f.dataset.pageForm) {
+      const had = status.networks.find((n) => n.id === "linkedin");
+      const body = { pageId: f.pageId.value, pageName: f.pageName.value };
+      if (f.pageOnly) body.pageOnly = f.pageOnly.value === "1";
+      if (f.pageApi) body.pageApi = f.pageApi.checked;
+      status = await api("/api/social/linkedin/settings", { method: "PUT", body: JSON.stringify(body) });
+      document.activeElement?.blur();
+      renderSocial();
+      const li = status.networks.find((n) => n.id === "linkedin");
+      if (li.pageApi && !had?.pageApi && li.account) alert("Ora premi 🔗 Ricollega su LinkedIn: ti chiederà anche il permesso di pubblicare sulla pagina.");
+      else if (li.pageId && !had?.pageId) alert("✔ Pagina salvata: da ora ogni post di LinkedIn degli agenti arriva anche per la pagina.");
     } else if (f.id === "voice-key-form") {
       if (!f.key.value.trim()) return;
       const btn = f.querySelector("button[type=submit]");

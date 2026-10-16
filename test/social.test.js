@@ -390,3 +390,62 @@ test("copia dei dati: social.json entra (con i segreti protetti), l'archivio dei
   assert.ok(names.includes("social.json"));
   assert.ok(!names.some((n) => n.startsWith("media/")));
 });
+
+test("LinkedIn: post anche sulla pagina aziendale (a mano finché LinkedIn non dà il permesso, poi da solo)", async () => {
+  assert.equal(social.parsePageId("https://www.linkedin.com/company/146737411/admin/page-posts/published/"), "146737411");
+  assert.equal(social.parsePageId("146737411"), "146737411");
+  assert.equal(social.parsePageId(""), null);
+  assert.throws(() => social.parsePageId("linkedin.com/company/venturo"), /indirizzo che vedi da amministratore/);
+  await connect("linkedin");
+  social.setNetworkSettings("linkedin", { auto: true, maxPerDay: 20, pageId: "https://www.linkedin.com/company/146737411/admin/page-posts/published/", pageName: "Venturo" });
+  let li = social.socialStatus().networks.find((n) => n.id === "linkedin");
+  assert.equal(li.pageId, "146737411");
+  assert.equal(li.pageAuto, false);
+  assert.match(social.statusForAgents().social.find((n) => n.network === "linkedin").pagina_aziendale, /Venturo: .*sia sul profilo sia sulla pagina.*a mano/);
+
+  // Senza permesso per le pagine: il profilo esce da solo, la copia per la pagina va in Approvazioni (a mano).
+  const pic = await media.ingestUpload(await tmpImage(800, 800), { name: "pagina.png", mime: "image/png" });
+  const r = await social.proposePost(agent, { network: "linkedin", text: "Venturo apre le candidature", media: [pic.id], reason: "lancio" });
+  assert.equal(r.status, "published", JSON.stringify(r));
+  assert.equal(r.pagina.status, "pending_manual");
+  assert.equal(r.pagina.nome, "Venturo");
+  const ap = getState().approvals.find((x) => x.postId === r.pagina.post_id);
+  assert.deepEqual(ap.post.page, { id: "146737411", name: "Venturo" });
+  assert.equal(ap.post.manual, true);
+  assert.match(ap.target.label, /pagina Venturo/);
+  assert.equal((await social.decidePost(ap.id, true)).post.status, "published");
+  li = social.socialStatus().networks.find((n) => n.id === "linkedin");
+  assert.equal(li.pageToday, 1, "la pagina conta a parte");
+
+  // LinkedIn approva la «Community Management API»: si spunta, si ricollega e la pagina pubblica da sola.
+  social.setNetworkSettings("linkedin", { pageApi: true });
+  const { url } = social.startAuth("linkedin");
+  assert.match(new URL(url).searchParams.get("scope"), /w_organization_social/);
+  await connect("linkedin");
+  assert.equal(social.socialStatus().networks.find((n) => n.id === "linkedin").pageAuto, true);
+  const before = fake.calls.filter((c) => c.path === "/rest/posts").length;
+  const r2 = await social.proposePost(agent, { network: "linkedin", text: "Secondo post", media: [pic.id], reason: "x" });
+  assert.equal(r2.status, "published");
+  assert.equal(r2.pagina.status, "published", JSON.stringify(r2.pagina));
+  const posts = fake.calls.filter((c) => c.path === "/rest/posts").slice(before);
+  assert.deepEqual(posts.map((c) => c.body.author), ["urn:li:person:abc123", "urn:li:organization:146737411"]);
+  const owners = fake.calls.filter((c) => c.path === "/rest/images").slice(-2).map((c) => c.body.initializeUploadRequest.owner);
+  assert.deepEqual(owners, ["urn:li:person:abc123", "urn:li:organization:146737411"], "la foto appartiene a chi pubblica");
+
+  // Solo sulla pagina.
+  social.setNetworkSettings("linkedin", { pageOnly: true });
+  const r3 = await social.proposePost(agent, { network: "linkedin", text: "Solo pagina", reason: "x" });
+  assert.equal(r3.status, "published");
+  assert.equal(r3.pagina, undefined);
+  assert.match(r3.message, /^Pagina Venturo: Pubblicato su LinkedIn \(pagina Venturo\)/);
+  assert.equal(fake.calls.filter((c) => c.path === "/rest/posts").at(-1).body.author, "urn:li:organization:146737411");
+
+  // Pagina tolta: tutto torna come prima.
+  social.setNetworkSettings("linkedin", { pageId: "", auto: false });
+  li = social.socialStatus().networks.find((n) => n.id === "linkedin");
+  assert.equal(li.pageId, null);
+  assert.equal(li.pageOnly, false);
+  const r4 = await social.proposePost(agent, { network: "linkedin", text: "Solo profilo", reason: "x" });
+  assert.equal(r4.status, "pending_approval");
+  assert.equal(r4.pagina, undefined);
+});
