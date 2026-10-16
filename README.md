@@ -201,6 +201,12 @@ indirizzo https e scaricano foto e video da lì.
   `media_view` manda la foto all'agente come immagine. **Immagini IA** (`generate_image`, `lib/social/imagegen.js`):
   Gemini con la chiave dell'utente (`geminiKey` in `settings.json`), modelli `gemini-3.1-flash-image-preview` poi
   `gemini-2.5-flash-image`, circa 0,07 $ a immagine.
+- **Video montati** (`create_video`, `lib/social/video.js`): schermate SVG, foto o spezzoni dell'archivio (con
+  `overlay_svg` sopra), zoom lento, transizioni `xfade`, musica caricata dall'utente (archivio: MP3/M4A/AAC/WAV, `kind:
+  "audio"`, mai da sola in un post) oppure audio muto; formati story 1080×1920, portrait, square, landscape 1280×720;
+  massimo 20 schermate e 90 s; un montaggio per volta. ffmpeg: `FFMPEG_PATH`, poi il pacchetto facoltativo `ffmpeg-static`
+  (scarica il programma da GitHub all'installazione), poi quello del sistema. Copertina (`thumb`) visibile con `media_view`.
+  Test: `test/video.test.js`.
 - Test: `test/social.test.js` e `test/social-server.test.js` con il finto server `test/helpers/fake-social.js`
   (`SOCIAL_API_BASE`, che risponde come i quattro social e Gemini e scarica davvero i file come Meta).
 

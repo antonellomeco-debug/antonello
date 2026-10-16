@@ -25,7 +25,7 @@ export const POST_STATUS = {
   cancelled: "Annullato",
   uncertain: "⚠️ Esito incerto",
 };
-const ORIGIN = { upload: "Caricato da te", graphic: "Grafica di un agente", ai: "Immagine IA", variant: "Copia" };
+const ORIGIN = { upload: "Caricato da te", graphic: "Grafica di un agente", ai: "Immagine IA", video: "Video montato da un agente", variant: "Copia" };
 const NET_ICON = { instagram: "📸", threads: "🧵", linkedin: "💼", x: "𝕏" };
 const NET_LABEL = { instagram: "Instagram", threads: "Threads", linkedin: "LinkedIn", x: "X" };
 
@@ -134,11 +134,16 @@ function aiCard(st) {
     </form>`;
 }
 
+/** Video con la copertina (se c'è) e l'audio attivabile. */
+const videoTag = (m) => `<video src="${esc(m.src)}"${m.thumb ? ` poster="${esc(m.thumb)}"` : ""} preload="${m.thumb ? "none" : "metadata"}" controls playsinline></video>`;
+
 function mediaCard(m) {
   const visual = m.kind === "video"
-    ? `<video src="${esc(m.src)}" preload="metadata" controls playsinline muted></video>`
-    : `<a href="${esc(m.src)}" target="_blank" rel="noopener"><img src="${esc(m.thumb ?? m.src)}" alt="${esc(m.title)}" loading="lazy" /></a>`;
-  const dims = m.width ? ` · ${m.width}×${m.height}` : "";
+    ? videoTag(m)
+    : m.kind === "audio"
+      ? `<div class="media-audio">🎵<audio src="${esc(m.src)}" preload="none" controls></audio></div>`
+      : `<a href="${esc(m.src)}" target="_blank" rel="noopener"><img src="${esc(m.thumb ?? m.src)}" alt="${esc(m.title)}" loading="lazy" /></a>`;
+  const dims = (m.width ? ` · ${m.width}×${m.height}` : "") + (m.duration ? ` · ${m.duration} s` : "");
   return `<article class="media-card" data-media="${esc(m.id)}">
     ${visual}
     <div class="media-body">
@@ -157,7 +162,7 @@ export function postMediaStrip(list = []) {
     .map((m) => (m.missing
       ? `<span class="meta">file eliminato</span>`
       : m.kind === "video"
-        ? `<video src="${esc(m.src)}" preload="metadata" controls playsinline muted></video>`
+        ? videoTag(m)
         : `<a href="${esc(m.src)}" target="_blank" rel="noopener"><img src="${esc(m.thumb ?? m.src)}" alt="${esc(m.title)}" loading="lazy" /></a>`))
     .join("")}</div>`;
 }
@@ -309,7 +314,7 @@ export function renderSocial() {
   if (!isEditing($("#media-grid"))) {
     $("#media-grid").innerHTML = mediaList?.length
       ? mediaList.map(mediaCard).join("")
-      : `<p class="empty">Ancora nessun file. Carica foto e video dal telefono: gli agenti li useranno per i post (scrivi due parole su cosa mostrano).</p>`;
+      : `<p class="empty">Ancora nessun file. Carica foto, video e musiche dal telefono: gli agenti li useranno per i post e per montare i video (scrivi due parole su cosa mostrano).</p>`;
   }
   $("#media-progress").innerHTML = ui.uploads.map((u) => `<p class="meta">${u.error ? "✖" : u.done ? "✔" : "⬆️"} ${esc(u.name)} ${u.error ? `— ${esc(u.error)}` : u.done ? "" : `${u.pct}%`}</p>`).join("");
   $("#social-posts").innerHTML = status.posts.length
@@ -429,7 +434,9 @@ async function uploadAll(files) {
       await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open("POST", "/api/media");
-        xhr.setRequestHeader("Content-Type", u.file.type || "application/octet-stream");
+        // Alcuni browser non danno il tipo delle musiche: si ricava dall'estensione.
+        const byExt = { mp3: "audio/mpeg", m4a: "audio/mp4", aac: "audio/aac", wav: "audio/wav" }[u.name.split(".").pop().toLowerCase()];
+        xhr.setRequestHeader("Content-Type", u.file.type || byExt || "application/octet-stream");
         xhr.setRequestHeader("X-File-Name", encodeURIComponent(u.name));
         xhr.upload.onprogress = (ev) => {
           if (!ev.lengthComputable) return;
