@@ -1,4 +1,4 @@
-// Finto server di Instagram, Threads, LinkedIn, X, Gemini e Pexels per le prove (SOCIAL_API_BASE): risponde come le API
+// Finto server di Instagram, Threads, LinkedIn, X, Gemini, Pexels e Pixabay per le prove (SOCIAL_API_BASE): risponde come le API
 // vere ai percorsi /<host originale>/<percorso>. Le pagine di accesso approvano subito e rimandano al redirect_uri.
 // Instagram e Threads scaricano davvero foto e video dagli indirizzi pubblici, come fanno i server di Meta.
 // Si può anche avviare da solo: node test/helpers/fake-social.js [porta] (per le prove nel browser).
@@ -205,6 +205,34 @@ export async function startFakeSocial({ port = 0 } = {}) {
         if (p === "/v1/search") {
           return json(200, { photos: [{ id: 501, width: 3000, height: 4000, url: "https://www.pexels.com/photo/milan-skyline-501/", alt: "Milano di sera", photographer: "Foto Grafo", src: { medium: "https://images.pexels.com/photos/501/m.jpeg", large2x: "https://images.pexels.com/photos/501/l.jpeg" } }] });
         }
+      }
+      // ---------------- Pixabay (la chiave va nell'indirizzo; con una chiave sbagliata risponde 400 con un testo)
+      if (host === "pixabay.com" && p.startsWith("/api/")) {
+        if (!q.key || q.key.includes("Sbagliata")) {
+          res.writeHead(400, { "content-type": "text/plain" });
+          return res.end("[ERROR 400] Invalid or missing API key");
+        }
+        if (p === "/api/videos/") {
+          const hit = (id, w, h) => ({
+            id, pageURL: `https://pixabay.com/videos/office-${id}/`, tags: "office, business, meeting", duration: 12, user: "Utente Pixabay",
+            videos: {
+              large: { url: `https://cdn.pixabay.com/video/${id}/large.mp4`, width: w * 2, height: h * 2, size: 9e6, thumbnail: `https://cdn.pixabay.com/video/${id}/large.jpg` },
+              medium: { url: `https://cdn.pixabay.com/video/${id}/medium.mp4`, width: w, height: h, size: 4e6, thumbnail: `https://cdn.pixabay.com/video/${id}/medium.jpg` },
+              small: { url: `https://cdn.pixabay.com/video/${id}/small.mp4`, width: w / 2, height: h / 2, size: 1e6, thumbnail: "" },
+            },
+          });
+          return json(200, { total: 3, totalHits: 3, hits: [hit(301, 1920, 1080), hit(302, 1080, 1920), hit(303, 1920, 1080)] });
+        }
+        return json(200, { total: 1, totalHits: 1, hits: [{ id: 401, pageURL: "https://pixabay.com/photos/team-401/", tags: "team, work", webformatURL: "https://cdn.pixabay.com/photo/401_640.jpg", largeImageURL: "https://cdn.pixabay.com/photo/401_1280.jpg", imageWidth: 4000, imageHeight: 6000, user: "Fotografo" }] });
+      }
+      if (host === "cdn.pixabay.com") {
+        fetched.push({ url: p, status: 200 });
+        if (p.endsWith(".mp4")) {
+          res.writeHead(200, { "content-type": "video/mp4" });
+          return res.end(opts.stockVideo ?? Buffer.alloc(4096));
+        }
+        res.writeHead(200, { "content-type": "image/png" });
+        return res.end(PNG);
       }
       if (host === "images.pexels.com") {
         res.writeHead(200, { "content-type": "image/png" });

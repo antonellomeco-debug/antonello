@@ -29,7 +29,7 @@ import * as costs from "./lib/costs.js";
 import * as social from "./lib/social/index.js";
 import * as media from "./lib/social/media.js";
 import { setGeminiKey } from "./lib/social/imagegen.js";
-import { setPexelsKey } from "./lib/social/stock.js";
+import { setStockKey } from "./lib/social/stock.js";
 import { shutdownTts } from "./lib/social/tts.js";
 import crypto from "node:crypto";
 import { pipeline } from "node:stream/promises";
@@ -426,7 +426,7 @@ const netParam = (req) => {
 app.get("/api/social", (_req, res) => res.json(social.socialStatus()));
 app.put("/api/social/stock", async (req, res) => {
   try {
-    const r = await setPexelsKey(req.body?.key);
+    const r = await setStockKey(String(req.body?.provider ?? "pexels"), req.body?.key);
     res.json({ ...social.socialStatus(), stockNote: r.note ?? null });
   } catch (e) {
     res.status(400).json({ error: e.message });

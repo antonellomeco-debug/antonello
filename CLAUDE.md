@@ -159,8 +159,8 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
 - **Video** (16 ottobre 2026): strumento `create_video` (`lib/social/video.js`, ffmpeg da `ffmpeg-static` in
   optionalDependencies, con libass): reel con clip/foto/schermate di testo, voce narrante italiana gratuita (Piper paola via
   sherpa-onnx, `lib/social/tts.js`, scaricata alla prima richiesta), sottotitoli parola per parola, titoli animati, transizioni,
-  barra, effetti, musica dell'archivio abbassata sotto la voce. Repertorio Pexels (`stock_search`/`stock_add`, chiave gratuita
-  dell'utente in 📣 Social). L'utente vuole video «che tengono incollati», misti con immagini, foto e clip vere. Gli agenti
+  barra, effetti, musica dell'archivio abbassata sotto la voce. Repertorio Pixabay o Pexels (`stock_search`/`stock_add`, chiavi
+  gratuite dell'utente in 📣 Social; Pexels a ottobre 2026 ha messo in pausa le chiavi nuove: si usa Pixabay). L'utente vuole video «che tengono incollati», misti con immagini, foto e clip vere. Gli agenti
   ricevono gli strumenti solo se Orion glieli assegna. Dal container YouTube e Pexels non sono raggiungibili.
 
 ## Spesa e risparmio (15 ottobre 2026)

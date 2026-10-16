@@ -25,7 +25,7 @@ export const POST_STATUS = {
   cancelled: "Annullato",
   uncertain: "⚠️ Esito incerto",
 };
-const ORIGIN = { upload: "Caricato da te", graphic: "Grafica di un agente", ai: "Immagine IA", video: "Video montato da un agente", stock: "Repertorio Pexels", variant: "Copia" };
+const ORIGIN = { upload: "Caricato da te", graphic: "Grafica di un agente", ai: "Immagine IA", video: "Video montato da un agente", stock: "Repertorio (Pixabay/Pexels)", variant: "Copia" };
 const NET_ICON = { instagram: "📸", threads: "🧵", linkedin: "💼", x: "𝕏" };
 const NET_LABEL = { instagram: "Instagram", threads: "Threads", linkedin: "LinkedIn", x: "X" };
 
@@ -139,18 +139,25 @@ const videoTag = (m) => `<video src="${esc(m.src)}"${m.thumb ? ` poster="${esc(m
 
 function stockCard(st) {
   const sk = st.stock ?? {};
-  return `<h3>🎞️ Video e foto di repertorio <span class="social-state">${sk.configured ? `<span class="acct demo">attivi</span> <span class="meta">chiave ${esc(sk.hint)}</span>` : `<span class="acct paper">non attivi</span>`}</span></h3>
-    <p class="sub">Con la chiave <b>gratuita</b> di <b>Pexels</b> gli agenti cercano clip e foto vere (uffici, città, borsa, persone al lavoro) e le montano nei reel insieme alle tue foto e ai tuoi video. Uso libero anche per il brand, nessun costo.</p>
-    <details class="howto"><summary>Come si fa (2 minuti)</summary><ol>
-      <li>Apri <a href="https://www.pexels.com/api/" target="_blank" rel="noopener">www.pexels.com/api</a> e premi <b>Get Started</b> (o <b>Join</b>): crea un account gratuito con la tua email.</li>
-      <li>Compila il breve modulo (nome del progetto, es. «Venturo social», e a cosa serve, es. «video per i social del mio brand»), accetta le condizioni e conferma.</li>
-      <li>Nella pagina della tua API compare <b>Your API Key</b>: copiala tutta con il pulsante di copia.</li>
-      <li>Incollala qui sotto e premi Salva: l'app la prova subito con Pexels.</li>
-    </ol></details>
-    <form class="grid2" id="stock-form" autocomplete="off">
-      <label>Chiave di Pexels <input name="key" type="password" spellcheck="false" autocomplete="off" placeholder="${sk.configured ? "già salvata (scrivi per cambiarla)" : "incolla la chiave"}" /></label>
-      <div class="row-actions"><button class="btn small primary" type="submit">Salva</button>${sk.configured ? `<button class="btn small ghost" type="button" id="stock-remove">Togli la chiave</button>` : ""}</div>
+  const pill = (c) => (c?.configured ? `(attiva, chiave ${esc(c.hint)})` : "(non attiva)");
+  const form = (id, label, c) => `<form class="grid2" data-stock-form="${id}" autocomplete="off">
+      <label>${label} ${pill(c)}<input name="key" type="password" spellcheck="false" autocomplete="off" placeholder="${c?.configured ? "già salvata (scrivi per cambiarla)" : "incolla la chiave"}" /></label>
+      <div class="row-actions"><button class="btn small primary" type="submit">Salva</button>${c?.configured ? `<button class="btn small ghost" type="button" data-stock-remove="${id}">Togli la chiave</button>` : ""}</div>
     </form>`;
+  return `<h3>🎞️ Video e foto di repertorio <span class="social-state">${sk.configured ? `<span class="acct demo">attivi</span>` : `<span class="acct paper">non attivi</span>`}</span></h3>
+    <p class="sub">Con una chiave <b>gratuita</b> gli agenti cercano clip e foto vere (uffici, città, borsa, persone al lavoro) e le montano nei reel insieme alle tue foto e ai tuoi video. Uso libero anche per il brand, nessun costo. Basta una delle due; con tutte e due c'è più scelta.</p>
+    <details class="howto"><summary>Chiave di Pixabay (consigliata, 3 minuti)</summary><ol>
+      <li>Apri <a href="https://pixabay.com/it/accounts/register/" target="_blank" rel="noopener">pixabay.com</a> e crea un account gratuito (<b>Iscriviti</b>, con email o Google). Conferma l'email che ti arriva.</li>
+      <li>Da collegato apri <a href="https://pixabay.com/api/docs/" target="_blank" rel="noopener">pixabay.com/api/docs</a>.</li>
+      <li>Scorri fino alla tabella <b>Parameters</b>: alla riga <b>key (required)</b> c'è scritta in verde la tua chiave («Your API key: …»). Selezionala tutta e copiala.</li>
+      <li>Incollala qui sotto e premi Salva: l'app la prova subito con Pixabay.</li>
+    </ol></details>
+    ${form("pixabay", "Chiave di Pixabay", sk.pixabay)}
+    <details class="howto"><summary>Chiave di Pexels (facoltativa)</summary><ol>
+      <li>Apri <a href="https://www.pexels.com/api/" target="_blank" rel="noopener">www.pexels.com/api</a>, crea un account gratuito e compila il breve modulo.</li>
+      <li>Copia <b>Your API Key</b> e incollala qui sotto. (Se Pexels dice che il rilascio delle chiavi è in pausa, usa Pixabay.)</li>
+    </ol></details>
+    ${form("pexels", "Chiave di Pexels", sk.pexels)}`;
 }
 
 function mediaCard(m) {
@@ -380,9 +387,10 @@ function bindEvents() {
       await api(`/api/social/posts/${t.dataset.postCancel}/cancel`, { method: "POST" });
       await loadSocial();
       renderSocial();
-    } else if (t.id === "stock-remove") {
-      if (!confirm("Togliere la chiave di Pexels? Gli agenti non potranno più cercare video e foto di repertorio.")) return;
-      status = await api("/api/social/stock", { method: "PUT", body: JSON.stringify({ key: "" }) });
+    } else if (t.dataset.stockRemove) {
+      const name = t.dataset.stockRemove === "pixabay" ? "Pixabay" : "Pexels";
+      if (!confirm(`Togliere la chiave di ${name}?`)) return;
+      status = await api("/api/social/stock", { method: "PUT", body: JSON.stringify({ provider: t.dataset.stockRemove, key: "" }) });
       renderSocial();
     } else if (t.id === "ai-remove") {
       if (!confirm("Togliere la chiave di Gemini? Gli agenti non potranno più creare immagini con l'IA.")) return;
@@ -399,20 +407,21 @@ function bindEvents() {
       ui.editingApp.delete(net);
       document.activeElement?.blur();
       renderSocial();
-    } else if (f.id === "stock-form") {
+    } else if (f.dataset.stockForm) {
       if (!f.key.value.trim()) return;
       const btn = f.querySelector("button[type=submit]");
       btn.disabled = true;
       btn.textContent = "Provo la chiave…";
       try {
-        status = await api("/api/social/stock", { method: "PUT", body: JSON.stringify({ key: f.key.value }) });
+        status = await api("/api/social/stock", { method: "PUT", body: JSON.stringify({ provider: f.dataset.stockForm, key: f.key.value }) });
       } finally {
         btn.disabled = false;
         btn.textContent = "Salva";
       }
       document.activeElement?.blur();
       renderSocial();
-      alert(status.stockNote ? `Chiave salvata. ${status.stockNote}` : "✔ Chiave salvata e provata con Pexels: i video di repertorio sono attivi.");
+      const name = f.dataset.stockForm === "pixabay" ? "Pixabay" : "Pexels";
+      alert(status.stockNote ? `Chiave salvata. ${status.stockNote}` : `✔ Chiave salvata e provata con ${name}: i video di repertorio sono attivi.`);
     } else if (f.id === "ai-form") {
       if (!f.key.value.trim()) return;
       const btn = f.querySelector("button[type=submit]");
