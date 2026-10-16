@@ -755,7 +755,10 @@ export class Office3D {
     this.fly = { ...view, frames: 0 };
   }
 
-  /** Mette in risalto il piano scelto: gli altri diventano trasparenti e senza etichette. */
+  /**
+   * Mette in risalto il piano scelto: gli altri diventano trasparenti. Le etichette dei piani restano sempre;
+   * quelle delle stanze si vedono solo sul piano scelto (cliccandolo), mai nella vista di tutto il palazzo.
+   */
   applyFocus() {
     const overview = !this.focused;
     for (const [id, f] of this.floors) {
@@ -764,7 +767,7 @@ export class Office3D {
       // Palco stretto (telefono): il nome del piano già in primo piano coprirebbe la stanza davanti (lo dice già l'ascensore).
       f.labels.floor.visible = !(this.narrow && id === this.focused);
       f.labels.floor.element.classList.toggle("active", id === this.focused);
-      for (const l of f.labels.rooms) l.visible = active;
+      for (const l of f.labels.rooms) l.visible = id === this.focused;
     }
     // I fumetti si vedono solo sul piano in primo piano (nella vista di tutto il palazzo sarebbero troppi).
     for (const o of this.agentObjs.values()) o.talk.visible = o.floorId === this.focused;
