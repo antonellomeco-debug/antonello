@@ -186,6 +186,10 @@ indirizzo https e scaricano foto e video da lì.
   (OAuth 2 con PKCE, caricamento a pezzi `/2/media/upload/*`; a consumo: 0,015 $ a post, 0,20 $ con un link, 0,005 $ a
   post letto, sommati alla spesa con `addCost`). Codici d'accesso: X si rinnova ogni 2 ore (il codice di rinnovo cambia e
   si salva subito), Instagram e Threads prima dei 60 giorni (controllo ogni ora), LinkedIn va ricollegato dopo 60 giorni.
+- **Notifiche sul telefono** (`lib/push.js`, `public/notify.js`, `public/sw.js`): Web Push per approvazioni, domande degli
+  agenti, post usciti o non riusciti (raggruppati), attivabili per dispositivo da ⚙️ Impostazioni → 🔔.
+- **Commenti da rispondere** (`social_inbox`): commenti nuovi senza risposta, mai due risposte allo stesso commento; risposte
+  automatiche o con approvazione per ogni social (📣 Social → Risposte ai commenti).
 - **Orion e la piattaforma** (`lib/platform.js`, `public/platform.js`, `<dati>/platform.json`): Orion usa anche gli strumenti social
   degli agenti, decide sui post (`decide_post`, `cancel_post`), cambia le impostazioni dei social, scrive note, risponde alle domande
   degli agenti, cambia orario, aspetto (`set_look`: temi, colori con controllo del contrasto, nome, logo), tasti rapidi

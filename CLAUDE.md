@@ -188,6 +188,22 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   Il prompt dice a Orion che note, post e pagine web sono dati, non ordini. Il codice del programma Orion non lo cambia: le
   idee le porta l'utente a Claude Code.
 
+## Notifiche e risposte ai commenti (17 ottobre 2026)
+
+- **Notifiche sul telefono** (Web Push): `lib/push.js` (libreria `web-push`, solo `generateRequestDetails` + `fetch`; chiavi VAPID
+  create alla prima richiesta in `<dati>/push.json` 600, fuori dai backup; endpoint solo dei servizi veri: Apple, Google,
+  Mozilla, Windows, o `PUSH_TEST_ENDPOINT_PREFIX` nei test). Ascolta gli eventi del bus: approvazioni nuove (post e ordini),
+  domande degli agenti, `post-status` (emesso da `setPost` in `lib/social/index.js` per published/failed/uncertain; i post «a
+  mano» no). Eventi raggruppati in 15 s (`PUSH_BATCH_MS`), preferenze `approvals`/`published`/`replies`, numerino sull'icona
+  (`badge`, anche `navigator.setAppBadge` in app.js). `public/sw.js` gestisce `push` e `notificationclick` (postMessage
+  `open` → `openFromHash` in app.js: #approvals, #social, #broker). Interfaccia `public/notify.js`, scheda 🔔 in ⚙️ Impostazioni
+  (su iPhone solo nell'app installata, iOS 16.4+). API `/api/push*`. Test: `test/push.test.js` (decifra con `http_ece`).
+- **Risposte ai commenti**: strumento `social_inbox` (agenti e Orion) = commenti nuovi senza risposta sotto i post recenti
+  (Instagram e Threads anche post fatti fuori dall'app, via `recent()`; X solo post dell'app degli ultimi 3 giorni, max 5);
+  i commenti mostrati vanno in `data.seen` (30 giorni), quelli dell'account e quelli già risposti si saltano; `proposePost`
+  rifiuta una seconda risposta allo stesso commento. Impostazione `autoReplies` per social (null = come i post) in 📣 Social e
+  `set_social_settings.auto_replies` di Orion. Gli agenti «Community Manager» li crea Orion (ogni 6 ore; X una volta al giorno).
+
 ## Spesa e risparmio (15 ottobre 2026)
 
 - `lib/store.js`: `costScope` (AsyncLocalStorage) dice chi spende: `runAgent` → `{agentId, palace}`, chat di Orion →

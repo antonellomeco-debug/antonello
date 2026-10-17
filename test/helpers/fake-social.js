@@ -87,7 +87,15 @@ export async function startFakeSocial({ port = 0 } = {}) {
         }
         if (/^\/[\w-]+\/media_publish$/.test(p)) return json(200, { id: `igp${++seq}` });
         if (/^\/[\w-]+\/insights$/.test(p)) return json(200, { data: [{ name: "reach", period: "lifetime", values: [{ value: 340 }] }, { name: "views", period: "lifetime", values: [{ value: 512 }] }] });
-        if (/^\/[\w-]+\/comments$/.test(p)) return json(200, { data: [{ id: "c-1", text: "Bellissimo!", username: "mario", timestamp: "2026-10-14T11:00:00+0000", like_count: 1 }] });
+        if (/^\/[\w-]+\/comments$/.test(p)) {
+          return json(200, {
+            data: [
+              { id: "c-1", text: "Bellissimo!", username: "mario", timestamp: "2026-10-14T11:00:00+0000", like_count: 1 },
+              { id: "c-2", text: "Come si partecipa?", username: "anna", timestamp: "2026-10-14T12:00:00+0000", like_count: 0 },
+              { id: "c-3", text: "Grazie a tutti!", username: "antonello.prova", timestamp: "2026-10-14T12:30:00+0000", like_count: 0 },
+            ],
+          });
+        }
         if (/^\/[\w-]+\/replies$/.test(p)) return json(200, { id: `igr${++seq}` });
         const one = p.match(/^\/([\w-]+)$/);
         if (one) {

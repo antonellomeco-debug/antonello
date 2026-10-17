@@ -105,6 +105,13 @@ function networkCard(n, st) {
         </select>
       </label>
       <label>Post al giorno (massimo) <input type="number" min="0" max="50" step="1" value="${n.maxPerDay}" data-max="${n.id}" /></label>
+      ${n.id !== "linkedin" ? `<label>Risposte ai commenti
+        <select data-replies="${n.id}">
+          <option value="" ${n.autoReplies == null ? "selected" : ""}>Come i post</option>
+          <option value="1" ${n.autoReplies === true ? "selected" : ""}>Automatiche</option>
+          <option value="0" ${n.autoReplies === false ? "selected" : ""}>Con la mia approvazione</option>
+        </select>
+      </label>` : ""}
       <p class="meta">Oggi: ${n.today} su ${n.maxPerDay}${n.id === "x" ? " · 0,015 $ a post (0,20 $ con un link)" : ""}</p>
     </div>${n.id === "linkedin" ? pageSettings(n) : ""}`;
   return `<article class="card social-card" data-net="${n.id}">
@@ -589,6 +596,15 @@ function bindEvents() {
         return;
       }
       status = await api(`/api/social/${t.dataset.auto}/settings`, { method: "PUT", body: JSON.stringify({ auto: on }) });
+      t.blur();
+      renderSocial();
+    } else if (t.dataset.replies) {
+      const v = t.value;
+      if (v === "1" && !confirm(`Risposte ai commenti AUTOMATICHE su ${NET_LABEL[t.dataset.replies]}: gli agenti risponderanno a tuo nome senza chiederti niente (al massimo 30 al giorno). Vuoi attivarle?`)) {
+        renderSocial();
+        return;
+      }
+      status = await api(`/api/social/${t.dataset.replies}/settings`, { method: "PUT", body: JSON.stringify({ autoReplies: v === "" ? null : v === "1" }) });
       t.blur();
       renderSocial();
     } else if (t.dataset.max) {
