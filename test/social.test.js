@@ -449,3 +449,36 @@ test("LinkedIn: post anche sulla pagina aziendale (a mano finché LinkedIn non d
   assert.equal(r4.status, "pending_approval");
   assert.equal(r4.pagina, undefined);
 });
+
+test("commenti da rispondere: solo i nuovi, mai due risposte allo stesso commento, risposte automatiche a parte", async () => {
+  await connect("instagram");
+  await connect("threads");
+  social.setNetworkSettings("instagram", { auto: false, maxPerDay: 20, autoReplies: true });
+  const box = await social.inbox("instagram");
+  assert.equal(box.post_controllati, 1);
+  // c-1 ha già una risposta (test di prima), c-3 è dell'account stesso: resta solo c-2.
+  assert.deepEqual(box.commenti.map((c) => [c.comment_id, c.from, c.post_id]), [["c-2", "anna", "ig-post-1"]]);
+  assert.match(box.risposte, /escono subito/);
+  assert.equal((await social.inbox("instagram")).commenti.length, 0, "già mostrato: non torna");
+  assert.equal((await social.inbox("instagram", { includeSeen: true })).commenti.length, 1);
+
+  // Risposta: automatica anche se i post chiedono l'approvazione.
+  const r = await social.proposePost(agent, { network: "instagram", text: "Ciao Anna! Trovi tutto nel link in bio 🙌", reply_to: "c-2", reason: "risposta" });
+  assert.equal(r.status, "published", JSON.stringify(r));
+  assert.ok(fake.calls.some((c) => c.path === "/c-2/replies" && c.body.message.startsWith("Ciao Anna")));
+  await assert.rejects(social.proposePost(agent, { network: "instagram", text: "Ancora ciao", reply_to: "c-2", reason: "x" }), /già una risposta/);
+  assert.equal((await social.inbox("instagram", { includeSeen: true })).commenti.length, 0, "commento già risposto");
+
+  // Threads: risposte con approvazione anche se i post sono automatici.
+  social.setNetworkSettings("threads", { auto: true, maxPerDay: 20, autoReplies: false });
+  const th = await social.inbox("threads");
+  assert.equal(th.commenti[0].comment_id, "tr-1");
+  assert.match(th.risposte, /Approvazioni/);
+  const r2 = await social.proposePost(agent, { network: "threads", text: "Esatto Lucia!", reply_to: "tr-1", reason: "risposta" });
+  assert.equal(r2.status, "pending_approval");
+  assert.equal(social.statusForAgents().social.find((n) => n.network === "threads").risposte_ai_commenti.startsWith("con approvazione"), true);
+  social.setNetworkSettings("threads", { autoReplies: null });
+  assert.equal(social.socialStatus().networks.find((n) => n.id === "threads").autoReplies, undefined, "di nuovo come i post");
+
+  await assert.rejects(social.inbox("linkedin"), /LinkedIn non permette/);
+});

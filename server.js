@@ -28,6 +28,7 @@ import * as voice from "./lib/voice.js";
 import * as costs from "./lib/costs.js";
 import * as social from "./lib/social/index.js";
 import * as platform from "./lib/platform.js";
+import * as push from "./lib/push.js";
 import * as media from "./lib/social/media.js";
 import { setGeminiKey } from "./lib/social/imagegen.js";
 import { setStockKey } from "./lib/social/stock.js";
@@ -411,6 +412,12 @@ app.put("/api/costs/pace", handle((req) => {
 }));
 app.get("/api/orion", (_req, res) => res.json({ speed: getSpeed(), speeds: Object.keys(SPEEDS) }));
 app.put("/api/orion", handle((req) => setSpeed(String(req.body?.speed ?? ""))));
+// Notifiche sul telefono (🔔 in ⚙️ Impostazioni).
+app.get("/api/push", (_req, res) => res.json(push.pushStatus()));
+app.post("/api/push/subscribe", handle((req) => push.subscribe(req.body?.subscription, req.body?.label)));
+app.post("/api/push/unsubscribe", handle((req) => push.unsubscribe(req.body?.endpoint)));
+app.put("/api/push/prefs", handle((req) => push.setPrefs(req.body ?? {})));
+app.post("/api/push/test", handleAsync(() => push.sendTest()));
 // Aspetto, tasti rapidi e idee (li cambia soprattutto Orion; dall'app si possono togliere o tornare all'originale).
 app.get("/api/platform", (_req, res) => res.json(platform.getPlatform()));
 app.put("/api/platform/look", handle((req) => (platform.setLook(req.body ?? {}), platform.getPlatform())));
@@ -468,7 +475,7 @@ app.put("/api/social/ai", async (req, res) => {
 app.put("/api/social/:net/app", handle((req) => social.setApp(netParam(req), req.body ?? {})));
 app.post("/api/social/:net/auth", handle((req) => social.startAuth(netParam(req))));
 app.post("/api/social/:net/unlink", handle((req) => social.disconnect(netParam(req))));
-app.put("/api/social/:net/settings", handle((req) => social.setNetworkSettings(netParam(req), { auto: req.body?.auto, maxPerDay: req.body?.maxPerDay, pageId: req.body?.pageId, pageName: req.body?.pageName, pageOnly: req.body?.pageOnly, pageApi: req.body?.pageApi })));
+app.put("/api/social/:net/settings", handle((req) => social.setNetworkSettings(netParam(req), { auto: req.body?.auto, maxPerDay: req.body?.maxPerDay, autoReplies: req.body?.autoReplies, pageId: req.body?.pageId, pageName: req.body?.pageName, pageOnly: req.body?.pageOnly, pageApi: req.body?.pageApi })));
 app.post("/api/social/posts/:id/cancel", handle((req) => social.cancelPost(req.params.id)));
 // Ritorno dal sito del social dopo l'accesso, con il codice e lo "state" nell'indirizzo.
 app.get("/social/callback", async (req, res) => {

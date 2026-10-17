@@ -6,6 +6,7 @@ import * as speech from "./speech.js";
 import { initSocial, loadSocial, renderSocial, renderPostApproval, bindShareButtons } from "./social.js";
 import { initCosts, renderCosts, loadCosts } from "./costs.js";
 import { initPlatform, loadPlatform, onPlatformEvent } from "./platform.js";
+import { initNotify, renderNotify } from "./notify.js";
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -294,6 +295,8 @@ async function refreshStats() {
   const badge = $("#badge-approvals");
   badge.textContent = s.pending;
   badge.classList.toggle("hidden", !s.pending);
+  // Numerino anche sull'icona dell'app installata (dove il telefono lo permette).
+  if (navigator.setAppBadge) (s.pending ? navigator.setAppBadge(s.pending) : navigator.clearAppBadge()).catch(() => {});
   const off = Boolean(s.schedule?.enabled && !s.schedule.working);
   $("#schedule-line").classList.toggle("hidden", !off);
   if (off) $("#schedule-line").textContent = `${scheduleText(s.schedule)} Orion risponde comunque e con ▶ puoi far lavorare un agente a mano.`;
@@ -1619,6 +1622,7 @@ async function openSettings() {
   $("#data-status").textContent = "";
   checkForUpdate();
   renderSchedule();
+  renderNotify();
   api("/api/orion").then((o) => ($("#orion-speed").value = o.speed), () => {});
   $("#speed-status").textContent = "";
   await renderKeyStatus();
@@ -2299,6 +2303,16 @@ if (window.visualViewport && touchMQ.matches) {
 // ---------- app installabile: service worker (solo su https o sul computer stesso) ----------
 // Sul Mac (http://localhost) niente service worker: con il programma chiuso il browser deve dire semplicemente che
 // la pagina non si apre, non mostrare la pagina «controlla la connessione» pensata per il telefono.
+/** Sezione indicata nell'indirizzo (#approvals, #social, #broker): ritorno da un social o tocco su una notifica. */
+function openFromHash(hash) {
+  const view = String(hash ?? "").slice(1);
+  if (["broker", "social", "approvals"].includes(view)) {
+    showView(view);
+    history.replaceState(null, "", location.pathname);
+  }
+}
+// Tocco su una notifica con l'app già aperta: il service worker dice quale sezione mostrare.
+navigator.serviceWorker?.addEventListener("message", (e) => e.data?.type === "open" && openFromHash(e.data.hash));
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
 }
@@ -2315,13 +2329,11 @@ async function start() {
   connectEvents();
   await loadAll();
   loadPlatform();
-  if (location.hash === "#broker" || location.hash === "#social") {
-    showView(location.hash.slice(1));
-    history.replaceState(null, "", location.pathname);
-  }
+  openFromHash(location.hash);
   refreshSocialBadge();
 }
 initSocial(api);
+initNotify(api);
 initPlatform(api, {
   chat: (text) => {
     if (phoneMQ.matches) showView("chat");

@@ -515,6 +515,22 @@
         <p class="hint">Vale solo per Orion: gli agenti usano il modello scelto nella loro scheda. Le risposte compaiono mentre Orion le scrive.</p>
       </fieldset>
 
+      <fieldset class="update-box" id="push-box">
+        <legend>🔔 Notifiche sul telefono</legend>
+        <p class="hint" id="push-state">Controllo…</p>
+        <div class="row wrap">
+          <button type="button" class="btn primary" id="push-on">🔔 Attiva su questo dispositivo</button>
+          <button type="button" class="btn ghost hidden" id="push-off">Disattiva su questo dispositivo</button>
+          <button type="button" class="btn hidden" id="push-test">Manda una prova</button>
+        </div>
+        <div class="push-prefs">
+          <label class="inline"><input type="checkbox" id="push-approvals" /> Quando c'è da approvare (ordini, post, domande degli agenti)</label>
+          <label class="inline"><input type="checkbox" id="push-published" /> Quando esce un post (o non riesce a uscire)</label>
+          <label class="inline"><input type="checkbox" id="push-replies" /> Anche per ogni risposta ai commenti pubblicata</label>
+        </div>
+        <p class="hint" id="push-devices"></p>
+      </fieldset>
+
       <fieldset class="update-box" id="platform-box">
         <legend>🎨 Aspetto, tasti rapidi e idee</legend>
         <p class="hint">Li cambia soprattutto Orion: chiedigli per esempio «metti il tema oceano», «aggiungi un tasto che fa lavorare la Rassegna Notizie» o «che pulsanti mancano?».</p>
