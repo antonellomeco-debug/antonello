@@ -59,6 +59,7 @@ cosa su Venturo. È lo stesso testo che gli agenti della piattaforma ricevono co
 | Piano dei 30 giorni (con database: compiti, numeri, note, briefing) | https://claude.ai/artifact/8NkLfFwLJJsjyVY3Z3AUii |
 | Guida ai profili social | https://claude.ai/artifact/Me2c6tvLuFonpmqXx8UyTa |
 | Messaggi per Orion (palazzo Ricerca e Sviluppo e brief) | https://claude.ai/artifact/Th8PfDYcafPjH6NeX1K7AD |
+| Video, voce e ritmo di Instagram (guida voce ElevenLabs + messaggio per Orion) | https://claude.ai/artifact/Byds6y5cGEPoccmNwXiM8y |
 
 Per leggerli usa lo strumento Artifact con `action: "read"`, mai un download. Per aggiornarne uno pubblica sullo stesso `url`
 dopo averlo letto. Il piano dei 30 giorni si aggiorna con lo strumento ArtifactData (vedi la skill `venturo-briefing`).
