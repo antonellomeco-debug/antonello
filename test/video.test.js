@@ -34,6 +34,7 @@ after(async () => {
 });
 
 Object.assign(process.env, {
+  ELEVEN_RETRY_MS: "10", // pause brevi tra i nuovi tentativi verso ElevenLabs
   AGENTI_DATA_DIR: DATA,
   MARKET_MODE: "demo",
   SOCIAL_API_BASE: fake.url,
@@ -333,6 +334,36 @@ test("voce clonata con ElevenLabs: chiave e ID provati, video con la propria voc
   fake.opts.elevenDown = false;
   assert.equal((await el.setElevenVoice({ key: "" })).configured, false);
   assert.equal(g.voiceStatus().selected, "local");
+});
+
+test("voce clonata in un video con tante scene: mai più richieste di quelle che ElevenLabs accetta, niente voce di riserva", async () => {
+  const el = await import("../lib/social/eleventts.js");
+  await el.setElevenVoice({ key: "sk_ChiaveGiusta00000000000000000", voiceId: "VoceAntonello123" });
+  fake.eleven.peak = 0;
+  fake.eleven.rejected = 0;
+  const before = fake.calls.filter((c) => c.path.startsWith("/v1/text-to-speech/")).length;
+  const dir = fs.mkdtempSync(path.join(DATA, "voci-tante-"));
+  const scenes = Array.from({ length: 6 }, (_, i) => `Scena ${i + 1}, prima frase. Scena ${i + 1}, seconda frase.`);
+  const out = await tts.synthesize(scenes, dir);
+  assert.equal(out.voce, "ElevenLabs", "la tua voce, non quella di riserva");
+  assert.equal(fake.eleven.rejected, 0, "nessuna richiesta rifiutata");
+  assert.ok(fake.eleven.peak <= 2, `al massimo 2 richieste insieme (erano ${fake.eleven.peak})`);
+  assert.equal(fake.calls.filter((c) => c.path.startsWith("/v1/text-to-speech/")).length - before, 12, "una per frase");
+
+  // Se ElevenLabs rifiuta lo stesso (piano più piccolo o un altro programma che la usa), si riprova invece di cambiare voce.
+  fake.opts.elevenMaxConcurrent = 1;
+  const again = await tts.synthesize(scenes.slice(0, 3), dir);
+  assert.equal(again.voce, "ElevenLabs");
+  assert.ok(fake.eleven.rejected > 0, "qualche richiesta rifiutata e poi riprovata");
+  delete fake.opts.elevenMaxConcurrent;
+
+  // ElevenLabs giù: la voce di riserva e il motivo arrivano a chi ha chiesto il video.
+  fake.opts.elevenDown = true;
+  const fb = await tts.synthesize(["Una frase."], dir);
+  assert.match(fb.voce, /riserva/);
+  assert.match(fb.voce, /ElevenLabs/);
+  fake.opts.elevenDown = false;
+  await el.setElevenVoice({ key: "" });
 });
 
 test("agente: gli strumenti dei video sono validi e media_view mostra la copertina del video", async () => {

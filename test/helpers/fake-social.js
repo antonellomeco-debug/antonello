@@ -16,6 +16,7 @@ export async function startFakeSocial({ port = 0 } = {}) {
   let seq = 0;
   const polls = new Map();
 
+  const eleven = { active: 0, peak: 0, rejected: 0 };
   const server = http.createServer(async (req, res) => {
     const chunks = [];
     for await (const c of req) chunks.push(c);
@@ -260,6 +261,15 @@ export async function startFakeSocial({ port = 0 } = {}) {
         }
         if (p.startsWith("/v1/text-to-speech/")) {
           if (opts.elevenDown) return json(500, { detail: "down" });
+          // Come il piano Starter: al massimo 3 richieste alla volta, le altre rifiutate con 429.
+          if (eleven.active >= (opts.elevenMaxConcurrent ?? 3)) {
+            eleven.rejected++;
+            return json(429, { detail: { status: "too_many_concurrent_requests", message: "Too many concurrent requests." } });
+          }
+          eleven.active++;
+          eleven.peak = Math.max(eleven.peak, eleven.active);
+          await new Promise((r) => setTimeout(r, 25));
+          eleven.active--;
           calls.at(-1).voice = vid;
           const n = Math.round(24000 * 0.05 * String(body.text ?? "").length);
           const pcm = Buffer.alloc(n * 2);
@@ -316,6 +326,7 @@ export async function startFakeSocial({ port = 0 } = {}) {
     calls,
     fetched,
     opts,
+    eleven,
     close: () => new Promise((r) => server.close(r)),
   };
 }
