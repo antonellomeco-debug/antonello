@@ -523,6 +523,18 @@
         <p class="hint">Vale solo per Orion: gli agenti usano il modello scelto nella loro scheda. Le risposte compaiono mentre Orion le scrive.</p>
       </fieldset>
 
+      <fieldset class="update-box" id="brief-box">
+        <legend>📌 Brief del progetto</legend>
+        <p class="hint">Cos'è il progetto, a chi si rivolge, come parla e dove vuole arrivare. Ogni agente dei palazzi scelti lo legge a ogni lavoro: tienilo essenziale. Puoi anche chiedere a Orion di aggiornarlo.</p>
+        <textarea id="brief-text" rows="10" spellcheck="true" placeholder="Es.: VENTURO — piattaforma e media per imprenditori e investitori…"></textarea>
+        <p class="meta" id="brief-count"></p>
+        <div class="checks" id="brief-palaces"></div>
+        <div class="row wrap">
+          <button type="button" class="btn primary" id="brief-save">Salva il brief</button>
+          <span class="hint" id="brief-status"></span>
+        </div>
+      </fieldset>
+
       <fieldset class="update-box" id="push-box">
         <legend>🔔 Notifiche sul telefono</legend>
         <p class="hint" id="push-state">Controllo…</p>
