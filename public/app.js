@@ -2220,6 +2220,9 @@ function handleEvent(ev) {
     case "request":
       upsertRequest(ev.request);
       break;
+    case "report":
+      if (state.view === "costs") loadCosts().then(() => state.view === "costs" && renderCosts(), () => {});
+      break;
     case "platform":
       onPlatformEvent();
       break;
@@ -2308,7 +2311,7 @@ if (window.visualViewport && touchMQ.matches) {
 /** Sezione indicata nell'indirizzo (#approvals, #social, #broker): ritorno da un social o tocco su una notifica. */
 function openFromHash(hash) {
   const view = String(hash ?? "").slice(1);
-  if (["broker", "social", "approvals"].includes(view)) {
+  if (["broker", "social", "approvals", "costs"].includes(view)) {
     showView(view);
     history.replaceState(null, "", location.pathname);
   }

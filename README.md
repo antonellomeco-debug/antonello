@@ -156,6 +156,12 @@ programmati si fermano fino al mese dopo (Orion e i lavori a mano restano). **Ri
 lui lavora solo se altri hanno scritto nelle stanze che legge. Orion vede la spesa con `get_costs` e può cambiare il
 ritmo (`set_palace_pace`), non i budget. Dettagli in `lib/costs.js`.
 
+Anche gli agenti possono avere `get_costs` (sola lettura: periodo `oggi`, `settimana`, `settimana_scorsa`, `mese`,
+`mese_scorso`, un palazzo solo, giorno per giorno, abbonamenti, caratteri usati dalle voci). **Abbonamenti e servizi a
+pagamento** (Railway, ElevenLabs, ricariche dei crediti…) si segnano in 💰 Spesa o tramite Orion (`save_subscription`,
+`delete_subscription`): sono solo un promemoria. Una nota con l'etichetta **REPORT SPESE** (o che inizia così) diventa un
+report in cima a 💰 Spesa (`state.reports`, ultimi 60) e manda una notifica sul telefono (preferenza «report»).
+
 ### Velocità di Orion
 
 Orion risponde **in diretta**: il testo arriva all'app mentre lo scrive (`client.beta.messages.stream`, eventi SSE

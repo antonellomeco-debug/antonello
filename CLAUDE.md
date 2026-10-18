@@ -265,6 +265,17 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   costava decine di migliaia di token riletti a ogni passaggio (Orion = 23,6 $ su 25,8 $ del mese). Interfaccia: sezione 💰 Spesa (`public/costs.js`), numero «spesa del
   mese» in alto, casella «Solo con novità» nella scheda dell'agente. Test: `test/costs.test.js`.
 
+## Controllo delle spese per palazzo (18 ottobre 2026)
+
+- L'utente vuole un «Palazzo Spese» con un piano per ogni palazzo: contabile (report settimanale), agente del risparmio,
+  agente che cerca crediti gratis e agevolazioni, più un report di fine mese. Per renderlo possibile: strumento `get_costs`
+  anche per gli agenti (`spendingReport` in `lib/costs.js`: periodi `oggi/settimana/settimana_scorsa/mese/mese_scorso`,
+  filtro `palace`, giorni, abbonamenti, servizi), abbonamenti in `settings.costs.subscriptions` (interfaccia 💰 Spesa,
+  Orion `save_subscription`/`delete_subscription`; solo promemoria), note **REPORT SPESE** → `state.reports` + notifica push
+  (`prefs.reports`) + elenco in 💰 Spesa. `usage.days` tiene 62 giorni: basta per il mese scorso. La spesa sui token è in
+  dollari; il saldo dei crediti di Claude e le fatture esterne la piattaforma non li vede (l'utente li segna come abbonamenti).
+  Test in `test/costs.test.js` e `test/push.test.js`. Messaggi per Orion: pagina artifact «Palazzo Spese».
+
 ## Piano Gold (XAUUSD) per Orion
 
 - L'utente ha una pagina (artifact claude.ai "Piano Gold per Orion") con i messaggi da incollare a Orion:

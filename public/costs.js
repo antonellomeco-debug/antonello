@@ -1,5 +1,6 @@
 // Sezione 💰 Spesa: quanto costano questo mese Orion, i palazzi e gli agenti; budget del mese (generale e per
-// palazzo) e ritmo di ogni palazzo (normale, risparmio, minimo, pausa); gli agenti più costosi con i consigli.
+// palazzo) e ritmo di ogni palazzo (normale, risparmio, minimo, pausa); gli agenti più costosi con i consigli; i report
+// delle spese scritti dagli agenti (etichetta REPORT SPESE) e gli abbonamenti pagati fuori dalla piattaforma.
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -12,6 +13,8 @@ let api = null;
 let helpers = {};
 let report = null;
 let showAll = false;
+const money = (n, cur) => `${(Number(n) || 0).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${cur === "USD" ? "$" : "€"}`;
+const when = (iso) => new Date(iso).toLocaleString("it-IT", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 export async function loadCosts() {
   report = await api("/api/costs");
@@ -51,6 +54,8 @@ export function renderCosts() {
       <div class="row"><input id="budget-month" name="monthly" type="number" min="0" step="1" inputmode="decimal" placeholder="es. 30" value="${r.budget ?? ""}" /> <span>$</span> <button class="btn small primary" type="submit">Salva</button></div>
     </form>
 
+    ${reportsBlock(r)}
+
     <h2 class="section-title">Palazzi</h2>
     <div class="cost-palaces">
       ${r.palaces.map((p) => `
@@ -80,6 +85,8 @@ export function renderCosts() {
     </table></div>
     ${r.agents.length > 12 ? `<button class="btn small ghost" id="costs-all">${showAll ? "Mostra meno" : `Mostra tutti (${r.agents.length})`}</button>` : ""}` : `<p class="empty">Nessun agente.</p>`}
 
+    ${subsBlock(r)}
+
     ${otherRows.length ? `<h2 class="section-title">Altre spese</h2><ul class="cost-other">${otherRows.map(([k, v]) => `<li><span>${esc(OTHER[k] ?? k)}</span><b>${usd(v)}</b></li>`).join("")}</ul>` : ""}
 
     <details class="howto cost-help"><summary>Come spendere meno</summary><ol>
@@ -90,6 +97,51 @@ export function renderCosts() {
       <li><b>Budget</b>: un tetto per il mese, per tutto o per palazzo. Arrivati lì gli agenti programmati si fermano da soli.</li>
       <li>Puoi anche chiedere a Orion: «Guarda la spesa e proponimi come risparmiare senza perdere qualità».</li>
     </ol></details>`;
+}
+
+function reportsBlock(r) {
+  const list = r.reports ?? [];
+  if (!list.length) return "";
+  return `<h2 class="section-title">📑 Report delle spese</h2>
+    <div class="cost-reports">${list
+      .map((x, i) => `<details class="card cost-report" ${i === 0 ? "open" : ""}>
+        <summary><b>${esc(x.agentName)}</b><small>${esc(when(x.at))}</small></summary>
+        <div class="cost-report-text">${esc(x.text)}</div>
+      </details>`)
+      .join("")}</div>`;
+}
+
+function subsBlock(r) {
+  const subs = r.subscriptions ?? [];
+  const palaceName = (id) => (id ? r.palaces.find((p) => p.id === id)?.name ?? id : "Generale");
+  const monthly = Object.entries(r.subscriptionsMonthly ?? {}).filter(([, v]) => v > 0).map(([c, v]) => money(v, c)).join(" + ");
+  const every = r.subEvery ?? { mese: "al mese", anno: "all'anno", "una tantum": "una volta" };
+  return `<h2 class="section-title">Abbonamenti e servizi a pagamento</h2>
+    <p class="hint">Quello che paghi fuori dalla piattaforma (Railway, ElevenLabs, ricariche dei crediti di Claude…): gli agenti delle spese lo leggono e lo mettono nei report. Segnarlo qui non paga e non attiva niente.</p>
+    ${subs.length ? `<div class="table-wrap"><table class="cost-table cost-subs">
+      <thead><tr><th>Servizio</th><th>Palazzo</th><th class="num">Importo</th><th>Rinnovo</th><th></th></tr></thead>
+      <tbody>${subs.map((x) => `<tr>
+        <td>${esc(x.name)}${x.note ? `<small>${esc(x.note)}</small>` : ""}</td>
+        <td>${esc(palaceName(x.palace))}</td>
+        <td class="num">${money(x.amount, x.currency)}<small>${esc(every[x.every] ?? x.every)}</small></td>
+        <td>${x.every === "una tantum" ? esc(x.date ?? x.added ?? "") : x.renews ? `il ${x.renews} del mese` : "—"}</td>
+        <td><button class="btn small ghost" data-sub-del="${esc(x.id)}" aria-label="Togli ${esc(x.name)}">✕</button></td>
+      </tr>`).join("")}</tbody>
+    </table></div>
+    ${monthly ? `<p class="meta">Questo mese: <b>${monthly}</b> (gli annuali divisi per 12)</p>` : ""}` : ""}
+    <details class="howto"><summary>➕ Aggiungi un abbonamento o una ricarica</summary>
+      <form class="cost-sub-form" id="sub-form" autocomplete="off">
+        <label for="sub-name">Servizio <input id="sub-name" name="name" required maxlength="80" placeholder="es. Railway Hobby" /></label>
+        <label for="sub-amount">Importo <input id="sub-amount" name="amount" required inputmode="decimal" placeholder="es. 5" /></label>
+        <label for="sub-currency">Valuta <select id="sub-currency" name="currency"><option value="EUR">€ euro</option><option value="USD">$ dollari</option></select></label>
+        <label for="sub-every">Ogni <select id="sub-every" name="every">${Object.entries(every).map(([k, v]) => `<option value="${esc(k)}">${esc(v)}</option>`).join("")}</select></label>
+        <label for="sub-palace">Palazzo <select id="sub-palace" name="palace"><option value="">Generale (tutta la piattaforma)</option>${r.palaces.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select></label>
+        <label for="sub-renews">Giorno del rinnovo <input id="sub-renews" name="renews" type="number" min="1" max="31" inputmode="numeric" placeholder="es. 14" /></label>
+        <label for="sub-date">Data (per le ricariche) <input id="sub-date" name="date" type="date" /></label>
+        <label for="sub-note">Note <input id="sub-note" name="note" maxlength="300" placeholder="es. 30.000 crediti al mese" /></label>
+        <button class="btn primary" type="submit">Aggiungi</button>
+      </form>
+    </details>`;
 }
 
 export function initCosts(apiFn, h = {}) {
@@ -105,6 +157,13 @@ export function initCosts(apiFn, h = {}) {
   };
   el.addEventListener("submit", act(async (e) => {
     e.preventDefault();
+    if (e.target.id === "sub-form") {
+      const f = Object.fromEntries(new FormData(e.target));
+      report = await api("/api/costs/subscriptions", { method: "PUT", body: JSON.stringify(f) });
+      document.activeElement?.blur();
+      renderCosts();
+      return;
+    }
     if (e.target.id !== "budget-form") return;
     report = await api("/api/costs/budget", { method: "PUT", body: JSON.stringify({ monthlyUsd: e.target.monthly.value }) });
     document.activeElement?.blur();
@@ -133,5 +192,12 @@ export function initCosts(apiFn, h = {}) {
       showAll = !showAll;
       renderCosts();
     } else if (b.dataset.agent) helpers.openAgent?.(b.dataset.agent);
+    else if (b.dataset.subDel) {
+      act(async () => {
+        if (!confirm("Togliere questo abbonamento dall'elenco? (Non lo disdice: per quello vai sul sito del servizio.)")) return;
+        report = await api(`/api/costs/subscriptions/${encodeURIComponent(b.dataset.subDel)}`, { method: "DELETE" });
+        renderCosts();
+      })();
+    }
   });
 }

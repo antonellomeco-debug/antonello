@@ -405,15 +405,30 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 app.post("/api/chat/reset", handle(() => resetChat()));
-app.get("/api/costs", (_req, res) => res.json(costs.costReport(office.agents(), office.building())));
+const costsView = () => ({
+  ...costs.costReport(office.agents(), office.building()),
+  subscriptions: costs.listSubscriptions(),
+  subscriptionsMonthly: costs.subscriptionsMonthly(costs.listSubscriptions(), new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Rome" }).format(new Date()).slice(0, 7)),
+  subEvery: costs.SUB_EVERY,
+  reports: (getState().reports ?? []).slice(-20).reverse(),
+});
+app.get("/api/costs", (_req, res) => res.json(costsView()));
+app.put("/api/costs/subscriptions", handle((req) => {
+  costs.saveSubscription(req.body ?? {}, office.building());
+  return costsView();
+}));
+app.delete("/api/costs/subscriptions/:id", handle((req) => {
+  costs.deleteSubscription(req.params.id);
+  return costsView();
+}));
 app.put("/api/costs/budget", handle((req) => {
   costs.setBudgets(req.body ?? {});
-  return costs.costReport(office.agents(), office.building());
+  return costsView();
 }));
 app.put("/api/costs/pace", handle((req) => {
   costs.setPalacePace(String(req.body?.palace ?? ""), String(req.body?.pace ?? ""), office.building());
   bus.emit("event", { type: "stats" });
-  return costs.costReport(office.agents(), office.building());
+  return costsView();
 }));
 app.get("/api/orion", (_req, res) => res.json({ speed: getSpeed(), speeds: Object.keys(SPEEDS) }));
 app.put("/api/orion", handle((req) => setSpeed(String(req.body?.speed ?? ""))));

@@ -116,6 +116,28 @@ test("post pubblicati e non riusciti; preferenze; i post pubblicati a mano non s
   assert.deepEqual(titles.sort(), ["⚠️ Non pubblicato su Threads", "📣 Risposta pubblicata su X"]);
 });
 
+test("report delle spese: notifica che apre 💰 Spesa; si può spegnere; le note normali no", async () => {
+  const p = phone("iphone4");
+  push.subscribe(p.sub, "iPhone");
+  received.length = 0;
+  postNote("sala", { id: "contabile", name: "Contabile Social" }, "REPORT SPESE — settimana 12–18 ottobre: 1,20 $ (+15%).", []);
+  postNote("sala", { id: "contabile", name: "Contabile Social" }, "appunti di lavoro", ["SPESE"]);
+  await push.flush();
+  const mine = received.filter((r) => r.path === "/push/iphone4").map((r) => decrypt(p, r.body));
+  assert.equal(mine.length, 1);
+  assert.equal(mine[0].title, "📑 Report delle spese · Contabile Social");
+  assert.match(mine[0].body, /^settimana 12–18 ottobre/);
+  assert.equal(mine[0].url, "/#costs");
+
+  received.length = 0;
+  push.setPrefs({ reports: false });
+  postNote("sala", { id: "contabile", name: "Contabile Social" }, "Mese di ottobre", ["REPORT SPESE"]);
+  await push.flush();
+  assert.equal(received.filter((r) => r.path === "/push/iphone4").length, 0);
+  push.setPrefs({ reports: true });
+  push.unsubscribe(p.sub.endpoint);
+});
+
 test("dispositivo sparito (410): tolto dall'elenco; prova manuale", async () => {
   push.setPrefs({ approvals: true });
   answer = 410;
