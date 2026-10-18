@@ -30,8 +30,11 @@ cosa su Venturo. È lo stesso testo che gli agenti della piattaforma ricevono co
 
 - Caratteri: **Sora** per i titoli, **Inter** per i testi (Google Fonts). Per numeri e date si può usare IBM Plex Mono.
 - Simbolo: una V il cui braccio destro sale più in alto, con un punto verde in alto a destra («il futuro che sorge»).
-  SVG pronto: `<svg viewBox="0 0 200 200"><path d="M36 70 L92 152 L148 54" fill="none" stroke="#F7F9FC" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/><circle cx="168" cy="26" r="17" fill="#2BD67B"/></svg>`
-  (tratto bianco su navy; su fondo chiaro il tratto è navy). Logotipo «venturo» in minuscolo, Sora 800.
+  SVG ufficiale (18/10/2026, tratto spesso come le lettere della scritta): `<svg viewBox="0 0 200 200"><path d="M36 70 L92 152 L148 54" fill="none" stroke="#FFFFFF" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/><circle cx="170" cy="25" r="20" fill="#2BD67B"/></svg>`
+  (bianco con punto `#2BD67B` su navy; su fondo chiaro tratto navy e punto `#0B7A45`). Logotipo «venturo» in minuscolo, Sora 800,
+  già trasformato in forme: file in `kit/` (logo bianco, navy, su navy, su chiaro; simbolo). `kit/build.cjs` rifà loghi,
+  foto profilo, copertine (LinkedIn profilo e pagina, X, YouTube) e «In evidenza» di Instagram (Playwright + Chromium; la
+  scritta viene da `wordmark.json`, creato con fontTools da `assets/fonts/Sora-latin.woff2` istanziato a wght 800).
 - Niente rosso come colore principale (in finanza vuol dire perdita), niente sfumature viola-blu da startup generica.
 
 ## Regole che non si toccano
@@ -60,6 +63,7 @@ cosa su Venturo. È lo stesso testo che gli agenti della piattaforma ricevono co
 | Guida ai profili social | https://claude.ai/artifact/Me2c6tvLuFonpmqXx8UyTa |
 | Messaggi per Orion (palazzo Ricerca e Sviluppo e brief) | https://claude.ai/artifact/Th8PfDYcafPjH6NeX1K7AD |
 | Video, voce e ritmo di Instagram (guida voce ElevenLabs + messaggio per Orion) | https://claude.ai/artifact/Byds6y5cGEPoccmNwXiM8y |
+| Kit grafico: logo, foto profilo, copertine, «In evidenza» + messaggio per Orion (i file vanno caricati nell'archivio dell'app) | https://claude.ai/artifact/YS9QdadhNBpNbB9mYgfnjh |
 
 Per leggerli usa lo strumento Artifact con `action: "read"`, mai un download. Per aggiornarne uno pubblica sullo stesso `url`
 dopo averlo letto. Il piano dei 30 giorni si aggiorna con lo strumento ArtifactData (vedi la skill `venturo-briefing`).
