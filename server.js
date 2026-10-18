@@ -480,7 +480,7 @@ app.put("/api/social/ai", async (req, res) => {
 app.put("/api/social/:net/app", handle((req) => social.setApp(netParam(req), req.body ?? {})));
 app.post("/api/social/:net/auth", handle((req) => social.startAuth(netParam(req))));
 app.post("/api/social/:net/unlink", handle((req) => social.disconnect(netParam(req))));
-app.put("/api/social/:net/settings", handle((req) => social.setNetworkSettings(netParam(req), { auto: req.body?.auto, maxPerDay: req.body?.maxPerDay, autoReplies: req.body?.autoReplies, pageId: req.body?.pageId, pageName: req.body?.pageName, pageOnly: req.body?.pageOnly, pageApi: req.body?.pageApi })));
+app.put("/api/social/:net/settings", handle((req) => social.setNetworkSettings(netParam(req), { auto: req.body?.auto, maxPerDay: req.body?.maxPerDay, maxStoriesPerDay: req.body?.maxStoriesPerDay, autoReplies: req.body?.autoReplies, pageId: req.body?.pageId, pageName: req.body?.pageName, pageOnly: req.body?.pageOnly, pageApi: req.body?.pageApi })));
 app.post("/api/social/posts/:id/cancel", handle((req) => social.cancelPost(req.params.id)));
 // Ritorno dal sito del social dopo l'accesso, con il codice e lo "state" nell'indirizzo.
 app.get("/social/callback", async (req, res) => {
