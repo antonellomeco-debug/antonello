@@ -274,7 +274,7 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   Orion `save_subscription`/`delete_subscription`; solo promemoria), note **REPORT SPESE** → `state.reports` + notifica push
   (`prefs.reports`) + elenco in 💰 Spesa. `usage.days` tiene 62 giorni: basta per il mese scorso. La spesa sui token è in
   dollari; il saldo dei crediti di Claude e le fatture esterne la piattaforma non li vede (l'utente li segna come abbonamenti).
-  Test in `test/costs.test.js` e `test/push.test.js`. Messaggi per Orion: pagina artifact «Palazzo Spese».
+  Test in `test/costs.test.js` e `test/push.test.js`. Messaggi per Orion (5): https://claude.ai/artifact/7irT6FTXURqwufo9iRzPzu
 
 ## Piano Gold (XAUUSD) per Orion
 
