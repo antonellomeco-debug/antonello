@@ -357,6 +357,12 @@ test("voce clonata in un video con tante scene: mai più richieste di quelle che
   assert.ok(fake.eleven.rejected > 0, "qualche richiesta rifiutata e poi riprovata");
   delete fake.opts.elevenMaxConcurrent;
 
+  // I numeri arrivano alla voce in lettere, i sottotitoli restano con le cifre.
+  const [num] = await tts.synthesize(["Erano 314.824, l'8,9%."], dir);
+  const sent = fake.calls.filter((c) => c.path.startsWith("/v1/text-to-speech/")).at(-1);
+  assert.equal(sent.body.text, "Erano trecentoquattordicimila ottocentoventiquattro, l'otto virgola nove per cento.");
+  assert.deepEqual(num.words.map((w) => w.word), ["Erano", "314.824,", "l'8,9", "per", "cento."]);
+
   // ElevenLabs giù: la voce di riserva e il motivo arrivano a chi ha chiesto il video.
   fake.opts.elevenDown = true;
   const fb = await tts.synthesize(["Una frase."], dir);
