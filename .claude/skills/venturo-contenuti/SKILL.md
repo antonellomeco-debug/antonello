@@ -58,11 +58,21 @@ Nell'app: Instagram → massimo 1–2 post al giorno, **storie al giorno 5** (co
 ## Storie (formato story, `format: "story"` in `social_publish`)
 
 - 5 al giorno, mai più di 7; la **prima è la più forte** (circa un quarto esce dopo la prima).
-- Schema: 1 dato o notizia · 2 sondaggio o quiz (la risposta il giorno dopo) · 3 ripresa del post del giorno · 4 dietro
-  le quinte (fonti, strumenti, numeri della newsletter) · 5 link alla newsletter o box domande.
-- Grafiche 1080×1920 con `create_graphic` (formato story) o brevi video animati di 5–8 s con `create_motion_video`.
+- **3 video e 2 grafiche** (deciso da Antonello il 18/10/2026; messaggio per Orion nella pagina «Video e Voce»):
+
+| Ora | Tipo | Storia |
+| --- | --- | --- |
+| 9:00 | Video 8–12 s | Il dato del giorno: hook → number/compare con source → statement «cosa vuol dire» |
+| 12:00 | Grafica | Domanda o quiz («Rispondi con un messaggio»; risposta nella storia 1 del giorno dopo) |
+| 15:00 | Video 6–10 s | Ripresa del Reel di oggi (scena `media` con il Reel) o del carosello → cta «Il video completo è sul profilo» |
+| 18:00 | Grafica | Dietro le quinte (fonti, strumenti, numeri della newsletter) |
+| 21:00 | Video 6–8 s | Newsletter: hook con il tema della prossima → cta «Newsletter gratuita · Link in bio» |
+
+- Video delle storie: `create_motion_video` format story, al massimo 3 scene, testo grande leggibile senza audio, theme alternato
+  (notte, verde, chiaro), **senza voce** (`seconds` 2,5–4 per scena) per non consumare i crediti di ElevenLabs, musica dell'archivio bassa.
 - Gli adesivi interattivi (sondaggio, quiz, link) si aggiungono solo dall'app di Instagram: se servono, l'agente lo scrive
   nella nota per Antonello; altrimenti si usa una domanda scritta nella grafica («Rispondi con un messaggio»).
+- Finché Instagram non è collegato le storie arrivano in ✅ Approvazioni: Antonello tocca 📲 Condividi → Instagram → Storia.
 
 ## Altri social
 
