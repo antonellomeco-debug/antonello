@@ -248,6 +248,26 @@ export async function startFakeSocial({ port = 0 } = {}) {
           return json(200, { audioContent: wav.toString("base64") });
         }
       }
+      // ---------------- ElevenLabs (voce clonata): PCM 16 bit a 24 kHz lungo quanto il testo
+      if (host === "api.elevenlabs.io") {
+        const k = String(req.headers["xi-api-key"] ?? "");
+        if (!k || k.includes("Sbagliata")) return json(401, { detail: { status: "invalid_api_key", message: "Invalid API key" } });
+        const vid = p.split("/").pop();
+        if (vid !== "VoceAntonello123") return json(404, { detail: { status: "voice_not_found", message: "A voice with the voice_id was not found." } });
+        if (p.startsWith("/v1/voices/")) {
+          if (k.includes("SoloTts")) return json(401, { detail: { status: "missing_permissions", message: "The API key is missing the permission voices_read" } });
+          return json(200, { voice_id: vid, name: "Antonello – Venturo", category: "cloned" });
+        }
+        if (p.startsWith("/v1/text-to-speech/")) {
+          if (opts.elevenDown) return json(500, { detail: "down" });
+          calls.at(-1).voice = vid;
+          const n = Math.round(24000 * 0.05 * String(body.text ?? "").length);
+          const pcm = Buffer.alloc(n * 2);
+          for (let i = 0; i < n; i++) pcm.writeInt16LE(Math.round(9000 * Math.sin((2 * Math.PI * 220 * i) / 24000)), i * 2);
+          res.writeHead(200, { "content-type": "application/octet-stream" });
+          return res.end(pcm);
+        }
+      }
       // ---------------- Pixabay (la chiave va nell'indirizzo; con una chiave sbagliata risponde 400 con un testo)
       if (host === "pixabay.com" && p.startsWith("/api/")) {
         if (!q.key || q.key.includes("Sbagliata")) {

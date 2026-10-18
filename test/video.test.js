@@ -281,6 +281,39 @@ test("voce di Google: chiave provata, voci italiane, scelta, ascolto, video con 
   assert.equal((await g.setGoogleTtsKey("")).google.configured, false);
 });
 
+test("voce clonata con ElevenLabs: chiave e ID provati, video con la propria voce, ritorno alla voce del server", async () => {
+  const el = await import("../lib/social/eleventts.js");
+  const g = await import("../lib/social/googletts.js");
+  await assert.rejects(el.setElevenVoice({ voiceId: "VoceAntonello123" }), /Metti la chiave/);
+  await assert.rejects(el.setElevenVoice({ key: "sk_ChiaveSbagliata000000000000", voiceId: "VoceAntonello123" }), /non è valida/);
+  await assert.rejects(el.setElevenVoice({ key: "sk_ChiaveGiusta00000000000000000", voiceId: "VoceInventata999" }), /non trova la voce/);
+  assert.throws(() => g.setVideoVoice("eleven"), /prima metti la chiave/);
+  // Una chiave con il solo permesso di sintesi va bene lo stesso (senza il nome della voce).
+  const ok = await el.setElevenVoice({ key: "sk_ChiaveSoloTts000000000000000", voiceId: "VoceAntonello123" });
+  assert.deepEqual([ok.configured, ok.voiceName], [true, null]);
+  const st = await el.setElevenVoice({ key: "sk_ChiaveGiusta00000000000000000", voiceId: "VoceAntonello123", model: "eleven_v3" });
+  assert.deepEqual([st.voiceName, st.model, st.hint], ["Antonello – Venturo", "eleven_v3", "…0000"]);
+  assert.equal(g.voiceStatus().selected, "eleven", "la propria voce diventa la voce dei video");
+  assert.equal((await el.previewEleven()).toString("ascii", 0, 4), "RIFF");
+
+  const before = fake.calls.filter((c) => c.path.startsWith("/v1/text-to-speech/")).length;
+  const v = await createVideo({ format: "square", title: "La mia voce", slides: [{ headline: "Ciao", voice: "Prima frase. Seconda frase." }] });
+  const calls = fake.calls.filter((c) => c.path.startsWith("/v1/text-to-speech/")).slice(before);
+  assert.equal(calls.length, 2, "una richiesta per frase");
+  assert.equal(calls[0].body.model_id, "eleven_v3");
+  assert.ok(probe(media.mediaPath(media.getMedia(v.id))).audio);
+  assert.ok(el.elevenStatus().charsThisMonth > 20);
+
+  // ElevenLabs non risponde: il video si fa con la voce del server.
+  fake.opts.elevenDown = true;
+  const dir = fs.mkdtempSync(path.join(DATA, "voci-e-"));
+  const [r] = await tts.synthesize(["Una frase di prova."], dir);
+  assert.ok(r.seconds > 0);
+  fake.opts.elevenDown = false;
+  assert.equal((await el.setElevenVoice({ key: "" })).configured, false);
+  assert.equal(g.voiceStatus().selected, "local");
+});
+
 test("agente: gli strumenti dei video sono validi e media_view mostra la copertina del video", async () => {
   const { validate, ALL_TOOLS } = await import("../lib/config.js");
   for (const t of ["create_video", "stock_search", "stock_add"]) assert.ok(ALL_TOOLS.includes(t), t);

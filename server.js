@@ -33,6 +33,7 @@ import * as media from "./lib/social/media.js";
 import { setGeminiKey } from "./lib/social/imagegen.js";
 import { setStockKey } from "./lib/social/stock.js";
 import { setGoogleTtsKey, setVideoVoice, previewVoice } from "./lib/social/googletts.js";
+import { setElevenVoice, previewEleven } from "./lib/social/eleventts.js";
 import { shutdownTts } from "./lib/social/tts.js";
 import crypto from "node:crypto";
 import { pipeline } from "node:stream/promises";
@@ -453,9 +454,19 @@ app.put("/api/social/voice/key", async (req, res) => {
   }
 });
 app.put("/api/social/voice", handle((req) => (setVideoVoice(req.body?.name), social.socialStatus())));
+// Voce clonata dell'utente (ElevenLabs): chiave e ID della voce, provati con una parola prima di salvarli.
+app.put("/api/social/voice/eleven", async (req, res) => {
+  try {
+    await setElevenVoice({ key: req.body?.key, voiceId: req.body?.voiceId, model: req.body?.model });
+    res.json(social.socialStatus());
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
 app.post("/api/social/voice/preview", async (req, res) => {
   try {
-    const wav = await previewVoice(String(req.body?.name ?? ""));
+    const name = String(req.body?.name ?? "");
+    const wav = name === "eleven" ? await previewEleven() : await previewVoice(name);
     res.set("content-type", "audio/wav").set("cache-control", "no-store").send(wav);
   } catch (e) {
     res.status(400).json({ error: e.message });
