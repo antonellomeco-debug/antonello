@@ -105,6 +105,7 @@ function networkCard(n, st) {
         </select>
       </label>
       <label>Post al giorno (massimo) <input type="number" min="0" max="50" step="1" value="${n.maxPerDay}" data-max="${n.id}" /></label>
+      ${n.id === "instagram" ? `<label>Storie al giorno (massimo) <input type="number" min="0" max="25" step="1" value="${n.maxStoriesPerDay ?? 5}" data-max-stories="${n.id}" /></label>` : ""}
       ${n.id !== "linkedin" ? `<label>Risposte ai commenti
         <select data-replies="${n.id}">
           <option value="" ${n.autoReplies == null ? "selected" : ""}>Come i post</option>
@@ -112,7 +113,7 @@ function networkCard(n, st) {
           <option value="0" ${n.autoReplies === false ? "selected" : ""}>Con la mia approvazione</option>
         </select>
       </label>` : ""}
-      <p class="meta">Oggi: ${n.today} su ${n.maxPerDay}${n.id === "x" ? " · 0,015 $ a post (0,20 $ con un link)" : ""}</p>
+      <p class="meta">Oggi: ${n.today} su ${n.maxPerDay}${n.id === "instagram" ? ` · storie ${n.storiesToday ?? 0} su ${n.maxStoriesPerDay ?? 5}` : ""}${n.id === "x" ? " · 0,015 $ a post (0,20 $ con un link)" : ""}</p>
     </div>${n.id === "linkedin" ? pageSettings(n) : ""}`;
   return `<article class="card social-card" data-net="${n.id}">
     <h3><span class="net-ico">${n.icon}</span> ${esc(n.label)} <span class="social-state">${pill}</span></h3>
@@ -605,6 +606,10 @@ function bindEvents() {
         return;
       }
       status = await api(`/api/social/${t.dataset.replies}/settings`, { method: "PUT", body: JSON.stringify({ autoReplies: v === "" ? null : v === "1" }) });
+      t.blur();
+      renderSocial();
+    } else if (t.dataset.maxStories) {
+      status = await api(`/api/social/${t.dataset.maxStories}/settings`, { method: "PUT", body: JSON.stringify({ maxStoriesPerDay: Number(t.value) }) });
       t.blur();
       renderSocial();
     } else if (t.dataset.max) {

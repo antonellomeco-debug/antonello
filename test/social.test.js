@@ -164,6 +164,22 @@ test("Instagram: carosello con foto e video (Reel in lavorazione), storia, rispo
   social.setNetworkSettings("instagram", { auto: false });
 });
 
+test("Instagram: le storie hanno un massimo al giorno a parte dai post", async () => {
+  const ig = () => social.socialStatus().networks.find((n) => n.id === "instagram");
+  assert.equal(ig().maxStoriesPerDay, 5);
+  // I post del giorno sono al completo, ma le storie escono lo stesso.
+  social.setNetworkSettings("instagram", { auto: true, maxPerDay: ig().today, maxStoriesPerDay: ig().storiesToday + 1 });
+  const story = await social.proposePost(agent, { network: "instagram", text: "", format: "story", media: [graphic.id], reason: "storia" });
+  assert.equal(story.status, "published", JSON.stringify(story));
+  await assert.rejects(social.proposePost(agent, { network: "instagram", text: "Carosello", media: [graphic.id, graphic.id], reason: "post" }), /limite di \d+ post al giorno/);
+  await assert.rejects(social.proposePost(agent, { network: "instagram", text: "", format: "story", media: [graphic.id], reason: "storia" }), /limite di \d+ storie al giorno/);
+  assert.match(social.statusForAgents().social.find((n) => n.network === "instagram").storie_oggi, /su \d+ al giorno/);
+  assert.throws(() => social.setNetworkSettings("instagram", { maxStoriesPerDay: 26 }), /da 0 a 25/);
+  social.setNetworkSettings("instagram", { maxStoriesPerDay: 0 });
+  await assert.rejects(social.proposePost(agent, { network: "instagram", text: "", format: "story", media: [graphic.id], reason: "x" }), /0 storie al giorno/);
+  social.setNetworkSettings("instagram", { auto: false, maxPerDay: 10, maxStoriesPerDay: 5 });
+});
+
 test("Threads e LinkedIn: testo, foto, hashtag e simboli protetti per LinkedIn", async () => {
   social.setNetworkSettings("threads", { auto: true });
   const t = await social.proposePost(agent, { network: "threads", text: "Buongiorno Threads", reason: "saluto" });
