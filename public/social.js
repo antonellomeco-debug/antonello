@@ -206,10 +206,12 @@ function stockCard(st) {
 const voiceLabel = (v) => `${v.name.split("-").pop()}${v.gender ? ` (${v.gender})` : ""}`;
 
 function voiceCard(st) {
-  const vc = st.voice ?? { google: {}, voices: [], selected: "local", usage: { chars: 0, free: 1000000 } };
-  const current = vc.selected === "local" ? "voce gratuita del server" : voiceLabel(vc.voices.find((v) => v.name === vc.selected) ?? { name: vc.selected });
+  const vc = st.voice ?? { google: {}, voices: [], eleven: {}, selected: "local", usage: { chars: 0, free: 1000000 } };
+  const el = vc.eleven ?? {};
+  const current = vc.selected === "local" ? "voce gratuita del server" : vc.selected === "eleven" ? "la tua voce (ElevenLabs)" : voiceLabel(vc.voices.find((v) => v.name === vc.selected) ?? { name: vc.selected });
   const nf = new Intl.NumberFormat("it-IT");
   const options = [`<option value="local"${vc.selected === "local" ? " selected" : ""}>Voce gratuita del server (Paola)</option>`]
+    .concat(el.configured ? [`<option value="eleven"${vc.selected === "eleven" ? " selected" : ""}>La mia voce · ElevenLabs${el.voiceName ? ` (${esc(el.voiceName)})` : ""}</option>`] : [])
     .concat(vc.voices.map((v) => `<option value="${esc(v.name)}"${v.name === vc.selected ? " selected" : ""}>Google · ${esc(voiceLabel(v))}</option>`))
     .join("");
   return `<h3>🎙️ Voce dei video <span class="social-state"><span class="acct demo">${esc(current)}</span></span></h3>
@@ -229,9 +231,28 @@ function voiceCard(st) {
     </form>
     <div class="grid2">
       <label>Voce dei video <select id="voice-select">${options}</select></label>
-      <div class="row-actions">${vc.voices.length ? `<button class="btn small" type="button" id="voice-preview">▶️ Ascolta</button>` : ""}</div>
+      <div class="row-actions">${vc.voices.length || el.configured ? `<button class="btn small" type="button" id="voice-preview">▶️ Ascolta</button>` : ""}</div>
     </div>
-    ${vc.google.configured ? `<p class="meta">Caratteri di Google usati questo mese: ${nf.format(vc.usage.chars)} su ${nf.format(vc.usage.free)} gratuiti.</p>` : ""}`;
+    ${vc.google.configured ? `<p class="meta">Caratteri di Google usati questo mese: ${nf.format(vc.usage.chars)} su ${nf.format(vc.usage.free)} gratuiti.</p>` : ""}
+    <h4>🗣️ La tua voce (ElevenLabs)</h4>
+    <p class="sub">Per far parlare i video con <b>la tua voce</b>: la crei una volta su ElevenLabs (piano Starter, circa 6 $ al mese, che permette l'uso commerciale) e metti qui la chiave e l'ID della voce. Se ElevenLabs non risponde o i crediti del mese finiscono, il video usa la voce gratuita del server.</p>
+    <details class="howto"><summary>Chiave e ID della voce, passo passo</summary><ol>
+      <li>Su <a href="https://elevenlabs.io" target="_blank" rel="noopener">elevenlabs.io</a>, menu a sinistra → <b>Developers</b> → <b>API Keys</b> → <b>Create API Key</b>.</li>
+      <li>Permessi: <b>Text to Speech</b> (accesso) e <b>Voices</b> (lettura); metti un limite di caratteri al mese. Copia la chiave (inizia con «sk_»).</li>
+      <li>Menu <b>Voices</b> → <b>My Voices</b> → «…» sulla tua voce → <b>Copy voice ID</b>.</li>
+      <li>Incolla tutti e due qui sotto e premi Salva: l'app fa una prova di una parola e sceglie la tua voce per i video.</li>
+    </ol></details>
+    <form class="grid2" id="eleven-form" autocomplete="off">
+      <label>Chiave di ElevenLabs ${el.hint ? `(salvata, ${esc(el.hint)})` : "(non ancora messa)"}<input name="key" type="password" spellcheck="false" autocomplete="off" placeholder="${el.hint ? "già salvata (scrivi per cambiarla)" : "sk_…"}" /></label>
+      <label>ID della voce<input name="voiceId" type="text" spellcheck="false" autocomplete="off" value="${esc(el.voiceId ?? "")}" placeholder="es. 21m00Tcm4TlvDq8ikWAM" /></label>
+      <label>Modello <select name="model">
+        <option value="eleven_multilingual_v2"${(el.model ?? "eleven_multilingual_v2") === "eleven_multilingual_v2" ? " selected" : ""}>Multilingual v2 (stabile, consigliato)</option>
+        <option value="eleven_v3"${el.model === "eleven_v3" ? " selected" : ""}>v3 (più espressivo)</option>
+        <option value="eleven_flash_v2_5"${el.model === "eleven_flash_v2_5" ? " selected" : ""}>Flash v2.5 (metà crediti)</option>
+      </select></label>
+      <div class="row-actions"><button class="btn small primary" type="submit">Salva</button>${el.hint ? `<button class="btn small ghost" type="button" id="eleven-remove">Togli</button>` : ""}</div>
+    </form>
+    ${el.configured ? `<p class="meta">Caratteri letti con la tua voce questo mese: ${nf.format(el.charsThisMonth ?? 0)} (lo Starter ne comprende circa 30.000).</p>` : ""}`;
 }
 
 let previewAudio = null;
@@ -499,6 +520,10 @@ function bindEvents() {
       renderSocial();
     } else if (t.id === "voice-preview") {
       await playPreview(t);
+    } else if (t.id === "eleven-remove") {
+      if (!confirm("Togliere la tua voce di ElevenLabs? I video useranno la voce gratuita del server.")) return;
+      status = await api("/api/social/voice/eleven", { method: "PUT", body: JSON.stringify({ key: "" }) });
+      renderSocial();
     } else if (t.id === "voice-key-remove") {
       if (!confirm("Togliere la chiave di Google? I video useranno la voce gratuita del server.")) return;
       status = await api("/api/social/voice/key", { method: "PUT", body: JSON.stringify({ key: "" }) });
@@ -538,6 +563,20 @@ function bindEvents() {
       const li = status.networks.find((n) => n.id === "linkedin");
       if (li.pageApi && !had?.pageApi && li.account) alert("Ora premi 🔗 Ricollega su LinkedIn: ti chiederà anche il permesso di pubblicare sulla pagina.");
       else if (li.pageId && !had?.pageId) alert("✔ Pagina salvata: da ora ogni post di LinkedIn degli agenti arriva anche per la pagina.");
+    } else if (f.id === "eleven-form") {
+      const btn = f.querySelector("button[type=submit]");
+      btn.disabled = true;
+      btn.textContent = "Provo la voce…";
+      try {
+        const body = { voiceId: f.voiceId.value, model: f.model.value };
+        if (f.key.value.trim()) body.key = f.key.value;
+        status = await api("/api/social/voice/eleven", { method: "PUT", body: JSON.stringify(body) });
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Salva";
+      }
+      document.activeElement?.blur();
+      renderSocial();
     } else if (f.id === "voice-key-form") {
       if (!f.key.value.trim()) return;
       const btn = f.querySelector("button[type=submit]");
