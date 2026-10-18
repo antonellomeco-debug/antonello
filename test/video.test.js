@@ -326,3 +326,51 @@ test("agente: gli strumenti dei video sono validi e media_view mostra la coperti
   assert.equal(seen.toolContent[0].type, "image");
   await assert.rejects(runTool(a, "media_view", { id: clip.id }), /video/);
 });
+
+test("video animati (create_motion_video): scene controllate, pagina animata di marca, voce e sottotitoli, archivio", async () => {
+  const motion = await import("../lib/social/motion.js");
+  process.env.MOTION_RENDERER = fileURLToPath(new URL("./helpers/fake-motion.mjs", import.meta.url));
+  process.env.MOTION_PAGE_COPY = path.join(DATA, "pagina-copia.html");
+  // Errori chiari per l'agente.
+  await assert.rejects(motion.createMotionVideo({ format: "story", scenes: [] }), /almeno una scena/);
+  await assert.rejects(motion.createMotionVideo({ format: "story", scenes: [{ type: "boh" }] }), /type dev'essere/);
+  await assert.rejects(motion.createMotionVideo({ format: "story", scenes: [{ type: "bars", title: "x", items: [] }] }), /elenco non vuoto/);
+  await assert.rejects(motion.createMotionVideo({ format: "story", scenes: [{ type: "number", value: "tanti", label: "x" }] }), /dev'essere un numero/);
+  await assert.rejects(motion.createMotionVideo({ format: "story", scenes: [{ type: "donut", value: 140, label: "x" }] }), /da 0 a 100/);
+  await assert.rejects(motion.createMotionVideo({ format: "story", scenes: [{ type: "media", media: song.id }] }), /foto o un video/);
+
+  // La pagina: testi protetti, unità con lo spazio, tutte le scene con le loro animazioni.
+  const { html, total } = motion.previewHtml({ scenes: [
+    { type: "hook", text: "Il <b>70%</b> delle PMI", highlight: ["70%"] },
+    { type: "number", value: 2128, suffix: "mld €", label: "prestiti", source: "Banca d'Italia" },
+    { type: "bars", title: "PIL", items: [{ label: "Lombardia", value: 412 }, { label: "Lazio", value: "209" }], highlight: "Lazio" },
+    { type: "cta", text: "Mandalo a un amico" },
+  ] });
+  assert.ok(!html.includes("<b>70%</b>") && html.includes("&lt;b&gt;70%&lt;/b&gt;"), "il testo dell'agente non diventa codice");
+  assert.ok(html.includes('" mld €"'), "spazio tra numero e unità");
+  assert.match(html, /Fonte: Banca d&#39;Italia/);
+  assert.equal((html.match(/class="clip scene/g) ?? []).length, 4);
+  assert.ok(total > 8 && total < 20);
+
+  // Video completo con voce, foto e clip dell'archivio.
+  const v = await motion.createMotionVideo({
+    format: "story", title: "Animato", music: song.id,
+    scenes: [
+      { type: "hook", text: "Il 70% delle PMI non chiede i bandi", highlight: ["70%"], voice: "Sette imprese su dieci non chiedono i bandi." },
+      { type: "media", media: photo.id, text: "Il caso", voice: "Come questa." },
+      { type: "media", media: clip.id, start: 1 },
+      { type: "cta", text: "Mandalo a chi ha una partita IVA" },
+    ],
+  });
+  assert.equal(v.kind, "video");
+  const file = media.mediaPath(media.getMedia(v.id));
+  const p = probe(file);
+  assert.ok(p.video && p.audio, "video con audio (voce, musica, effetti)");
+  assert.deepEqual(p.size, [1080, 1920]);
+  assert.ok(Math.abs(p.seconds - v.duration) < 0.6);
+  const page = fs.readFileSync(process.env.MOTION_PAGE_COPY, "utf8");
+  assert.match(page, /class="cap" id="c0"/, "sottotitoli dalla voce");
+  assert.ok(!/>undefined</.test(page), "parole dei sottotitoli scritte davvero");
+  assert.match(page, /<video class="mbg clip"/);
+  delete process.env.MOTION_RENDERER;
+});
