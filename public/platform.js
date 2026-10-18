@@ -8,7 +8,7 @@ const PRESET_LABEL = { notte: "Notte (originale)", oceano: "Oceano", smeraldo: "
 const VIEW_LABEL = { office: "Ufficio", chat: "Chat", approvals: "Approvazioni", notes: "Bacheca", portfolio: "Portafoglio", costs: "Spesa", social: "Social", broker: "Broker", building: "Universo", log: "Attività" };
 
 let api = null;
-let actions = null; // { chat(text), showView(view), agentName(id) }
+let actions = null; // { chat(text), showView(view), agentName(id), palaces() }
 let data = null;
 const DEFAULT_TITLE = document.title;
 const DEFAULT_LOGO = $(".logo")?.textContent;
@@ -24,6 +24,24 @@ export function initPlatform(apiFn, acts) {
   }
   // Nella chat i tasti non tolgono il cursore al campo (come i suggerimenti): sul telefono la tastiera resta aperta.
   $("#chat-shortcuts").addEventListener("mousedown", (e) => e.target.closest("button") && e.preventDefault());
+  $("#brief-text").addEventListener("input", () => {
+    const n = $("#brief-text").value.trim().length;
+    $("#brief-count").textContent = `${n.toLocaleString("it-IT")} caratteri su ${(data?.brief?.max ?? 6000).toLocaleString("it-IT")}`;
+  });
+  $("#brief-save").addEventListener("click", async (e) => {
+    const palaces = [...document.querySelectorAll("#brief-palaces input:checked")].map((x) => x.value);
+    const all = document.querySelectorAll("#brief-palaces input").length;
+    e.target.disabled = true;
+    try {
+      data = await api("/api/platform/brief", { method: "PUT", body: JSON.stringify({ text: $("#brief-text").value, palaces: palaces.length === all ? [] : palaces }) });
+      $("#brief-status").textContent = "✔ Salvato: gli agenti lo leggono dal prossimo lavoro.";
+      renderSettings();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      e.target.disabled = false;
+    }
+  });
   $("#look-preset").addEventListener("change", (e) => act(() => api("/api/platform/look", { method: "PUT", body: JSON.stringify({ preset: e.target.value }) })));
   $("#look-reset").addEventListener("click", () => confirm("Tornare all'aspetto originale (colori, nome e logo)?") && act(() => api("/api/platform/look", { method: "PUT", body: JSON.stringify({ reset: true }) })));
   $("#platform-box").addEventListener("click", async (e) => {
@@ -106,7 +124,20 @@ async function runShortcut(id, btn) {
   }
 }
 
+function renderBrief() {
+  const b = data.brief ?? { text: "", palaces: [] };
+  const box = $("#brief-text");
+  if (document.activeElement !== box) box.value = b.text ?? "";
+  $("#brief-count").textContent = `${(box.value.trim().length).toLocaleString("it-IT")} caratteri su ${(b.max ?? 6000).toLocaleString("it-IT")}${b.updatedAt ? ` · aggiornato ${when(b.updatedAt)}${b.by && b.by !== "utente" ? ` da ${b.by}` : ""}` : ""}`;
+  const palaces = actions.palaces?.() ?? [];
+  const on = (id) => !b.palaces?.length || b.palaces.includes(id);
+  $("#brief-palaces").innerHTML = palaces.length > 1
+    ? `<span class="lbl">Vale per:</span>${palaces.map((p) => `<label class="inline"><input type="checkbox" value="${esc(p.id)}" ${on(p.id) ? "checked" : ""} /> ${esc(p.name)}</label>`).join("")}`
+    : "";
+}
+
 function renderSettings() {
+  renderBrief();
   const sel = $("#look-preset");
   if (document.activeElement !== sel) {
     sel.innerHTML = data.presets.map((p) => `<option value="${esc(p)}" ${p === data.look.preset ? "selected" : ""}>${esc(PRESET_LABEL[p] ?? p)}</option>`).join("");

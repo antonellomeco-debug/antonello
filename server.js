@@ -425,6 +425,7 @@ app.post("/api/push/test", handleAsync(() => push.sendTest()));
 // Aspetto, tasti rapidi e idee (li cambia soprattutto Orion; dall'app si possono togliere o tornare all'originale).
 app.get("/api/platform", (_req, res) => res.json(platform.getPlatform()));
 app.put("/api/platform/look", handle((req) => (platform.setLook(req.body ?? {}), platform.getPlatform())));
+app.put("/api/platform/brief", handle((req) => (platform.setBrief({ text: req.body?.text, palaces: req.body?.palaces }, { palaceIds: office.building().palaces.map((p) => p.id) }), platform.getPlatform())));
 app.delete("/api/platform/shortcuts/:id", handle((req) => (platform.deleteShortcut(String(req.params.id)), platform.getPlatform())));
 app.delete("/api/platform/ideas/:id", handle((req) => (platform.deleteIdea(String(req.params.id)), platform.getPlatform())));
 

@@ -1624,6 +1624,7 @@ async function openSettings() {
   checkForUpdate();
   renderSchedule();
   renderNotify();
+  loadPlatform(); // brief, tasti e idee aggiornati (anche l'elenco dei palazzi)
   api("/api/orion").then((o) => ($("#orion-speed").value = o.speed), () => {});
   $("#speed-status").textContent = "";
   await renderKeyStatus();
@@ -2342,6 +2343,7 @@ initPlatform(api, {
   },
   showView,
   agentName: (id) => state.office.agents.find((a) => a.id === id)?.name ?? id,
+  palaces: () => B().palaces,
 });
 initCosts(api, { palaceName: (id) => B().palaces.find((p) => p.id === id)?.name ?? id, openAgent: (id) => openEditor(state.office.agents.find((a) => a.id === id)) });
 /** Avviso "!" su 📣 Social quando un accesso è scaduto o sta per scadere. */

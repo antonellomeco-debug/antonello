@@ -176,3 +176,39 @@ test("copia dei dati: platform.json entra nell'esportazione", async () => {
   const names = new AdmZip(await exportZip()).getEntries().map((e) => e.entryName);
   assert.ok(names.includes("platform.json"));
 });
+
+test("brief del progetto: gli agenti dei palazzi scelti lo ricevono a ogni lavoro, Orion lo vede e lo aggiorna", async () => {
+  assert.throws(() => platform.setBrief({ text: "x".repeat(platform.MAX_BRIEF + 1) }), /troppo lungo/);
+  assert.throws(() => platform.setBrief({ text: "ok", palaces: ["nessuno"] }, { palaceIds: ["palazzo-investimenti"] }), /palazzi sconosciuti/);
+  const pid = office.building().palaces[0].id;
+  platform.setBrief({ text: "VENTURO — piattaforma per imprenditori e investitori. Tono: chiaro, concreto.", palaces: [] });
+  assert.match(platform.briefFor(pid), /^VENTURO/);
+  platform.setBrief({ palaces: ["altro-palazzo"] });
+  assert.equal(platform.briefFor(pid), "", "vale solo per i palazzi scelti");
+  platform.setBrief({ palaces: [] });
+
+  requests.length = 0;
+  replies = [
+    toolUse("t1", "set_project_brief", { text: "VENTURO — versione 2: connette imprenditori, soci e investitori.", palaces: [pid] }),
+    toolUse("t2", "get_platform", {}),
+    done("Brief aggiornato."),
+  ];
+  await chat(office, "Aggiorna il brief");
+  assert.match(requests[0].messages.map((m) => (typeof m.content === "string" ? m.content : "")).join("\n"), /Brief del progetto[^\n]*:\nVENTURO — piattaforma/, "Orion riceve il brief nello stato");
+  assert.deepEqual(json(2).brief.palazzi, [pid]);
+  assert.match(platform.briefFor(pid), /versione 2/);
+
+  // Un agente del palazzo lo trova nelle sue istruzioni.
+  const { runAgent } = await import("../lib/runner.js");
+  const { normalize } = await import("../lib/config.js");
+  const agent = normalize({ id: "redattore", name: "Redattore", room: office.rooms().find((r) => office.building().floors.find((f) => f.id === r.floor)?.palace === pid).id, mode: "llm", instructions: "Scrivi una nota.", tools: ["post_note"] });
+  requests.length = 0;
+  replies = [done("Fatto.")];
+  await runAgent(agent, office.building());
+  assert.match(requests[0].system.map?.((b) => b.text).join("") ?? requests[0].system, /IL PROGETTO[^\n]*\nVENTURO — versione 2/);
+  platform.setBrief({ text: "" });
+  replies = [done("Fatto.")];
+  requests.length = 0;
+  await runAgent(agent, office.building());
+  assert.doesNotMatch(requests[0].system.map?.((b) => b.text).join("") ?? requests[0].system, /IL PROGETTO/);
+});

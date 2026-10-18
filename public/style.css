@@ -677,3 +677,5 @@ dialog.small-dlg { width: min(480px, 94vw); }
 .platform-idea summary { cursor: pointer; }
 .idea-text { white-space: pre-wrap; margin: 8px 0; line-height: 1.45; }
 .push-prefs { display: flex; flex-direction: column; gap: 6px; margin: 10px 0 4px; }
+#brief-text { width: 100%; min-height: 180px; resize: vertical; font: inherit; line-height: 1.45; padding: 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); }
+#brief-palaces { margin: 6px 0 10px; }
