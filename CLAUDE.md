@@ -219,7 +219,8 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   altri, annunci di aziende a prezzo fisso (no percentuali: servirebbe l'iscrizione da mediatore).
 - **Skill del progetto** in `.claude/skills/` (aggiunte con `git add -f`: `.claude/` è in `.git/info/exclude`):
   `venturo-brand` (identità, colori, regole, `brief.txt`, link ai documenti), `venturo-orion` (come scrivere i messaggi da
-  incollare a Orion), `venturo-briefing` (briefing mensile sul database della pagina del piano).
+  incollare a Orion), `venturo-briefing` (briefing mensile sul database della pagina del piano), `venturo-contenuti`
+  (ritmo, formati e ricette dei contenuti social).
 - **Documenti** (artifact privati dell'utente): pitch deck, business plan, roadmap, piano dei 30 giorni con database
   (compiti, numeri, note, briefing; dal 19/10 al 17/11/2026), guida ai profili social, messaggi per Orion (Palazzo Ricerca e
   Sviluppo con 9 agenti + brief). I link sono nella skill `venturo-brand`. Promemoria del briefing programmato per il
@@ -228,6 +229,25 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   `palaces` vuoto = tutti), letto da `systemPrompt` di `lib/runner.js` («IL PROGETTO …») e mostrato a Orion nello stato;
   strumento `set_project_brief` di Orion; scheda 📌 in ⚙️ Impostazioni (`#brief-box`, `public/platform.js`), API
   `PUT /api/platform/brief`. Test in `test/orion-platform.test.js`.
+
+## Video animati, voce clonata e ritmo di Instagram (18 ottobre 2026)
+
+- **Video animati professionali**: `lib/social/motion.js` + strumento `create_motion_video` (agenti e Orion). L'agente passa solo
+  JSON (`scenes` di 12 tipi: hook, number, bars, line, donut, compare, list, statement, media, news, timeline, cta; più voice,
+  kicker, source, seconds); il modulo scrive una pagina HTML animata con GSAP (colori e caratteri di Venturo: Sora in
+  `assets/fonts/Sora-*.woff2`, temi notte/chiaro/verde, tendine tra le scene, logo, barra, sottotitoli parola per parola dalla
+  voce) e **HyperFrames** (`hyperframes` 0.8.171 in optionalDependencies, versione fissata; Apache-2.0, di HeyGen) la trasforma
+  in MP4 con Chrome senza finestra; poi ffmpeg aggiunge voce, musica e «whoosh». Un video per volta (`enqueue` in video.js).
+  Rendering: ~2–4 minuti per 30–40 s con 3 worker (`MOTION_WORKERS`, predefinito 2). Docker: apt `chromium ffmpeg
+  fonts-liberation`, `HYPERFRAMES_BROWSER_PATH=/usr/bin/chromium`, `DO_NOT_TRACK=1`. Nel container di sviluppo si prova con
+  `HYPERFRAMES_BROWSER_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome` (deb.debian.org è bloccato: l'immagine Docker
+  non si costruisce qui). Test con il finto motore `test/helpers/fake-motion.mjs` (`MOTION_RENDERER`, `MOTION_PAGE_COPY`).
+- **Voce clonata dell'utente**: `lib/social/eleventts.js` (ElevenLabs, `xi-api-key`, PCM 24 kHz → WAV; chiave `elevenKey`, voce
+  `elevenVoiceId`, modello `elevenModel`; `videoVoice: "eleven"`), prima scelta in `tts.js`, poi Google, poi la voce del server.
+  Interfaccia in 📣 Social → 🎙️ Voce dei video; API `PUT /api/social/voice/eleven`. Test nel finto server (`api.elevenlabs.io`).
+- **Storie di Instagram** con un massimo al giorno a parte (`maxStoriesPerDay`, di partenza 5; `max_stories_per_day` per Orion).
+- Ritmo deciso dall'utente: 5 Reel (lun–ven) + 2 caroselli (sab–dom) a settimana, 5 storie al giorno; regole nella skill
+  `venturo-contenuti` (ricerca di ottobre 2026 sui contenuti più visti, account senza volto).
 
 ## Spesa e risparmio (15 ottobre 2026)
 

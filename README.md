@@ -194,6 +194,13 @@ indirizzo https e scaricano foto e video da lì.
   degli agenti, decide sui post (`decide_post`, `cancel_post`), cambia le impostazioni dei social, scrive note, risponde alle domande
   degli agenti, cambia orario, aspetto (`set_look`: temi, colori con controllo del contrasto, nome, logo), tasti rapidi
   (`save_shortcut`: messaggio a Orion, agente, link https, sezione) e annota idee (`suggest_improvement`, in ⚙️ Impostazioni → 💡).
+- **Video animati** (`create_motion_video`, `lib/social/motion.js`): scene descritte in JSON (titolo d'impatto, numeri,
+  barre, linee, percentuali, confronti, liste, frasi, foto o clip, ultim'ora, linea del tempo, chiusura) disegnate con
+  HyperFrames + GSAP nei colori del brand, con voce, sottotitoli, musica ed effetti. Sul server servono Chromium e ffmpeg
+  (nel `Dockerfile`).
+- **Voce clonata** (📣 Social → 🎙️ Voce dei video → La tua voce): ElevenLabs con chiave e ID della voce dell'utente
+  (`lib/social/eleventts.js`); se non risponde, il video usa la voce di Google o quella del server.
+- **Storie di Instagram**: massimo al giorno a parte dai post (📣 Social → Instagram → Storie al giorno).
 - **Brief del progetto** (⚙️ Impostazioni → 📌, oppure Orion con `set_project_brief`): un testo unico (missione, pubblico, tono,
   regole, obiettivi; massimo 6.000 caratteri) che gli agenti dei palazzi scelti ricevono a ogni lavoro, salvato in `platform.json`.
 - **Pagina aziendale di LinkedIn** (📣 Social → LinkedIn → 🏢 Pagina aziendale, solo dall'interfaccia): con `pageId`
