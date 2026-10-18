@@ -45,7 +45,7 @@ export function initNotify(apiFn) {
       e.target.disabled = false;
     }
   });
-  for (const k of ["approvals", "published", "replies"]) {
+  for (const k of ["approvals", "published", "replies", "reports"]) {
     $(`#push-${k}`).addEventListener("change", async (e) => {
       try {
         status = await api("/api/push/prefs", { method: "PUT", body: JSON.stringify({ [k]: e.target.checked }) });
@@ -75,7 +75,7 @@ async function render() {
   show("#push-on", !mine);
   show("#push-off", mine);
   show("#push-test", Boolean(status?.devices.length));
-  for (const k of ["approvals", "published", "replies"]) $(`#push-${k}`).checked = Boolean(status?.prefs?.[k]);
+  for (const k of ["approvals", "published", "replies", "reports"]) $(`#push-${k}`).checked = Boolean(status?.prefs?.[k]);
   $("#push-replies").disabled = !status?.prefs?.published;
   const n = status?.devices.length ?? 0;
   $("#push-devices").textContent = n ? `Dispositivi con le notifiche: ${status.devices.map((d) => d.label).join(", ")}.` : "";
