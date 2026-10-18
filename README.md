@@ -194,6 +194,8 @@ indirizzo https e scaricano foto e video da lì.
   degli agenti, decide sui post (`decide_post`, `cancel_post`), cambia le impostazioni dei social, scrive note, risponde alle domande
   degli agenti, cambia orario, aspetto (`set_look`: temi, colori con controllo del contrasto, nome, logo), tasti rapidi
   (`save_shortcut`: messaggio a Orion, agente, link https, sezione) e annota idee (`suggest_improvement`, in ⚙️ Impostazioni → 💡).
+- **Brief del progetto** (⚙️ Impostazioni → 📌, oppure Orion con `set_project_brief`): un testo unico (missione, pubblico, tono,
+  regole, obiettivi; massimo 6.000 caratteri) che gli agenti dei palazzi scelti ricevono a ogni lavoro, salvato in `platform.json`.
 - **Pagina aziendale di LinkedIn** (📣 Social → LinkedIn → 🏢 Pagina aziendale, solo dall'interfaccia): con `pageId`
   (numero o indirizzo `linkedin.com/company/<numero>/admin/…`) ogni `social_publish` su LinkedIn crea due post, profilo e
   pagina (`page`, `pageName`; o solo pagina con `pageOnly`), ognuno con la sua approvazione e il suo massimo al giorno.
