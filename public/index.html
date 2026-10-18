@@ -440,7 +440,15 @@
         <label class="span2">Nome del palazzo <input name="name" required maxlength="60" placeholder="es. Palazzo Social" /></label>
         <label class="span2">Di cosa si occupa <input name="description" maxlength="500" placeholder="es. Segue le tendenze pubbliche su Instagram e TikTok" /></label>
         <label>Colore <input name="color" type="color" /></label>
+        <label>Quando lavorano i suoi agenti
+          <select name="hours">
+            <option value="lavoro">Orario di lavoro (⚙️ Impostazioni)</option>
+            <option value="tutti-i-giorni">Tutti i giorni, anche sabato e domenica</option>
+            <option value="sempre">Sempre, 24 ore su 24</option>
+          </select>
+        </label>
       </div>
+      <p class="hint">Per i social conviene «Tutti i giorni»: nel fine settimana la gente commenta di più. Per il trading lascia l'orario di lavoro.</p>
       <p class="hint">Dopo averlo creato, aggiungi i piani e le stanze (o chiedi a Orion: «Crea i piani del Palazzo Social»).</p>
       <p class="errors" id="palace-errors"></p>
       <footer class="dlg-foot">

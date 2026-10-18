@@ -669,6 +669,7 @@ function openPalaceEditor(palace) {
   $("#palace-title").textContent = palace ? `Modifica: ${palace.name}` : "Nuovo palazzo";
   palaceForm.name.value = palace?.name ?? "";
   palaceForm.description.value = palace?.description ?? "";
+  palaceForm.hours.value = palace?.hours ?? "lavoro";
   palaceForm.color.value = palace?.color ?? ["#f06292", "#2fb7c4", "#ffb84d", "#8bc34a", "#a371f7", "#ff8a3d"][palaces().length % 6];
   $("#palace-delete").classList.toggle("hidden", !palace || palaces().length < 2);
   $("#palace-errors").textContent = "";
@@ -676,7 +677,7 @@ function openPalaceEditor(palace) {
 }
 palaceForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-  const body = { name: palaceForm.name.value, description: palaceForm.description.value, color: palaceForm.color.value };
+  const body = { name: palaceForm.name.value, description: palaceForm.description.value, color: palaceForm.color.value, hours: palaceForm.hours.value };
   try {
     const id = state.editingPalace;
     const res = await api(id ? `/api/palaces/${encodeURIComponent(id)}` : "/api/palaces", { method: id ? "PUT" : "POST", body: JSON.stringify(body) });
@@ -1689,7 +1690,7 @@ function scheduleText(s, withNow) {
   if (!s.enabled) return "Orario spento: gli agenti programmati lavorano a qualsiasi ora, anche di notte e nel weekend.";
   return s.working
     ? `✅ Adesso gli agenti programmati lavorano${withNow && s.now ? ` (${s.now})` : ""}.`
-    : `⏸ Fuori orario: gli agenti programmati ripartono ${s.resume ?? "all'inizio del prossimo orario"}.`;
+    : `⏸ Fuori orario: gli agenti programmati ripartono ${s.resume ?? "all'inizio del prossimo orario"}.${s.alsoOpen?.length ? ` Lavora comunque: ${s.alsoOpen.join(", ")}.` : ""}`;
 }
 
 async function renderSchedule() {
