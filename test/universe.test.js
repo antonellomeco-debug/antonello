@@ -152,3 +152,26 @@ test("Orion risparmia: elenco breve degli agenti, istruzioni intere solo a richi
   assert.deepEqual([saved.limits.maxOrderPct, saved.limits.requireApproval], [5, false], "limits si unisce a quelli attuali");
   assert.ok(result(3).saved.instructions.length < 260, "dopo il salvataggio Orion non rilegge tutto l'agente");
 });
+
+test("orario per palazzo: il Social può lavorare anche nel fine settimana, il trading resta nell'orario di lavoro", async () => {
+  const { scheduleFor, isWorkingTime, getSchedule } = await import("../lib/schedule.js");
+  const saturday = new Date("2026-10-17T10:00:00Z"); // sabato, 12:00 in Italia
+  const night = new Date("2026-10-19T01:00:00Z"); // lunedì, 03:00 in Italia
+  const cfg = { ...getSchedule(), enabled: true, days: [1, 2, 3, 4, 5], start: "07:30", end: "22:30" };
+  assert.equal(isWorkingTime(scheduleFor("lavoro", cfg), saturday), false);
+  assert.equal(isWorkingTime(scheduleFor("tutti-i-giorni", cfg), saturday), true);
+  assert.equal(isWorkingTime(scheduleFor("tutti-i-giorni", cfg), night), false, "stesse ore: di notte no");
+  assert.equal(isWorkingTime(scheduleFor("sempre", cfg), night), true);
+
+  assert.equal(office.building().palaces.find((p) => p.id === "palazzo-investimenti").hours, "lavoro", "di partenza l'orario di lavoro");
+  assert.throws(() => office.savePalace({ id: "palazzo-social", hours: "weekend" }), /orario del palazzo/);
+  const saved = office.savePalace({ id: "palazzo-social", hours: "tutti-i-giorni" });
+  assert.equal(saved.hours, "tutti-i-giorni");
+  assert.equal(saved.name, "Palazzo Social", "il resto non cambia");
+
+  requests.length = 0;
+  replies = [toolUse("t1", "save_palace", { id: "palazzo-social", hours: "sempre" }), done("Fatto.")];
+  await chat(office, "Il palazzo social deve lavorare sempre");
+  assert.equal(office.building().palaces.find((p) => p.id === "palazzo-social").hours, "sempre");
+  assert.ok(requests[0].tools.find((t) => t.name === "save_palace").input_schema.properties.hours);
+});

@@ -204,6 +204,12 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   rifiuta una seconda risposta allo stesso commento. Impostazione `autoReplies` per social (null = come i post) in 📣 Social e
   `set_social_settings.auto_replies` di Orion. Gli agenti «Community Manager» li crea Orion (ogni 6 ore; X una volta al giorno).
 
+- **Orario per palazzo** (18 ottobre 2026): gli agenti non rispondevano ai commenti perché sabato e domenica sono fuori
+  dall'orario di lavoro (lun–ven, pensato per il trading) e lo scheduler fermava tutti i palazzi (nel registro del server
+  nessun errore). Ora ogni palazzo ha `hours`: `lavoro` (di partenza), `tutti-i-giorni` (stesse ore anche nel fine settimana:
+  consigliato per il Social), `sempre`. `scheduleFor()` in `lib/schedule.js`, scheduler di `server.js` per palazzo,
+  `/api/stats` → `schedule.alsoOpen`, stime di spesa per palazzo, finestra del palazzo e `save_palace.hours` di Orion.
+
 ## Spesa e risparmio (15 ottobre 2026)
 
 - `lib/store.js`: `costScope` (AsyncLocalStorage) dice chi spende: `runAgent` → `{agentId, palace}`, chat di Orion →

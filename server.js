@@ -19,7 +19,7 @@ import { exec } from "node:child_process";
 import { hasCredentials, keyStatus, verifyKey, cleanKey, MISSING_KEY } from "./lib/claude.js";
 import { updateSettings } from "./lib/settings.js";
 import { checkUpdate, applyUpdate, isUpdating, installedVersion, RESTART_CODE } from "./lib/updater.js";
-import { isWorkingTime, scheduleStatus, updateSchedule, isFridayCloseTime, romeParts, resumeText } from "./lib/schedule.js";
+import { isWorkingTime, scheduleStatus, updateSchedule, isFridayCloseTime, romeParts, resumeText, scheduleFor, getSchedule } from "./lib/schedule.js";
 import { PORT, HOST, PUBLIC_URL, CLOUD, AUTH_ENABLED, FAIL_CLOSED, CONFIG_PROBLEMS, TRUST_PROXY, UPDATER_ON, VOLUME_OK, REDIRECT_URI } from "./lib/env.js";
 import { securityHeaders, failClosed, hostCheck, originCheck } from "./lib/guard.js";
 import * as auth from "./lib/auth.js";
@@ -219,7 +219,11 @@ app.get("/api/stats", (_req, res) => {
     costMonth: costs.monthSpend().total,
     budget: costs.costReport([], office.building()).budget,
     tokens: st.usage.inputTokens + st.usage.outputTokens,
-    schedule: (({ enabled, working, resume }) => ({ enabled, working, resume }))(scheduleStatus()),
+    schedule: {
+      ...(({ enabled, working, resume }) => ({ enabled, working, resume }))(scheduleStatus()),
+      // Palazzi con un orario loro che lavorano anche adesso (es. il Social nel fine settimana).
+      alsoOpen: office.building().palaces.filter((p) => p.hours !== "lavoro" && isWorkingTime(scheduleFor(p.hours))).map((p) => p.name),
+    },
   });
 });
 
@@ -677,7 +681,8 @@ app.use((err, req, res, next) => {
 // Scheduler: ogni minuto avvia gli agenti con everyMinutes > 0 che sono "scaduti".
 // Con lo STOP attivo non parte nessun agente in automatico (si possono ancora avviare a mano).
 // Fuori dall'orario di lavoro (⚙️ Impostazioni) non parte nessun agente in automatico; quando l'orario
-// ricomincia ripartono tutti, come all'apertura del programma.
+// ricomincia ripartono tutti, come all'apertura del programma. Un palazzo può avere un orario suo (finestra del
+// palazzo): "tutti i giorni" (anche il fine settimana, per esempio i social) o "sempre".
 let wasWorking = null;
 function schedulerTick() {
   if (shuttingDown || restartPending) return;
@@ -693,12 +698,15 @@ function schedulerTick() {
     if (wasWorking !== null) bus.emit("event", { type: "stats" });
     wasWorking = working;
   }
-  if (!working) return;
   const building = office.building();
+  const cfg = getSchedule();
+  const open = new Map(building.palaces.map((p) => [p.id, isWorkingTime(scheduleFor(p.hours, cfg))]));
+  if (![...open.values()].some(Boolean)) return;
   const month = costs.monthSpend(); // una volta per giro: serve per i budget
   for (const agent of office.agents()) {
     if (isUpdating() || safety.isStopped()) return;
     if (!agent.enabled || !(agent.everyMinutes > 0) || isRunning(agent.id)) continue;
+    if (!open.get(costs.palaceOfAgent(agent, building))) continue; // fuori dall'orario del suo palazzo
     const prev = lastRun.has(agent.id) ? Date.parse(lastRun.get(agent.id)) : 0;
     // Almeno ogni 5 minuti anche per agenti salvati prima del limite o arrivati da una copia importata; il ritmo del
     // palazzo (💰 Spesa) può allungare l'intervallo.
