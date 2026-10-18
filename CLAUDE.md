@@ -210,6 +210,25 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   consigliato per il Social), `sempre`. `scheduleFor()` in `lib/schedule.js`, scheduler di `server.js` per palazzo,
   `/api/stats` → `schedule.alsoOpen`, stime di spesa per palazzo, finestra del palazzo e `save_palace.hours` di Orion.
 
+## Venturo: brief del progetto, strategia e skill (18 ottobre 2026)
+
+- **Venturo** è il progetto dell'utente: media + piattaforma per chi fa impresa in Italia (capitali, soci, aziende in vendita,
+  professionisti, informazioni), fondatore unico a tempo pieno, budget fino a 5.000 €, società non ancora aperta. Fase 1 media
+  e newsletter, fase 2 piattaforma con abbonamenti, fase 3 Club, investimenti solo via portali autorizzati Consob, quotazione
+  su Euronext Growth Milan. Regole: niente promesse di guadagno né consigli su singoli titoli, niente raccolta di soldi per
+  altri, annunci di aziende a prezzo fisso (no percentuali: servirebbe l'iscrizione da mediatore).
+- **Skill del progetto** in `.claude/skills/` (aggiunte con `git add -f`: `.claude/` è in `.git/info/exclude`):
+  `venturo-brand` (identità, colori, regole, `brief.txt`, link ai documenti), `venturo-orion` (come scrivere i messaggi da
+  incollare a Orion), `venturo-briefing` (briefing mensile sul database della pagina del piano).
+- **Documenti** (artifact privati dell'utente): pitch deck, business plan, roadmap, piano dei 30 giorni con database
+  (compiti, numeri, note, briefing; dal 19/10 al 17/11/2026), guida ai profili social, messaggi per Orion (Palazzo Ricerca e
+  Sviluppo con 9 agenti + brief). I link sono nella skill `venturo-brand`. Promemoria del briefing programmato per il
+  17/11/2026 08:30 (send_later in questa sessione).
+- **Brief del progetto** nella piattaforma: `lib/platform.js` (`MAX_BRIEF` 6000, `setBrief({text, palaces})`, `briefFor(palaceId)`;
+  `palaces` vuoto = tutti), letto da `systemPrompt` di `lib/runner.js` («IL PROGETTO …») e mostrato a Orion nello stato;
+  strumento `set_project_brief` di Orion; scheda 📌 in ⚙️ Impostazioni (`#brief-box`, `public/platform.js`), API
+  `PUT /api/platform/brief`. Test in `test/orion-platform.test.js`.
+
 ## Spesa e risparmio (15 ottobre 2026)
 
 - `lib/store.js`: `costScope` (AsyncLocalStorage) dice chi spende: `runAgent` → `{agentId, palace}`, chat di Orion →
@@ -238,8 +257,10 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
 
 ## A che punto siamo (15 ottobre 2026)
 
-- L'utente vuole un universo di palazzi: Investimenti (esistente), Social (ora con i suoi account collegati, vedi sopra),
-  Ricerche. La struttura è pronta; i palazzi li crea lui o Orion.
+- L'utente vuole un universo di palazzi: Investimenti (esistente), Social (con i suoi account collegati, vedi sopra),
+  Ricerca e Sviluppo (messaggi per Orion pronti il 18/10/2026). I palazzi li crea lui o Orion.
+- Venturo (18/10/2026): piano dei 30 giorni in corso dal 19/10; il 17/11 briefing con la skill `venturo-briefing`.
+  Da ricevere dall'utente: link o schermate dei profili social di Venturo per l'analisi.
 - cTrader: l'utente rifà da capo la richiesta dell'app su openapi.ctrader.com (redirect del server e localhost).
 
 - Il server su Railway è online con la password (vedi sopra). Da fare per l'utente: primo accesso, portare i dati
