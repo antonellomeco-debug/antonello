@@ -32,7 +32,7 @@ import * as push from "./lib/push.js";
 import * as media from "./lib/social/media.js";
 import { setGeminiKey } from "./lib/social/imagegen.js";
 import { setStockKey } from "./lib/social/stock.js";
-import { setGoogleTtsKey, setVideoVoice, previewVoice } from "./lib/social/googletts.js";
+import { setGoogleTtsKey, setVideoVoice, setVoiceFallback, previewVoice } from "./lib/social/googletts.js";
 import { setElevenVoice, previewEleven } from "./lib/social/eleventts.js";
 import { shutdownTts } from "./lib/social/tts.js";
 import crypto from "node:crypto";
@@ -469,6 +469,7 @@ app.put("/api/social/voice/key", async (req, res) => {
   }
 });
 app.put("/api/social/voice", handle((req) => (setVideoVoice(req.body?.name), social.socialStatus())));
+app.put("/api/social/voice/fallback", handle((req) => (setVoiceFallback(req.body?.name), social.socialStatus())));
 // Voce clonata dell'utente (ElevenLabs): chiave e ID della voce, provati con una parola prima di salvarli.
 app.put("/api/social/voice/eleven", async (req, res) => {
   try {

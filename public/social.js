@@ -211,7 +211,9 @@ function voiceCard(st) {
   const current = vc.selected === "local" ? "voce gratuita del server" : vc.selected === "eleven" ? "la tua voce (ElevenLabs)" : voiceLabel(vc.voices.find((v) => v.name === vc.selected) ?? { name: vc.selected });
   const nf = new Intl.NumberFormat("it-IT");
   const options = [`<option value="local"${vc.selected === "local" ? " selected" : ""}>Voce gratuita del server (Paola)</option>`]
-    .concat(el.configured ? [`<option value="eleven"${vc.selected === "eleven" ? " selected" : ""}>La mia voce · ElevenLabs${el.voiceName ? ` (${esc(el.voiceName)})` : ""}</option>`] : [])
+    .concat(el.configured
+      ? [`<option value="eleven"${vc.selected === "eleven" ? " selected" : ""}>La mia voce · ElevenLabs${el.voiceName ? ` (${esc(el.voiceName)})` : ""}</option>`]
+      : [`<option value="eleven" disabled>La mia voce · ElevenLabs (prima metti chiave e ID qui sotto)</option>`])
     .concat(vc.voices.map((v) => `<option value="${esc(v.name)}"${v.name === vc.selected ? " selected" : ""}>Google · ${esc(voiceLabel(v))}</option>`))
     .join("");
   return `<h3>🎙️ Voce dei video <span class="social-state"><span class="acct demo">${esc(current)}</span></span></h3>
@@ -233,9 +235,18 @@ function voiceCard(st) {
       <label>Voce dei video <select id="voice-select">${options}</select></label>
       <div class="row-actions">${vc.voices.length || el.configured ? `<button class="btn small" type="button" id="voice-preview">▶️ Ascolta</button>` : ""}</div>
     </div>
+    ${vc.selected === "eleven" ? `<p class="meta">✔ <b>La tua voce è la voce predefinita</b>: tutti i video degli agenti e di Orion parlano con la tua voce clonata. Ricordati «Voce generata con IA» nella didascalia.</p>
+    <div class="grid2">
+      <label>Se la tua voce non è disponibile <select id="voice-fallback">${[
+        `<option value="local"${vc.fallback === "local" ? " selected" : ""}>Usa la voce gratuita del server</option>`,
+        ...(vc.google.configured ? vc.voices.map((v) => `<option value="${esc(v.name)}"${v.name === vc.fallback ? " selected" : ""}>Usa Google · ${esc(voiceLabel(v))}</option>`) : []),
+        `<option value="stop"${vc.fallback === "stop" ? " selected" : ""}>Non fare il video (riprova più tardi)</option>`,
+      ].join("")}</select></label>
+      <p class="hint">Succede se ElevenLabs non risponde o se i crediti del mese sono finiti.</p>
+    </div>` : ""}
     ${vc.google.configured ? `<p class="meta">Caratteri di Google usati questo mese: ${nf.format(vc.usage.chars)} su ${nf.format(vc.usage.free)} gratuiti.</p>` : ""}
     <h4>🗣️ La tua voce (ElevenLabs)</h4>
-    <p class="sub">Per far parlare i video con <b>la tua voce</b>: la crei una volta su ElevenLabs (piano Starter, circa 6 $ al mese, che permette l'uso commerciale) e metti qui la chiave e l'ID della voce. Se ElevenLabs non risponde o i crediti del mese finiscono, il video usa la voce gratuita del server.</p>
+    <p class="sub">Per far parlare i video con <b>la tua voce</b>: la crei una volta su ElevenLabs (piano Starter, circa 6 $ al mese, che permette l'uso commerciale) e metti qui la chiave e l'ID della voce. Appena la salvi diventa la voce predefinita di tutti i video; se ElevenLabs non risponde o i crediti del mese finiscono, si usa la voce di riserva che scegli qui sopra.</p>
     <details class="howto"><summary>Chiave e ID della voce, passo passo</summary><ol>
       <li>Su <a href="https://elevenlabs.io" target="_blank" rel="noopener">elevenlabs.io</a>, menu a sinistra → <b>Developers</b> → <b>API Keys</b> → <b>Create API Key</b>.</li>
       <li>Permessi: <b>Text to Speech</b> (accesso) e <b>Voices</b> (lettura); metti un limite di caratteri al mese. Copia la chiave (inizia con «sk_»).</li>
@@ -626,6 +637,11 @@ function bindEvents() {
     const t = e.target;
     if (t.id === "voice-select") {
       status = await api("/api/social/voice", { method: "PUT", body: JSON.stringify({ name: t.value }) });
+      renderSocial();
+      return;
+    }
+    if (t.id === "voice-fallback") {
+      status = await api("/api/social/voice/fallback", { method: "PUT", body: JSON.stringify({ name: t.value }) });
       renderSocial();
       return;
     }

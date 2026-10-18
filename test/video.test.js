@@ -304,11 +304,32 @@ test("voce clonata con ElevenLabs: chiave e ID provati, video con la propria voc
   assert.ok(probe(media.mediaPath(media.getMedia(v.id))).audio);
   assert.ok(el.elevenStatus().charsThisMonth > 20);
 
-  // ElevenLabs non risponde: il video si fa con la voce del server.
+  // ElevenLabs non risponde: il video si fa con la voce del server (riserva di partenza).
   fake.opts.elevenDown = true;
+  assert.equal(g.voiceStatus().fallback, "local");
   const dir = fs.mkdtempSync(path.join(DATA, "voci-e-"));
   const [r] = await tts.synthesize(["Una frase di prova."], dir);
   assert.ok(r.seconds > 0);
+
+  // Riserva = una voce di Google: si usa quella (i caratteri del mese di prima non contano).
+  const { updateSettings } = await import("../lib/settings.js");
+  updateSettings({ ttsUsage: null });
+  assert.throws(() => g.setVoiceFallback("it-IT-Chirp3-HD-Puck"), /voce di riserva/, "senza chiave di Google");
+  await g.setGoogleTtsKey("AIzaChiaveGiusta000000000000000000000");
+  g.setVideoVoice("eleven");
+  assert.equal(g.setVoiceFallback("it-IT-Chirp3-HD-Puck").fallback, "it-IT-Chirp3-HD-Puck");
+  const n = fake.calls.filter((c) => c.path === "/v1/text:synthesize").length;
+  const [rg] = await tts.synthesize(["Una frase con la voce di riserva."], dir);
+  assert.ok(rg.seconds > 0);
+  const gcalls = fake.calls.filter((c) => c.path === "/v1/text:synthesize").slice(n);
+  assert.ok(gcalls.length >= 1 && gcalls.every((c) => c.voice === "it-IT-Chirp3-HD-Puck"));
+  assert.equal(g.voiceStatus().selected, "eleven", "la voce predefinita resta la tua");
+
+  // Riserva = nessuna: il video non si fa e l'agente riceve l'errore.
+  g.setVoiceFallback("stop");
+  await assert.rejects(tts.synthesize(["Niente voce."], dir), /non è stato fatto/);
+  assert.equal((await g.setGoogleTtsKey("")).fallback, "stop", "«nessuna» resta anche senza Google");
+  g.setVoiceFallback("local");
   fake.opts.elevenDown = false;
   assert.equal((await el.setElevenVoice({ key: "" })).configured, false);
   assert.equal(g.voiceStatus().selected, "local");

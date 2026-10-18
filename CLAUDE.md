@@ -244,7 +244,7 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   non si costruisce qui). Test con il finto motore `test/helpers/fake-motion.mjs` (`MOTION_RENDERER`, `MOTION_PAGE_COPY`).
 - **Voce clonata dell'utente**: `lib/social/eleventts.js` (ElevenLabs, `xi-api-key`, PCM 24 kHz → WAV; chiave `elevenKey`, voce
   `elevenVoiceId`, modello `elevenModel`; `videoVoice: "eleven"`), prima scelta in `tts.js`, poi Google, poi la voce del server.
-  Interfaccia in 📣 Social → 🎙️ Voce dei video; API `PUT /api/social/voice/eleven`. Test nel finto server (`api.elevenlabs.io`).
+  Interfaccia in 📣 Social → 🎙️ Voce dei video; API `PUT /api/social/voice/eleven`. Salvata chiave e ID diventa la voce predefinita di tutti i video (`videoVoice: "eleven"`; l'opzione si vede anche prima, disattivata). **Voce di riserva** (`voiceFallback`: `local`, una voce di Google o `stop` = il video non si fa) se ElevenLabs non risponde o finisce i crediti: `setVoiceFallback` in googletts.js, `PUT /api/social/voice/fallback`. Test nel finto server (`api.elevenlabs.io`).
 - **Storie di Instagram** con un massimo al giorno a parte (`maxStoriesPerDay`, di partenza 5; `max_stories_per_day` per Orion).
 - Ritmo deciso dall'utente: 5 Reel (lun–ven) + 2 caroselli (sab–dom) a settimana, 5 storie al giorno; regole nella skill
   `venturo-contenuti` (ricerca di ottobre 2026 sui contenuti più visti, account senza volto).
