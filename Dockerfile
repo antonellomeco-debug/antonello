@@ -19,7 +19,11 @@ ENV NODE_ENV=production \
 
 # bzip2: serve a "tar" per estrarre il riconoscimento della voce dei messaggi vocali, che si scarica nel volume
 # alla prima richiesta (lib/voice.js).
-RUN apt-get update && apt-get install -y --no-install-recommends bzip2 && rm -rf /var/lib/apt/lists/*
+# chromium + ffmpeg: i video animati (lib/social/motion.js) si disegnano con HyperFrames, che apre la pagina animata
+# in Chromium senza finestra e usa ffmpeg/ffprobe del sistema per comporre il video.
+RUN apt-get update && apt-get install -y --no-install-recommends bzip2 chromium ffmpeg fonts-liberation && rm -rf /var/lib/apt/lists/*
+ENV HYPERFRAMES_BROWSER_PATH=/usr/bin/chromium \
+    DO_NOT_TRACK=1
 
 # Prima solo le librerie (cambiano di rado: Docker riusa questo passaggio), poi il programma.
 COPY package.json package-lock.json ./
