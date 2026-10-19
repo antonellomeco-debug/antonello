@@ -289,6 +289,8 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   conto reale (sempre in ✅ Approvazioni). L'utente vuole che sul demo gli agenti operino da soli.
 - Test: `test/scanner.test.js`, `test/broker.test.js` (scanner sul finto cTrader, conto reale sempre con approvazione),
   `test/ctrader.test.js` (catalogo). Il finto cTrader ha categorie e classi e dà fino a 150 candele.
+- Messaggi per Orion (piano «Multi-mercato»: Scanner → Analista Tecnico → Controllo Rischi → Capo Trader, catena con
+  `onlyOnNews`; e `requireApproval: false` per gli agenti sul demo): https://claude.ai/artifact/EBPGsdwwKsXGj2BGGZLmCL
 
 ## Piano Gold (XAUUSD) per Orion
 
