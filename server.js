@@ -8,7 +8,7 @@ import { PUBLIC_DIR, STRATEGIES_DIR, ROOT } from "./lib/paths.js";
 import path from "node:path";
 import { runAgent, isRunning } from "./lib/runner.js";
 import { getState, resetState, bus, log, persistNow, persist, costScope, answerRequest } from "./lib/store.js";
-import { portfolioValue, decide, monitorAccounts, settleInFlight, closeAgentPositionsEverywhere, stopNewOrders, recoverInterruptedApprovals } from "./lib/broker.js";
+import { portfolioValue, decide, monitorAccounts, settleInFlight, closeAgentPositionsEverywhere, stopNewOrders, recoverInterruptedApprovals, tradeHistory } from "./lib/broker.js";
 import * as ctrader from "./lib/ctrader/service.js";
 import { codeFromInput } from "./lib/ctrader/oauth.js";
 import * as safety from "./lib/safety.js";
@@ -282,6 +282,8 @@ const brokerStatus = () => ({
 const accountsInUse = () => [...new Set(office.building().floors.filter((f) => f.trading?.mode === "ctrader").map((f) => String(f.trading.accountId)))];
 
 app.get("/api/broker", (_req, res) => res.json(brokerStatus()));
+// Operazioni chiuse con il risultato (vinto o perso), dalla più recente.
+app.get("/api/broker/history", handleAsync((req) => tradeHistory({ days: [7, 30, 90].includes(Number(req.query.days)) ? Number(req.query.days) : 30 })));
 app.put("/api/broker/credentials", handle((req) => {
   ctrader.setCredentials({ clientId: req.body?.clientId, clientSecret: req.body?.clientSecret });
   return brokerStatus();

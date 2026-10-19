@@ -354,7 +354,10 @@ function showView(view) {
   document.querySelectorAll(".view").forEach((v) => v.classList.toggle("hidden", v.id !== `view-${view}`));
   renderView();
   syncOffice3d();
-  if (view === "broker") loadBrokerAccounts();
+  if (view === "broker") {
+    loadBrokerAccounts();
+    loadBrokerHistory();
+  }
   if (view === "costs") loadCosts().then(() => state.view === "costs" && renderCosts(), () => {});
   if (view === "social") loadSocial().then(() => state.view === "social" && renderSocial(), () => {});
   if (view === "chat") $("#chat-body").scrollTop = $("#chat-body").scrollHeight;
@@ -994,6 +997,90 @@ async function loadBrokerAccounts() {
   if (state.view === "broker") renderBroker();
 }
 
+// ---------- storico delle operazioni chiuse ----------
+
+let historyLoading = false;
+async function loadBrokerHistory() {
+  if (historyLoading || !state.broker?.linked) return;
+  historyLoading = true;
+  const days = state.historyDays ?? 30;
+  try {
+    state.brokerHistory = await api(`/api/broker/history?days=${days}`);
+  } catch (err) {
+    state.brokerHistory = { error: err.message, days };
+  } finally {
+    historyLoading = false;
+  }
+  if (state.view === "broker") renderBrokerHistory();
+}
+
+const price = (n) => (n == null ? "—" : Number(n).toLocaleString("it-IT", { maximumFractionDigits: 5 }));
+const money = (n, cur) => `${n > 0 ? "+" : ""}${fmt(n)}${cur ? ` ${esc(cur)}` : ""}`;
+function duration(from, to) {
+  if (!from || !to) return "—";
+  const min = Math.max(0, Math.round((Date.parse(to) - Date.parse(from)) / 60_000));
+  if (min < 60) return `${min} min`;
+  if (min < 1440) return `${Math.floor(min / 60)} h ${min % 60} min`;
+  return `${Math.floor(min / 1440)} g ${Math.floor((min % 1440) / 60)} h`;
+}
+
+function renderBrokerHistory() {
+  const el = $("#broker-history");
+  if (!el) return;
+  const days = state.historyDays ?? 30;
+  document.querySelectorAll("[data-hist-days]").forEach((b) => b.classList.toggle("primary", Number(b.dataset.histDays) === days));
+  const h = state.brokerHistory;
+  if (!state.broker?.linked) {
+    el.innerHTML = `<p class="empty">Collega cTrader per vedere le operazioni chiuse.</p>`;
+    return;
+  }
+  if (!h || h.days !== days) {
+    el.innerHTML = `<p class="hint">Carico le operazioni…</p>`;
+    return;
+  }
+  if (h.error) {
+    el.innerHTML = `<p class="errors">${esc(h.error)}</p>`;
+    return;
+  }
+  const errors = (h.errors ?? []).length ? `<p class="errors">${h.errors.map(esc).join("<br/>")}</p>` : "";
+  if (!h.trades.length) {
+    el.innerHTML = `${errors}<p class="empty">Nessuna operazione chiusa negli ultimi ${days} giorni.</p>`;
+    return;
+  }
+  const t = h.totals;
+  const cur = t.currencies.length === 1 ? t.currencies[0] : "";
+  const agentName = (id) => (id ? state.office.agents.find((a) => a.id === id)?.name ?? id : "a mano / fuori dall'app");
+  el.innerHTML = `${errors}
+    <div class="kpis hist-kpis">
+      <div class="kpi"><small>Risultato netto (${days} giorni)</small><b class="${t.net >= 0 ? "up" : "down"}">${money(t.net, cur)}</b></div>
+      <div class="kpi"><small>Operazioni</small><b>${t.count}</b><small>${t.wins} vinte · ${t.losses} perse · ${t.winRate}% vinte</small></div>
+      <div class="kpi"><small>Vinto / perso</small><b><span class="up">${money(t.won, cur)}</span></b><small class="down">${money(t.lost, cur)}</small></div>
+      <div class="kpi"><small>Migliore / peggiore</small><b class="up">${money(t.best.net, cur)}</b><small class="down">${money(t.worst.net, cur)} · ${esc(t.worst.symbol)}</small></div>
+    </div>
+    ${Object.keys(t.byAgent).length > 1 ? `<p class="hint">Per agente: ${Object.entries(t.byAgent).sort((a, b) => b[1].net - a[1].net).map(([id, a]) => `<b>${esc(agentName(id === "a mano" ? null : id))}</b> <span class="${a.net >= 0 ? "up" : "down"}">${money(a.net, cur)}</span> (${a.trades}, ${a.wins} vinte)`).join(" · ")}</p>` : ""}
+    <table class="stack hist-table"><tr><th>Chiusa</th><th>Mercato</th><th>Operazione</th><th>Lotti</th><th>Entrata → uscita</th><th>Durata</th><th>Agente</th><th>Risultato</th></tr>
+      ${h.trades.map((x) => `<tr>
+        <td data-label="Chiusa">${when(x.closedAt)}${x.isLive ? ` ${acctBadge(true)}` : ""}</td>
+        <td data-label="Mercato"><b>${esc(x.symbol)}</b></td>
+        <td data-label="Operazione" class="${x.side === "buy" ? "up" : "down"}">${x.side === "buy" ? "acquisto" : "vendita"}</td>
+        <td data-label="Lotti">${fmt(x.lots)}</td>
+        <td data-label="Entrata → uscita">${price(x.entryPrice)} → ${price(x.closePrice)}</td>
+        <td data-label="Durata">${duration(x.openedAt, x.closedAt)}</td>
+        <td data-label="Agente">${esc(agentName(x.agentId))}${x.openReason ? `<small class="hint">${esc(x.openReason)}</small>` : ""}</td>
+        <td data-label="Risultato" class="hist-result"><b class="${x.net >= 0 ? "up" : "down"}">${money(x.net, x.currency)}</b>
+          <small class="hint">lordo ${money(x.gross)} · swap ${money(x.swap)} · commissioni ${money(x.commission)}${x.closeReason ? ` · chiusa: ${esc(x.closeReason)}` : ""}</small></td>
+      </tr>`).join("")}
+    </table>`;
+}
+
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-hist-days]");
+  if (!b) return;
+  state.historyDays = Number(b.dataset.histDays);
+  renderBrokerHistory();
+  loadBrokerHistory();
+});
+
 /** Non riscrive un modulo mentre l'utente ci sta scrivendo. */
 const editing = (el) => el.contains(document.activeElement) && document.activeElement !== el;
 
@@ -1167,6 +1254,7 @@ function renderBroker() {
         <td data-label="Operazione" class="${t.side === "buy" ? "up" : "down"}">${t.action === "close" ? "chiusura" : t.side === "buy" ? "acquisto" : "vendita"}</td>
         <td data-label="Strumento">${esc(t.symbol)}</td><td data-label="Lotti">${fmt(t.lots)}</td><td data-label="Prezzo">${t.status === "incerto" ? '<span class="warn-line" title="Connessione interrotta durante l\'invio">esito incerto</span>' : t.status === "accepted" ? `${esc(t.price ?? "—")} <small class="hint">(da confermare)</small>` : esc(t.price ?? "—")}</td></tr>`).join("")}</table>`
     : `<p class="empty">Nessun ordine degli agenti sul broker.</p>`;
+  renderBrokerHistory();
 }
 
 /** Chiamata al server per il broker: mostra l'errore e aggiorna lo stato. */
@@ -2240,6 +2328,7 @@ function handleEvent(ev) {
       if (ev.trade?.accountId) {
         loadBroker();
         if (state.view === "broker") loadBrokerAccounts();
+        if (state.view === "broker" && ev.trade.action === "close") setTimeout(loadBrokerHistory, 1500);
       }
       break;
     case "social":
@@ -2372,4 +2461,5 @@ start();
 setInterval(refreshPortfolio, 60_000);
 setInterval(refreshStats, 5 * 60_000); // così l'avviso "fuori orario" resta giusto anche a pagina ferma
 setInterval(() => state.view === "broker" && loadBrokerAccounts(), 30_000);
+setInterval(() => state.view === "broker" && loadBrokerHistory(), 120_000);
 setTimeout(() => checkForUpdate({ quiet: true }), 3000); // un controllo silenzioso all'apertura
