@@ -48,7 +48,7 @@ test("simboli di Yahoo tradotti per le altre fonti", () => {
 });
 
 test("senza fonti di riserva il prezzo manca e lo dice", async () => {
-  await assert.rejects(stockQuote("AAPL"), /Fonti dei prezzi/);
+  await assert.rejects(stockQuote("AAPL"), /Fonti dei dati/);
 });
 
 test("chiavi: quella sbagliata non si salva, quella giusta sì (e non si vede intera)", async () => {

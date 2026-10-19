@@ -940,7 +940,7 @@ function renderSignalApproval(a, label) {
       ]
     : [`prezzo ${px(s.priceAtSignal, c)}`, `hai ${fmt(s.heldQty, 0)} azioni a ${px(s.avgPrice, c)} (${plus(s.pnlPct)}%)`, s.sellPct < 100 ? `vendere il ${fmt(s.sellPct, 0)}%` : "vendere tutto"];
   const size = buy && s.suggestedPct
-    ? `<p class="signal-size">Suggerito: ${fmt(s.suggestedPct, 0)}% del capitale${s.suggestedEur ? ` ≈ € ${fmt(s.suggestedEur, 0)}` : ""}${s.suggestedQty ? ` (circa ${s.suggestedQty} azioni)` : ""}${s.alreadyHeld ? ` · ne hai già ${fmt(s.alreadyHeld.qty, 0)}` : ""}</p>`
+    ? `<p class="signal-size">Suggerito: ${fmt(s.suggestedPct, 0)}% del capitale${s.suggestedEur ? ` ≈ € ${fmt(s.suggestedEur, 0)}` : ""}${s.suggestedQty ? ` (circa ${s.suggestedQty} azioni)` : ""}${s.alreadyHeld ? ` · ne hai già ${fmt(s.alreadyHeld.qty, 0)}` : ""}${s.maxWeight ? ` · limite per una sola azione: ${fmt(s.maxWeight, 0)}%` : ""}</p>`
     : "";
   let outcome = "";
   if (!pending) {
@@ -955,6 +955,8 @@ function renderSignalApproval(a, label) {
     <div class="where"><span class="meta">${facts.filter(Boolean).join(" · ")}</span></div>
     ${size}
     <p>${esc(s.reason)}</p>
+    ${s.risks ? `<p class="signal-risks"><b>⚠️ Perché potrei sbagliarmi:</b> ${esc(s.risks)}</p>` : ""}
+    ${s.sources?.length ? `<p class="signal-sources"><b>Fonti:</b> ${s.sources.map(esc).join(" · ")}</p>` : buy && !s.sources?.length ? `<p class="signal-sources">Fonti: nessuna indicata, verifica i numeri prima di comprare.</p>` : ""}
     <div class="actions">
       ${pending
         ? `<button class="btn good" data-signal-open="${a.id}">Approva</button><button class="btn ghost" data-signal-reject="${a.id}">Scarta</button>`
@@ -1106,7 +1108,7 @@ function loadHoldings() {
 }
 
 const holdingForm = { mode: null, id: null }; // modulo aperto: "add" | "sell" | "edit" | "profile" | "sources"
-const SOURCE_NAMES = { yahoo: "Yahoo Finance", twelvedata: "Twelve Data", fmp: "Financial Modeling Prep" };
+const SOURCE_NAMES = { yahoo: "Yahoo Finance", twelvedata: "Twelve Data", fmp: "Financial Modeling Prep", finnhub: "Finnhub", sec: "SEC (bilanci ufficiali USA)" };
 
 function renderHoldings() {
   const h = state.holdings;
@@ -1145,7 +1147,7 @@ function renderHoldings() {
       <div class="kpi"><small>Vendite chiuse (vinte / perse)</small><b>${t.wins} / ${t.losses}</b></div>
     </div>
     ${h.missing?.length ? `<p class="hint">⚠️ Prezzi mancanti (non contano nel totale): ${esc(h.missing.join(" · "))}</p>` : ""}
-    <div class="row wrap"><button class="btn primary" data-h-add>+ Aggiungi un'azione che hai già</button><button class="btn ghost" data-h-profile>🎯 Il mio profilo d'investimento</button><button class="btn ghost" data-h-sources>🔌 Fonti dei prezzi${sourcesBadge()}</button><span class="hint">Valori in euro al cambio di oggi; prezzi da Yahoo Finance (e dalle fonti di riserva se Yahoo non risponde).</span></div>
+    <div class="row wrap"><button class="btn primary" data-h-add>+ Aggiungi un'azione che hai già</button><button class="btn ghost" data-h-profile>🎯 Il mio profilo d'investimento</button><button class="btn ghost" data-h-sources>🔌 Fonti dei dati${sourcesBadge()}</button><span class="hint">Valori in euro al cambio di oggi; prezzi da Yahoo Finance (e dalle fonti di riserva se Yahoo non risponde).</span></div>
     <div id="holding-form-box">${holdingFormHtml(h)}</div>
     <h4>Le mie azioni</h4>
     ${rows ? `<div class="table-box"><table class="stack holdings-table"><tr><th>Azione</th><th>Quantità</th><th>Prezzo medio</th><th>Prezzo oggi</th><th>Valore</th><th>Risultato</th><th>Peso</th><th>Stop / obiettivo</th><th></th></tr>${rows}</table></div>`
@@ -1160,7 +1162,7 @@ function sourcesBadge() {
   const s = state.priceSources;
   if (!s) return "";
   const n = Object.values(s).filter((x) => x.configured).length;
-  return n ? ` <small>· ${n} di riserva</small>` : "";
+  return n ? ` <small>· ${n} attive</small>` : "";
 }
 
 function holdingFormHtml(h) {
@@ -1200,11 +1202,17 @@ function holdingFormHtml(h) {
         ${x.configured ? `<button class="btn ghost small" type="button" data-h-src-remove="${id}">Togli</button>` : ""}</div>
         <span class="hint">Sito: ${esc(site)}</span></fieldset>`;
     };
+    const sec = s.sec ?? {};
     return `<form class="card holding-form" data-h-form="sources">
-    <h3>🔌 Fonti dei prezzi</h3>
-    <p class="hint">Il programma usa Yahoo Finance. Se Yahoo non risponde, prende il prezzo da queste fonti di riserva (gratis, con una chiave tua). Ne basta una; con tutte e due è più sicuro.</p>
+    <h3>🔌 Fonti dei dati</h3>
+    <p class="hint">Prezzi: il programma usa Yahoo Finance e, se non risponde, queste fonti di riserva (gratis, con una chiave tua). Finnhub dà anche calendario delle IPO, dei risultati e notizie; la SEC i bilanci ufficiali delle società USA e i portafogli dei grandi fondi. Gli agenti li usano invece di cercare sul web: meno errori e meno spesa.</p>
     ${row("twelvedata", "twelvedata.com", "Crea un account gratuito, poi nel tuo pannello apri «API Keys» e copia la chiave. Piano gratuito: circa 800 prezzi al giorno.")}
     ${row("fmp", "financialmodelingprep.com", "Crea un account gratuito, poi in «Dashboard» copia la «API Key». Piano gratuito: circa 250 prezzi al giorno, soprattutto azioni USA.")}
+    ${row("finnhub", "finnhub.io", "Crea un account gratuito: la chiave («API key») è nella pagina principale del tuo pannello. Serve per IPO, risultati trimestrali e notizie.")}
+    <fieldset><legend>${esc(SOURCE_NAMES.sec)} ${sec.configured ? `<span class="up">· attiva</span>` : "· non impostata"}</legend>
+      <p class="hint">Gratis e senza chiave: la SEC chiede solo nome ed email di chi scarica i dati (es. «Mario Rossi mario@esempio.it»). Non è una password.</p>
+      <div class="row wrap"><input name="sec" autocomplete="off" value="${esc(sec.contact ?? "")}" placeholder="Nome Cognome tua@email.it">
+      ${sec.configured ? `<button class="btn ghost small" type="button" data-h-src-remove="sec">Togli</button>` : ""}</div></fieldset>
     ${foot("Salva e prova")}</form>`;
   }
   if (m === "profile") {

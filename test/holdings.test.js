@@ -16,6 +16,7 @@ const { runTool, toolsFor } = await import("../lib/tools.js");
 const safety = await import("../lib/safety.js");
 const { validate } = await import("../lib/config.js");
 
+const RISKS = "Rischi: dazi sulla Cina e rallentamento degli smartphone; cambierei idea se i margini scendono sotto il 40%.";
 const analyst = { id: "capo_azioni", name: "Capo Azioni", room: "azioni-direzione", tools: ["my_portfolio", "send_signal"], canTrade: false, watchlist: [], limits: {} };
 
 test("profilo d'investimento: valori controllati", () => {
@@ -29,18 +30,21 @@ test("profilo d'investimento: valori controllati", () => {
 test("segnale d'acquisto: in Approvazioni con le dimensioni suggerite; approvare = scrivere quante azioni e a che prezzo", async () => {
   const q = await stockQuote("AAPL");
   await assert.rejects(holdings.proposeSignal(analyst, { side: "buy", symbol: "AAPL", reason: "troppo corto" }), /reason/);
-  await assert.rejects(holdings.proposeSignal(analyst, { side: "buy", symbol: "AAPL", reason: "Utili sopra le attese per 4 trimestri, valutazione sotto la media." }), /stop_loss/);
-  await assert.rejects(holdings.proposeSignal(analyst, { side: "buy", symbol: "AAPL", reason: "Utili sopra le attese per 4 trimestri, valutazione sotto la media.", stop_loss: q.price * 1.1 }), /sotto il prezzo/);
+  await assert.rejects(holdings.proposeSignal(analyst, { side: "buy", symbol: "AAPL", reason: "Utili sopra le attese per 4 trimestri, valutazione sotto la media.", risks: RISKS }), /stop_loss/);
+  await assert.rejects(holdings.proposeSignal(analyst, { side: "buy", symbol: "AAPL", reason: "Utili sopra le attese per 4 trimestri, valutazione sotto la media.", risks: RISKS, stop_loss: q.price * 1.1 }), /sotto il prezzo/);
   const r = await runTool(analyst, "send_signal", {
     side: "buy", symbol: "aapl", reason: "Utili sopra le attese per 4 trimestri, valutazione sotto la media del settore (fonte: trimestrale 30/07/2026).",
-    stop_loss: round(q.price * 0.9), target: round(q.price * 1.25), entry_min: round(q.price * 0.98), entry_max: round(q.price * 1.01), suggested_pct: 5, horizon: "medio",
+    stop_loss: round(q.price * 0.9), target: round(q.price * 1.25), entry_min: round(q.price * 0.98), entry_max: round(q.price * 1.01), suggested_pct: 5, horizon: "medio", risks: RISKS, sources: ["10-Q Apple, 31/07/2026"],
   });
   assert.equal(r.status, "pending_approval");
-  await assert.rejects(holdings.proposeSignal(analyst, { side: "buy", symbol: "AAPL", reason: "Di nuovo lo stesso titolo, stessa tesi di prima.", stop_loss: q.price * 0.9 }), /già un segnale/);
+  await assert.rejects(holdings.proposeSignal(analyst, { side: "buy", symbol: "AAPL", reason: "Di nuovo lo stesso titolo, stessa tesi di prima.", stop_loss: q.price * 0.9, suggested_pct: 2, risks: RISKS }), /già un segnale/);
   const a = getState().approvals.find((x) => x.id === r.approvalId);
   assert.equal(a.kind, "signal");
   assert.equal(a.signal.symbol, "AAPL");
   assert.equal(a.signal.suggestedEur, 500, "5% di 10.000 €");
+  assert.equal(a.signal.risks, RISKS);
+  assert.deepEqual(a.signal.sources, ["10-Q Apple, 31/07/2026"]);
+  assert.equal(a.signal.maxWeight, 12, "rischio medio: massimo 12% per azione");
   assert.ok(a.signal.suggestedQty >= 0);
   // L'utente approva scrivendo quante azioni ha comprato.
   assert.throws(() => holdings.decideSignal(a.id, { approve: true, qty: "", price: "100" }), /Quantità/);
@@ -58,6 +62,7 @@ test("segnale d'acquisto: in Approvazioni con le dimensioni suggerite; approvare
   const mine = await runTool(analyst, "my_portfolio", {});
   assert.equal(mine.posizioni[0].quantita, 3);
   assert.equal(mine.segnali_decisi.at(-1).stato, "executed");
+  assert.equal(mine.segnali_decisi.at(-1).quantita, 3);
   assert.equal(mine.profilo.capital, 10000);
 });
 
@@ -78,11 +83,11 @@ test("vendita: segnale solo su azioni possedute, risultato tra le operazioni chi
 
 test("scartare un segnale non cambia il portafoglio; con lo STOP niente segnali", async () => {
   const q = await stockQuote("ENI.MI");
-  const r = await holdings.proposeSignal(analyst, { side: "buy", symbol: "ENI.MI", stop_loss: q.price * 0.9, reason: "Dividendo coperto dai flussi di cassa, valutazione bassa rispetto ai concorrenti." });
+  const r = await holdings.proposeSignal(analyst, { side: "buy", symbol: "ENI.MI", stop_loss: q.price * 0.9, suggested_pct: 4, risks: RISKS, reason: "Dividendo coperto dai flussi di cassa, valutazione bassa rispetto ai concorrenti." });
   assert.equal(holdings.decideSignal(r.approvalId, { approve: false }).status, "rejected");
   assert.ok(!(await holdings.snapshot()).positions.some((p) => p.symbol === "ENI.MI"));
   safety.activateKill("prova");
-  await assert.rejects(holdings.proposeSignal(analyst, { side: "buy", symbol: "ENI.MI", stop_loss: q.price * 0.9, reason: "Stesso segnale ma con lo STOP attivo: deve essere rifiutato." }), /STOP/);
+  await assert.rejects(holdings.proposeSignal(analyst, { side: "buy", symbol: "ENI.MI", stop_loss: q.price * 0.9, suggested_pct: 4, risks: RISKS, reason: "Stesso segnale ma con lo STOP attivo: deve essere rifiutato." }), /STOP/);
   safety.deactivateKill();
 });
 
@@ -121,10 +126,22 @@ test("strumenti: validi per gli agenti e i segnali in attesa non spariscono dall
   assert.deepEqual(toolsFor(analyst).map((t) => t.name).sort(), ["my_portfolio", "send_signal"]);
   const { addApproval } = await import("../lib/store.js");
   const q = await stockQuote("NVDA");
-  const r = await holdings.proposeSignal(analyst, { side: "buy", symbol: "NVDA", stop_loss: q.price * 0.9, reason: "Segnale che deve restare in attesa anche con molte altre proposte." });
+  const r = await holdings.proposeSignal(analyst, { side: "buy", symbol: "NVDA", stop_loss: q.price * 0.9, suggested_pct: 3, risks: RISKS, reason: "Segnale che deve restare in attesa anche con molte altre proposte." });
   for (let i = 0; i < 120; i++) addApproval({ id: "post", name: "Post" }, null, { kind: "post" }).status = "rejected";
   assert.ok(getState().approvals.some((x) => x.id === r.approvalId && x.status === "pending"));
   assert.ok(getState().approvals.length <= 100);
+});
+
+test("controllo del rischio nel programma: peso massimo per azione e massimo 3 segnali d'acquisto a settimana", async () => {
+  const q = await stockQuote("META");
+  const base = { side: "buy", symbol: "META", stop_loss: q.price * 0.9, risks: RISKS, reason: "Pubblicità in crescita del 20% e margini in aumento (trimestrale 07/2026)." };
+  await assert.rejects(holdings.proposeSignal(analyst, { ...base }), /suggested_pct/);
+  await assert.rejects(holdings.proposeSignal(analyst, { ...base, suggested_pct: 13 }), /BLOCCATO.*massimo per una sola azione è 12%/);
+  holdings.setProfile({ ...holdings.getProfile(), risk: "basso" });
+  await assert.rejects(holdings.proposeSignal(analyst, { ...base, suggested_pct: 9 }), /BLOCCATO.*8%/);
+  holdings.setProfile({ ...holdings.getProfile(), risk: "medio" });
+  // AAPL, ENI.MI e NVDA sono già stati proposti questa settimana: il quarto si blocca.
+  await assert.rejects(holdings.proposeSignal(analyst, { ...base, suggested_pct: 5 }), /negli ultimi 7 giorni/);
 });
 
 function round(x) {

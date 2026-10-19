@@ -113,6 +113,10 @@ Claude esegue le `instructions` usando solo gli strumenti abilitati in `tools`:
 | `place_order` | Ordine sul conto del suo piano: simulato (`qty`) oppure cTrader (`lots`, `stop_loss_pct`, `take_profit_pct`); richiede `canTrade: true` |
 | `close_position` | Chiude (anche in parte) una posizione cTrader aperta dallo stesso agente; è sempre disponibile per chi ha `place_order` |
 | `my_portfolio` | Il portafoglio VERO dell'utente (azioni che compra e vende lui): profilo d'investimento, azioni con prezzo medio, prezzo di oggi, risultato, stop loss e obiettivo, vendite chiuse, segnali in attesa e decisi |
+| `company_financials` | Bilanci ufficiali SEC di una società USA (ricavi, utili, EPS, flussi di cassa, cassa, debito) — serve nome ed email in 🔌 Fonti dei dati |
+| `fund_holdings` | Portafoglio di un grande fondo dall'ultimo 13F alla SEC, con i cambi rispetto al trimestre prima |
+| `ipo_calendar`, `earnings_calendar`, `company_news` | IPO in arrivo, risultati trimestrali (stime e usciti) e notizie per titolo da Finnhub (chiave gratuita dell'utente) |
+| `trade_journal` | Diario delle operazioni: chiuse su cTrader, vendite del portafoglio vero, segnali per agente |
 | `send_signal` | Segnale all'utente in ✅ Approvazioni: comprare (con `stop_loss` obbligatorio, `target`, fascia d'ingresso, `suggested_pct` del capitale) o vendere un'azione che possiede (`position_id`, `sell_pct`). Nessun ordine parte: l'utente approva scrivendo quante azioni ha comprato o venduto e a che prezzo |
 
 `effort` (`low` … `max`) regola quanto a fondo ragiona il modello: più è alto, più l'analisi è accurata e più costa.
