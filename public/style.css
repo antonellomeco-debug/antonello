@@ -714,3 +714,5 @@ dialog.small-dlg { width: min(480px, 94vw); }
 @media (max-width: 860px) {
   .holding-form .grid3, .signal-form .grid3 { grid-template-columns: minmax(0, 1fr); }
 }
+.signal-card .signal-risks { margin-top: 8px; color: var(--text); }
+.signal-card .signal-sources { margin-top: 6px; font-size: 12px; }

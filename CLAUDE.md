@@ -322,6 +322,17 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   `twelveDataKey`, `fmpKey` in settings (💼 Portafoglio → 🔌 Fonti dei prezzi, provate con AAPL al salvataggio; `PUT /api/holdings/sources`).
   Dal container i due siti non si raggiungono: formati presi da ricerche, test con finto server (`TWELVEDATA_BASE`, `FMP_BASE`,
   `STOCK_YAHOO=off`, `test/pricesources.test.js`). Al primo uso vero chiedere all'utente eventuali errori.
+- **Controllo del rischio nel codice** (dai documenti «Trader skill» e «Kit anti-errori AI», 19/10): `send_signal` buy vuole `suggested_pct`
+  e `risks` (perché potrei sbagliarmi), accetta `sources`; BLOCCATO se peso già posseduto + suggerito supera `MAX_WEIGHT` del profilo
+  (basso 8, medio 12, alto 15 %) o se ci sono già 3 segnali d'acquisto negli ultimi 7 giorni (storico in `holdings.json` → `signals`,
+  le approvazioni invece si potano a 100). La scheda in Approvazioni mostra «⚠️ Perché potrei sbagliarmi» e le fonti.
+- **Dati ufficiali** (`lib/marketdata.js`): SEC senza chiave ma con `secContact` (nome ed email, User-Agent obbligatorio): `company_financials`
+  (companyfacts XBRL: ricavi, utili, EPS, flussi, capex → FCF, cassa, debito; annuali 330–380 giorni, trimestri 80–100, documento più
+  recente per periodo), `fund_holdings` (submissions → ultimi due 13F-HR → infotable XML; elenco `FUNDS` di 15 fondi con CIK, il nome
+  registrato torna sempre nel risultato). Finnhub con `finnhubKey`: `ipo_calendar`, `earnings_calendar`, `company_news`, e terza fonte di
+  riserva dei prezzi. `trade_journal` (`lib/journal.js`): chiuse cTrader + vendite vere + segnali per agente. Impostazioni in 💼 Portafoglio →
+  🔌 Fonti dei dati. Dal container SEC e Finnhub non si raggiungono: test con finti server (`SEC_WWW_BASE`, `SEC_DATA_BASE`,
+  `FINNHUB_BASE`, `test/marketdata.test.js`).
 - Controllo gratuito ogni 15 minuti (`checkLevels`, scheduler di `server.js`): stop loss o obiettivo toccati → segnale di vendita di
   «Controllo portafoglio», una volta per livello. Notifica push per i segnali.
 - Interfaccia 💼 Portafoglio = «Il mio portafoglio» (`renderHoldings` in `public/app.js`: totali in euro, tabella, vendite chiuse, moduli
