@@ -123,7 +123,7 @@ Claude esegue le `instructions` usando solo gli strumenti abilitati in `tools`:
   "everyMinutes": 60, "watchlist": ["AAPL", "MSFT"] }
 ```
 
-Le strategie si trovano in [`strategies/`](strategies). Quelle già incluse sono `sma_cross`, `rsi_reversion` e `risk_monitor`. Per scriverne una tua, copia [`strategies/_template.js`](strategies/_template.js): ricevi un `ctx` con dati di mercato, indicatori, bacheche, il conto del piano (simulato o cTrader) e gli ordini, soggetti ad approvazioni e a Broker → Sicurezza. Questa modalità non richiede una chiave API e non ha costi.
+Le strategie si trovano in [`strategies/`](strategies). Quelle già incluse sono `sma_cross`, `rsi_reversion`, `risk_monitor` e `scanner` (controlla tutti i mercati del broker cTrader, o la watchlist, e scrive nella bacheca la «CLASSIFICA SCANNER» delle occasioni migliori: params `groups`, `period`, `top`, `maxSymbols`, `minScore`, `include`, `exclude`, `pauseMs`; non apre ordini). Il `ctx.market.symbols()` dà l'elenco dei mercati del broker con categoria e classe. Per scriverne una tua, copia [`strategies/_template.js`](strategies/_template.js): ricevi un `ctx` con dati di mercato, indicatori, bacheche, il conto del piano (simulato o cTrader) e gli ordini, soggetti ad approvazioni e a Broker → Sicurezza. Questa modalità non richiede una chiave API e non ha costi.
 
 ### Campi comuni
 

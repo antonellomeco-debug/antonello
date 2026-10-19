@@ -77,6 +77,19 @@ test("conto reale: si collega solo dall'interfaccia e solo dopo lo sblocco", () 
   assert.throws(() => office.setFloorTrading(FLOOR, { mode: "ctrader", accountId: 999 }), /non trovato/);
 });
 
+test("conto reale: l'approvazione resta obbligatoria anche per l'agente che non la chiede", async () => {
+  resetSafety();
+  safety.setLive(true, "SOLDI VERI");
+  office.setFloorTrading(FLOOR, { mode: "ctrader", accountId: live });
+  const before = (await ct.positions(live)).length;
+  const r = await broker.submitOrder(agent(), { symbol: "EURUSD", side: "buy", lots: 0.01, stop_loss_pct: 1, reason: "test" });
+  assert.equal(r.status, "pending_approval", "sul conto reale niente ordini senza la tua approvazione");
+  assert.equal((await ct.positions(live)).length, before, "nessuna posizione aperta");
+  await broker.decide(r.approvalId, false);
+  office.setFloorTrading(FLOOR, { mode: "paper" });
+  resetSafety();
+});
+
 test("piano su conto demo: ordine in lotti con etichetta dell'agente", async () => {
   resetSafety();
   office.setFloorTrading(FLOOR, { mode: "ctrader", accountId: demo });
@@ -342,3 +355,19 @@ test("chiusura delle posizioni degli agenti su tutti i conti (STOP e chiusura de
   // seconda volta: niente da chiudere (così la chiusura del venerdì sa di aver finito)
   assert.deepEqual(await broker.closeAgentPositionsEverywhere(), { closed: 0, unconfirmed: 0, failed: [] });
 });
+
+test("scanner dei mercati come agente a regole sul conto demo: tutti i mercati del broker tranne le azioni, nessun ordine", async () => {
+  resetSafety();
+  office.setFloorTrading(FLOOR, { mode: "ctrader", accountId: demo });
+  const { runAgent } = await import("../lib/runner.js");
+  const { readNotes } = await import("../lib/store.js");
+  const before = (await ct.positions(demo)).length;
+  const scan = { id: "scanner", name: "Scanner", room: "trading", mode: "rule", strategy: "scanner", params: { pauseMs: 0 }, watchlist: [], canTrade: false, limits: {} };
+  await runAgent(scan, office.building());
+  const note = readNotes("trading", 5).filter((n) => n.agentId === "scanner").at(-1);
+  assert.match(note.text, /^CLASSIFICA SCANNER · H1 · .* — 3 mercati controllati \(forex, metalli, indici\)/, "EURUSD, XAUUSD, US500; non ENI.IT");
+  assert.equal(note.tags[0], "SCANNER");
+  assert.equal((await ct.positions(demo)).length, before, "lo scanner non apre posizioni");
+  office.setFloorTrading(FLOOR, { mode: "paper" });
+});
+
