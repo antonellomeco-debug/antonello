@@ -1093,9 +1093,10 @@ function renderPortfolio() {
 
 let holdingsLoading = null;
 function loadHoldings() {
-  holdingsLoading ??= api("/api/holdings")
-    .then((h) => {
+  holdingsLoading ??= Promise.all([api("/api/holdings"), api("/api/holdings/sources").catch(() => null)])
+    .then(([h, sources]) => {
       state.holdings = h;
+      state.priceSources = sources;
       if (state.view === "portfolio") renderHoldings();
     }, (err) => {
       if (!state.holdings) $("#holdings-body").innerHTML = `<p class="errors">Portafoglio non disponibile: ${esc(err.message)}</p>`;
@@ -1104,7 +1105,8 @@ function loadHoldings() {
   return holdingsLoading;
 }
 
-const holdingForm = { mode: null, id: null }; // modulo aperto: "add" | "sell" | "edit" | "profile"
+const holdingForm = { mode: null, id: null }; // modulo aperto: "add" | "sell" | "edit" | "profile" | "sources"
+const SOURCE_NAMES = { yahoo: "Yahoo Finance", twelvedata: "Twelve Data", fmp: "Financial Modeling Prep" };
 
 function renderHoldings() {
   const h = state.holdings;
@@ -1119,7 +1121,7 @@ function renderHoldings() {
       <td data-label="Azione"><b>${esc(p.symbol)}</b>${p.name ? `<small class="hint">${esc(p.name)}</small>` : ""}${p.agentName ? `<small class="hint">segnalata da ${esc(p.agentName)}</small>` : ""}</td>
       <td data-label="Quantità">${fmt(p.qty, p.qty % 1 ? 3 : 0)}</td>
       <td data-label="Prezzo medio">${px(p.avgPrice, p.currency)}</td>
-      <td data-label="Prezzo oggi">${px(p.price, p.currency)}${p.changePct != null ? ` <small class="${p.changePct >= 0 ? "up" : "down"}">${plus(p.changePct)}%</small>` : ""}</td>
+      <td data-label="Prezzo oggi">${px(p.price, p.currency)}${p.changePct != null ? ` <small class="${p.changePct >= 0 ? "up" : "down"}">${plus(p.changePct)}%</small>` : ""}${p.priceSource && p.priceSource !== "yahoo" ? `<small class="hint">da ${esc(SOURCE_NAMES[p.priceSource] ?? p.priceSource)}</small>` : ""}</td>
       <td data-label="Valore">${p.valueEur != null ? `€ ${fmt(p.valueEur)}` : "—"}</td>
       <td data-label="Risultato" class="${(p.pnl ?? 0) >= 0 ? "up" : "down"}">${p.pnl != null ? `${plus(p.pnl)} ${esc(curSign(p.currency))} · ${plus(p.pnlPct)}%` : "—"}</td>
       <td data-label="Peso">${p.weightPct != null ? `${fmt(p.weightPct, 1)}%` : "—"}</td>
@@ -1143,7 +1145,7 @@ function renderHoldings() {
       <div class="kpi"><small>Vendite chiuse (vinte / perse)</small><b>${t.wins} / ${t.losses}</b></div>
     </div>
     ${h.missing?.length ? `<p class="hint">⚠️ Prezzi mancanti (non contano nel totale): ${esc(h.missing.join(" · "))}</p>` : ""}
-    <div class="row wrap"><button class="btn primary" data-h-add>+ Aggiungi un'azione che hai già</button><button class="btn ghost" data-h-profile>🎯 Il mio profilo d'investimento</button><span class="hint">Valori in euro al cambio di oggi; prezzi da Yahoo Finance, aggiornati ogni minuto.</span></div>
+    <div class="row wrap"><button class="btn primary" data-h-add>+ Aggiungi un'azione che hai già</button><button class="btn ghost" data-h-profile>🎯 Il mio profilo d'investimento</button><button class="btn ghost" data-h-sources>🔌 Fonti dei prezzi${sourcesBadge()}</button><span class="hint">Valori in euro al cambio di oggi; prezzi da Yahoo Finance (e dalle fonti di riserva se Yahoo non risponde).</span></div>
     <div id="holding-form-box">${holdingFormHtml(h)}</div>
     <h4>Le mie azioni</h4>
     ${rows ? `<div class="table-box"><table class="stack holdings-table"><tr><th>Azione</th><th>Quantità</th><th>Prezzo medio</th><th>Prezzo oggi</th><th>Valore</th><th>Risultato</th><th>Peso</th><th>Stop / obiettivo</th><th></th></tr>${rows}</table></div>`
@@ -1152,6 +1154,13 @@ function renderHoldings() {
     ${closed ? `<div class="table-box"><table class="stack holdings-table"><tr><th>Azione</th><th>Quantità</th><th>Comprata a</th><th>Venduta a</th><th>Risultato</th><th>Chiusa il</th></tr>${closed}</table></div>` : `<p class="empty">Nessuna vendita ancora.</p>`}
     <p class="hint">Profilo: ${pr.capital ? `capitale € ${fmt(pr.capital, 0)}` : "capitale non indicato"} · rischio ${esc(pr.risk)} · orizzonte ${esc(horizonText[pr.horizon] ?? pr.horizon)}${pr.markets ? ` · mercati: ${esc(pr.markets)}` : ""}${pr.sectors ? ` · settori: ${esc(pr.sectors)}` : ""}. Gli agenti lo usano per scegliere le azioni e quanto suggerirti di comprare. I segnali sono analisi automatiche, non consulenza: decidi tu.</p>`;
   bindHoldings();
+}
+
+function sourcesBadge() {
+  const s = state.priceSources;
+  if (!s) return "";
+  const n = Object.values(s).filter((x) => x.configured).length;
+  return n ? ` <small>· ${n} di riserva</small>` : "";
 }
 
 function holdingFormHtml(h) {
@@ -1181,6 +1190,23 @@ function holdingFormHtml(h) {
     <div class="grid3">${field("qty", "Quantità", num(p.qty))}${field("avgPrice", "Prezzo medio", num(p.avgPrice))}${field("stopLoss", "Stop loss (vuoto = nessuno)", num(p.stopLoss))}${field("target", "Obiettivo (vuoto = nessuno)", num(p.target))}</div>
     <label>Note<input name="notes" value="${esc(p.notes ?? "")}" autocomplete="off"></label>
     <div class="row wrap"><button class="btn good" type="submit">Salva</button><button class="btn ghost" type="button" data-h-close>Annulla</button><span class="spacer"></span><button class="btn danger" type="button" data-h-remove="${p.id}">Togli (inserita per sbaglio)</button><span class="errors"></span></div></form>`;
+  if (m === "sources") {
+    const s = state.priceSources ?? {};
+    const row = (id, site, help) => {
+      const x = s[id] ?? {};
+      return `<fieldset><legend>${esc(SOURCE_NAMES[id])} ${x.configured ? `<span class="up">· attiva (${esc(x.hint)})</span>` : "· non impostata"}</legend>
+        <p class="hint">${help}</p>
+        <div class="row wrap"><input name="${id}" type="password" autocomplete="off" placeholder="${x.configured ? "Incolla una chiave nuova per cambiarla" : "Incolla qui la chiave gratuita"}">
+        ${x.configured ? `<button class="btn ghost small" type="button" data-h-src-remove="${id}">Togli</button>` : ""}</div>
+        <span class="hint">Sito: ${esc(site)}</span></fieldset>`;
+    };
+    return `<form class="card holding-form" data-h-form="sources">
+    <h3>🔌 Fonti dei prezzi</h3>
+    <p class="hint">Il programma usa Yahoo Finance. Se Yahoo non risponde, prende il prezzo da queste fonti di riserva (gratis, con una chiave tua). Ne basta una; con tutte e due è più sicuro.</p>
+    ${row("twelvedata", "twelvedata.com", "Crea un account gratuito, poi nel tuo pannello apri «API Keys» e copia la chiave. Piano gratuito: circa 800 prezzi al giorno.")}
+    ${row("fmp", "financialmodelingprep.com", "Crea un account gratuito, poi in «Dashboard» copia la «API Key». Piano gratuito: circa 250 prezzi al giorno, soprattutto azioni USA.")}
+    ${foot("Salva e prova")}</form>`;
+  }
   if (m === "profile") {
     const pr = h.profile;
     const opt = (list, cur, names) => list.map((v) => `<option value="${v}" ${v === cur ? "selected" : ""}>${names[v]}</option>`).join("");
@@ -1213,6 +1239,7 @@ function bindHoldings() {
   const box = $("#holdings-body");
   box.querySelector("[data-h-add]").onclick = () => openHoldingForm("add");
   box.querySelector("[data-h-profile]").onclick = () => openHoldingForm("profile");
+  box.querySelector("[data-h-sources]").onclick = () => openHoldingForm("sources");
   box.querySelectorAll("[data-h-sell]").forEach((b) => (b.onclick = () => openHoldingForm("sell", b.dataset.hSell)));
   box.querySelectorAll("[data-h-edit]").forEach((b) => (b.onclick = () => openHoldingForm("edit", b.dataset.hEdit)));
   bindHoldingForm();
@@ -1226,6 +1253,15 @@ function bindHoldingForm() {
     $("#holding-form-box").innerHTML = "";
   };
   f.querySelector("[data-h-close]").onclick = close;
+  f.querySelectorAll("[data-h-src-remove]").forEach((b) => (b.onclick = async () => {
+    if (!confirm(`Togliere la chiave di ${SOURCE_NAMES[b.dataset.hSrcRemove]}?`)) return;
+    try {
+      state.priceSources = await api("/api/holdings/sources", { method: "PUT", body: JSON.stringify({ [b.dataset.hSrcRemove]: "" }) });
+      openHoldingForm("sources");
+    } catch (err) {
+      f.querySelector(".errors").textContent = err.message;
+    }
+  }));
   const remove = f.querySelector("[data-h-remove]");
   if (remove) remove.onclick = async () => {
     if (!confirm("Togliere questa azione dal portafoglio? Non conta come vendita (nessun risultato registrato).")) return;
@@ -1248,9 +1284,22 @@ function bindHoldingForm() {
       sell: () => api(`/api/holdings/${id}/sell`, { method: "POST", body: JSON.stringify(v) }),
       edit: () => api(`/api/holdings/${id}`, { method: "PUT", body: JSON.stringify(v) }),
       profile: () => api("/api/holdings/profile", { method: "PUT", body: JSON.stringify(v) }),
+      sources: () => api("/api/holdings/sources", { method: "PUT", body: JSON.stringify(Object.fromEntries(Object.entries(v).filter(([, x]) => x.trim()))) }),
     }[f.dataset.hForm];
+    if (f.dataset.hForm === "sources" && !Object.values(v).some((x) => x.trim())) {
+      f.querySelector(".errors").textContent = "Incolla almeno una chiave.";
+      btn.disabled = false;
+      return;
+    }
     try {
-      await call();
+      const r = await call();
+      if (f.dataset.hForm === "sources") {
+        state.priceSources = r;
+        openHoldingForm("sources");
+        $("#holding-form-box .errors").innerHTML = `<span class="up">${esc((r.notes ?? []).join(" ") || "Salvato.")}</span>`;
+        loadHoldings();
+        return;
+      }
       close();
       document.activeElement?.blur();
       loadHoldings();

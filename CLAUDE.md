@@ -316,6 +316,12 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   azioni possedute, `sell_pct`; niente doppioni; al massimo 5 segnali d'acquisto in attesa; lo STOP blocca i segnali). In ✅ Approvazioni:
   **Approva** apre il modulo quantità / prezzo / commissioni → `decideSignal` (POST `/api/approvals/:id` con `qty`, `price`, `fees`),
   **Scarta**. Le proposte in attesa non vengono più tolte dal limite di 100 approvazioni (si tolgono prima le decise).
+- **Fonti di riserva dei prezzi** (`lib/pricesources.js`): se Yahoo non risponde, `stockQuote` (e `getQuote` per gli agenti) usa Twelve
+  Data (`/quote`, simbolo + `mic_code` dal suffisso Yahoo: .MI→XMIL, .AS→XAMS…; cambi `USD/EUR`) e poi Financial Modeling Prep
+  (`/stable/quote`, simbolo Yahoo, cambi `USDEUR`; valuta dedotta dal suffisso), cache 20 minuti. Chiavi gratuite dell'utente
+  `twelveDataKey`, `fmpKey` in settings (💼 Portafoglio → 🔌 Fonti dei prezzi, provate con AAPL al salvataggio; `PUT /api/holdings/sources`).
+  Dal container i due siti non si raggiungono: formati presi da ricerche, test con finto server (`TWELVEDATA_BASE`, `FMP_BASE`,
+  `STOCK_YAHOO=off`, `test/pricesources.test.js`). Al primo uso vero chiedere all'utente eventuali errori.
 - Controllo gratuito ogni 15 minuti (`checkLevels`, scheduler di `server.js`): stop loss o obiettivo toccati → segnale di vendita di
   «Controllo portafoglio», una volta per livello. Notifica push per i segnali.
 - Interfaccia 💼 Portafoglio = «Il mio portafoglio» (`renderHoldings` in `public/app.js`: totali in euro, tabella, vendite chiuse, moduli
