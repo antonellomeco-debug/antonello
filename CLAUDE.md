@@ -300,6 +300,9 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   conto dei dati, unione con `brokerTrades` per agente e motivi, riepilogo: netto, vinte/perse, % vinte, migliore/peggiore,
   per agente), API `GET /api/broker/history?days=`, interfaccia `renderBrokerHistory()` in `public/app.js`. Il finto cTrader
   registra i deal e risponde a `ProtoOADealListReq` (rifiuta finestre oltre 7 giorni). Test in `test/broker.test.js`.
+- Riquadro in alto a destra dell'Ufficio/Universo (`#pnl-card`): mostra il **conto cTrader in uso** (valore = saldo + posizioni
+  aperte, saldo, posizioni, risultato aperto e di oggi da `safety.daily`), da `accountSummary()` in `lib/broker.js` (conti dei piani,
+  altrimenti quello dei dati) e `GET /api/broker/summary`; il portafoglio simulato da 100.000 € solo senza cTrader in uso.
 
 ## Piano Gold (XAUUSD) per Orion
 
