@@ -398,3 +398,24 @@ test("storico: operazioni chiuse con risultato, chi le ha decise e riepilogo (un
   assert.equal(h.totals.net, Math.round(h.trades.reduce((n, x) => n + x.net, 0) * 100) / 100);
   office.setFloorTrading(FLOOR, { mode: "paper" });
 });
+
+test("riepilogo in alto a destra: saldo e valore del conto cTrader usato dai piani, non il portafoglio simulato", async () => {
+  resetSafety();
+  office.setFloorTrading(FLOOR, { mode: "ctrader", accountId: demo });
+  const r = await broker.placeOrder(agent(), { symbol: "EURUSD", side: "buy", lots: 0.01, stop_loss_pct: 1, reason: "prova" });
+  const s = await broker.accountSummary();
+  assert.equal(s.linked, true);
+  assert.deepEqual(s.errors, []);
+  assert.deepEqual(s.accounts.map((a) => a.accountId), [demo], "solo il conto usato dal piano");
+  const a = s.accounts[0];
+  const info = await ct.accountInfo(demo);
+  assert.equal(a.balance, info.balance);
+  assert.equal(a.currency, info.currency);
+  assert.equal(a.isLive, false);
+  assert.ok(a.positions >= 1);
+  assert.equal(a.equity, Math.round((a.balance + a.openPnl) * 100) / 100, "valore = saldo + posizioni aperte");
+  await broker.placeOrder(agent(), { action: "close", positionId: r.positionId, reason: "fine prova" });
+  office.setFloorTrading(FLOOR, { mode: "paper" });
+  const none = await broker.accountSummary();
+  assert.ok(none.accounts.every((x) => x.accountId === Number(ct.dataAccountId())), "senza piani su cTrader: solo il conto dei dati, se c'è");
+});

@@ -323,7 +323,30 @@ function syncMoreBadge() {
   $("#badge-more").classList.toggle("hidden", !on);
 }
 
+const CURRENCY_SIGN = { EUR: "€", USD: "$", GBP: "£", CHF: "CHF", JPY: "¥" };
+
+/** In alto a destra: il conto cTrader in uso (saldo vero); il portafoglio simulato solo se cTrader non è usato. */
+function renderAccountCard(accounts) {
+  const sign = (cur) => CURRENCY_SIGN[cur] ?? esc(cur ?? "");
+  const one = (a) => `<small>${a.isLive ? "Conto REALE" : "Conto demo"} cTrader${a.login ? ` · ${esc(String(a.login))}` : ""}</small>
+    <b>${sign(a.currency)} ${fmt(a.equity)}</b>
+    <small>saldo ${sign(a.currency)} ${fmt(a.balance)} · ${a.positions} ${a.positions === 1 ? "posizione" : "posizioni"}</small><br/>
+    ${a.positions ? `<small class="${a.openPnl >= 0 ? "up" : "down"}">aperte ${money(a.openPnl)}</small>` : ""}
+    ${a.today != null ? `<small class="${a.today >= 0 ? "up" : "down"}">${a.positions ? " · " : ""}oggi ${money(a.today)}</small>` : ""}
+    ${a.positions || a.today != null ? "<br/>" : ""}<span class="tag ${a.isLive ? "tag-live" : "tag-demo"}">${a.isLive ? "soldi veri" : "demo"}</span>`;
+  $("#pnl-card").innerHTML = accounts.map(one).join(`<hr class="pnl-sep"/>`);
+}
+
 async function refreshPortfolio() {
+  const summary = await api("/api/broker/summary").catch(() => null);
+  if (summary?.accounts?.length) {
+    renderAccountCard(summary.accounts);
+    if (state.view === "portfolio") {
+      state.portfolio = await api("/api/portfolio").catch(() => null);
+      if (state.portfolio) renderPortfolio();
+    }
+    return;
+  }
   state.portfolio = await api("/api/portfolio").catch(() => null);
   const p = state.portfolio;
   if (!p) return;

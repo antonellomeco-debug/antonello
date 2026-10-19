@@ -84,6 +84,9 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .pnl-card b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
 .pnl-card small { color: var(--muted); font-size: 11px; }
 .pnl-card .tag { display: inline-block; margin-top: 4px; font-size: 10px; color: var(--warn); border: 1px solid var(--warn); border-radius: 99px; padding: 0 7px; }
+.pnl-card .tag-demo { color: var(--good, #3ddc97); border-color: var(--good, #3ddc97); }
+.pnl-card .tag-live { color: var(--bad, #ff5c7a); border-color: var(--bad, #ff5c7a); }
+.pnl-sep { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
 
 .hub-label { font-size: 13px; font-weight: 700; letter-spacing: .12em; color: #fff; text-shadow: 0 0 12px #6f7dff; text-transform: uppercase; }
 .room-label {
