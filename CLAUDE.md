@@ -321,6 +321,9 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
 - Interfaccia 💼 Portafoglio = «Il mio portafoglio» (`renderHoldings` in `public/app.js`: totali in euro, tabella, vendite chiuse, moduli
   «Aggiungi un'azione che hai già», «Ho venduto», «Modifica»/«Togli», «🎯 Il mio profilo d'investimento»); il portafoglio simulato è sotto,
   in un riquadro chiuso, con «Azzera tutto». API `/api/holdings*`. Test: `test/holdings.test.js`.
+- Messaggi per Orion (6): piano «📊 Azioni – Il mio portafoglio» nel Palazzo Investimenti, 4 stanze, 12 agenti dai 10 prompt del carosello
+  di imprenditore.it (Screener, DCF, Rischio, Risultati, Allocazione, Tecnica, Dividendi, Concorrenza, Pattern, Macro) + Sentinella e Capo
+  Investimenti (7 condizioni per un segnale d'acquisto, max 2 a settimana): https://claude.ai/artifact/XuaoughASjKGwu7p4wfxLE
 
 ## Piano Gold (XAUUSD) per Orion
 
