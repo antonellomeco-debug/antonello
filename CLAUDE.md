@@ -292,6 +292,15 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
 - Messaggi per Orion (piano «Multi-mercato»: Scanner → Analista Tecnico → Controllo Rischi → Capo Trader, catena con
   `onlyOnNews`; e `requireApproval: false` per gli agenti sul demo): https://claude.ai/artifact/EBPGsdwwKsXGj2BGGZLmCL
 
+## Storico delle operazioni nella sezione Broker (19 ottobre 2026)
+
+- 📒 «Operazioni chiuse: quanto hai vinto o perso» in 🔌 Broker (7/30/90 giorni): `closedDeals()` in `lib/ctrader/service.js`
+  (`ProtoOADealListReq` una settimana per richiesta, deal con `closePositionDetail`: entrata, uscita, lordo, swap, commissioni,
+  netto, saldo; cache 60 s, `forgetDeals()` dopo ogni chiusura dell'app), `tradeHistory()` in `lib/broker.js` (conti dei piani +
+  conto dei dati, unione con `brokerTrades` per agente e motivi, riepilogo: netto, vinte/perse, % vinte, migliore/peggiore,
+  per agente), API `GET /api/broker/history?days=`, interfaccia `renderBrokerHistory()` in `public/app.js`. Il finto cTrader
+  registra i deal e risponde a `ProtoOADealListReq` (rifiuta finestre oltre 7 giorni). Test in `test/broker.test.js`.
+
 ## Piano Gold (XAUUSD) per Orion
 
 - L'utente ha una pagina (artifact claude.ai "Piano Gold per Orion") con i messaggi da incollare a Orion:

@@ -371,3 +371,30 @@ test("scanner dei mercati come agente a regole sul conto demo: tutti i mercati d
   office.setFloorTrading(FLOOR, { mode: "paper" });
 });
 
+
+test("storico: operazioni chiuse con risultato, chi le ha decise e riepilogo (una settimana per richiesta)", async () => {
+  resetSafety();
+  office.setFloorTrading(FLOOR, { mode: "ctrader", accountId: demo });
+  const r = await broker.placeOrder(agent(), { symbol: "EURUSD", side: "buy", lots: 0.01, stop_loss_pct: 1, take_profit_pct: 2, reason: "rottura del massimo" });
+  await broker.placeOrder(agent(), { action: "close", positionId: r.positionId, reason: "obiettivo vicino" });
+  fake.state.dealWindows.length = 0;
+  const h = await broker.tradeHistory({ days: 30 });
+  assert.equal(h.linked, true);
+  assert.deepEqual(h.errors, []);
+  assert.ok(fake.state.dealWindows.length >= 5 && fake.state.dealWindows.every((w) => w <= 7 * 86_400_000), "cTrader: al massimo una settimana per richiesta");
+  const t = h.trades.find((x) => x.positionId === r.positionId);
+  assert.ok(t, "l'operazione chiusa c'è");
+  assert.deepEqual([t.symbol, t.side, t.lots, t.agentId, t.openReason, t.closeReason, t.isLive], ["EURUSD", "buy", 0.01, "trader", "rottura del massimo", "obiettivo vicino", false]);
+  assert.equal(t.closePrice, 1.0849);
+  assert.ok(t.entryPrice > 1.08);
+  assert.equal(t.swap, -0.12);
+  assert.equal(t.commission, -0.35);
+  assert.equal(t.net, Math.round((t.gross - 0.12 - 0.35) * 100) / 100, "netto = lordo + swap + commissioni");
+  assert.ok(t.openedAt && t.closedAt >= t.openedAt);
+  assert.equal(h.trades[0].closedAt >= h.trades.at(-1).closedAt, true, "dalla più recente");
+  assert.equal(h.totals.count, h.trades.length);
+  assert.equal(h.totals.wins + h.totals.losses <= h.totals.count, true);
+  assert.equal(h.totals.byAgent.trader.trades >= 1, true);
+  assert.equal(h.totals.net, Math.round(h.trades.reduce((n, x) => n + x.net, 0) * 100) / 100);
+  office.setFloorTrading(FLOOR, { mode: "paper" });
+});

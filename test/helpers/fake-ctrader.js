@@ -36,6 +36,8 @@ export function startFake({ port = 0, tokenPort = 0, validTokens = new Set(["tok
     refreshed: 0,
     sockets: new Set(),
     trendbarWindows: [],
+    deals: [], // deal eseguiti, per ProtoOADealListReq
+    dealWindows: [],
     accountType: "HEDGED",
     balance: 1_000_000, // in centesimi
     balanceVersion: 1,
@@ -168,6 +170,12 @@ export function startFake({ port = 0, tokenPort = 0, validTokens = new Set(["tok
             { ctidTraderAccountId: acc, depositWithdraw: state.cashFlows.filter((f) => f.changeBalanceTimestamp >= data.fromTimestamp && f.changeBalanceTimestamp <= data.toTimestamp) },
             id,
           );
+        case "ProtoOADealListReq": {
+          state.dealWindows.push(data.toTimestamp - data.fromTimestamp);
+          if (data.toTimestamp - data.fromTimestamp > 7 * 86_400_000) return err("INCORRECT_BOUNDARIES", id);
+          const deal = state.deals.filter((x) => x.acc === acc && x.deal.executionTimestamp >= data.fromTimestamp && x.deal.executionTimestamp <= data.toTimestamp).map((x) => x.deal);
+          return send("ProtoOADealListRes", { ctidTraderAccountId: acc, deal, hasMore: false }, id);
+        }
         case "ProtoOAReconcileReq":
           return send("ProtoOAReconcileRes", { ctidTraderAccountId: acc, position: [...state.positions.values()].filter((p) => p.acc === acc).map((p) => p.proto) }, id);
         case "ProtoOAGetPositionUnrealizedPnLReq":
@@ -205,7 +213,11 @@ export function startFake({ port = 0, tokenPort = 0, validTokens = new Set(["tok
               executionType: "ORDER_FILLED",
               order: { ...order, orderStatus: "ORDER_STATUS_FILLED" },
               position,
-              deal: { dealId: ++state.nextId, orderId, positionId, volume: data.volume, filledVolume: data.volume, symbolId: data.symbolId, createTimestamp: Date.now(), executionTimestamp: Date.now(), executionPrice: price, tradeSide: data.tradeSide, dealStatus: "FILLED" },
+              deal: (() => {
+                const deal = { dealId: ++state.nextId, orderId, positionId, volume: data.volume, filledVolume: data.volume, symbolId: data.symbolId, createTimestamp: Date.now(), executionTimestamp: Date.now(), executionPrice: price, tradeSide: data.tradeSide, dealStatus: "FILLED" };
+                state.deals.push({ acc, deal });
+                return deal;
+              })(),
             });
           }, 80);
           return;
@@ -224,7 +236,21 @@ export function startFake({ port = 0, tokenPort = 0, validTokens = new Set(["tok
               executionType: "ORDER_FILLED",
               order: { ...order, orderStatus: "ORDER_STATUS_FILLED" },
               position: { ...p.proto, positionStatus: "POSITION_STATUS_CLOSED" },
-              deal: { dealId: ++state.nextId, orderId, positionId: data.positionId, volume: data.volume, filledVolume: data.volume, symbolId: p.proto.tradeData.symbolId, createTimestamp: Date.now(), executionTimestamp: Date.now(), executionPrice: 1.0849, tradeSide: p.proto.tradeData.tradeSide === "BUY" ? "SELL" : "BUY", dealStatus: "FILLED" },
+              deal: (() => {
+                const closePrice = 1.0849;
+                const units = data.volume / 100;
+                const dir = p.proto.tradeData.tradeSide === "BUY" ? 1 : -1;
+                const deal = {
+                  dealId: ++state.nextId, orderId, positionId: data.positionId, volume: data.volume, filledVolume: data.volume, symbolId: p.proto.tradeData.symbolId,
+                  createTimestamp: Date.now(), executionTimestamp: Date.now(), executionPrice: closePrice, tradeSide: dir === 1 ? "SELL" : "BUY", dealStatus: "FILLED",
+                  closePositionDetail: {
+                    entryPrice: p.proto.price, grossProfit: Math.round((closePrice - p.proto.price) * units * dir * 100), swap: -12, commission: -35,
+                    balance: state.balance, closedVolume: data.volume, moneyDigits: 2,
+                  },
+                };
+                state.deals.push({ acc, deal });
+                return deal;
+              })(),
             });
           }, 80);
           return;

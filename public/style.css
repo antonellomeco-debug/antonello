@@ -686,3 +686,10 @@ dialog.small-dlg { width: min(480px, 94vw); }
 .push-prefs { display: flex; flex-direction: column; gap: 6px; margin: 10px 0 4px; }
 #brief-text { width: 100%; min-height: 180px; resize: vertical; font: inherit; line-height: 1.45; padding: 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); }
 #brief-palaces { margin: 6px 0 10px; }
+
+/* ---------- 📒 operazioni chiuse (Broker) ---------- */
+.hist-period { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.hist-kpis .kpi small { display: block; }
+.hist-table td small.hint { display: block; font-size: 11px; margin-top: 2px; }
+.hist-result b { font-variant-numeric: tabular-nums; }
+
