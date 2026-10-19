@@ -30,6 +30,7 @@ import * as social from "./lib/social/index.js";
 import * as platform from "./lib/platform.js";
 import * as push from "./lib/push.js";
 import * as holdings from "./lib/holdings.js";
+import * as priceSources from "./lib/pricesources.js";
 import * as media from "./lib/social/media.js";
 import { setGeminiKey } from "./lib/social/imagegen.js";
 import { setStockKey } from "./lib/social/stock.js";
@@ -288,6 +289,8 @@ app.get("/api/broker", (_req, res) => res.json(brokerStatus()));
 // Operazioni chiuse con il risultato (vinto o perso), dalla più recente.
 // Il portafoglio vero dell'utente (azioni comprate e vendute da lui) e il suo profilo d'investimento.
 app.get("/api/holdings", handleAsync(() => holdings.snapshot()));
+app.get("/api/holdings/sources", (_req, res) => res.json(priceSources.sourcesStatus()));
+app.put("/api/holdings/sources", handleAsync((req) => priceSources.setSourceKeys(req.body ?? {})));
 app.put("/api/holdings/profile", handle((req) => holdings.setProfile(req.body ?? {})));
 app.post("/api/holdings", handleAsync((req) => holdings.addManual(req.body ?? {})));
 app.post("/api/holdings/:id/sell", handle((req) => holdings.addSell(req.params.id, req.body ?? {})));
