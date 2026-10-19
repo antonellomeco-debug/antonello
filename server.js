@@ -29,6 +29,7 @@ import * as costs from "./lib/costs.js";
 import * as social from "./lib/social/index.js";
 import * as platform from "./lib/platform.js";
 import * as push from "./lib/push.js";
+import * as holdings from "./lib/holdings.js";
 import * as media from "./lib/social/media.js";
 import { setGeminiKey } from "./lib/social/imagegen.js";
 import { setStockKey } from "./lib/social/stock.js";
@@ -255,7 +256,9 @@ app.post("/api/requests/:id/dismiss", handle((req) => {
 app.post("/api/approvals/:id", async (req, res) => {
   try {
     const a = getState().approvals.find((x) => x.id === req.params.id);
-    res.json(a?.kind === "post" ? await social.decidePost(req.params.id, Boolean(req.body?.approve)) : await decide(req.params.id, Boolean(req.body?.approve)));
+    const approve = Boolean(req.body?.approve);
+    if (a?.kind === "signal") return res.json(holdings.decideSignal(req.params.id, { ...req.body, approve }));
+    res.json(a?.kind === "post" ? await social.decidePost(req.params.id, approve) : await decide(req.params.id, approve));
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
@@ -283,6 +286,13 @@ const accountsInUse = () => [...new Set(office.building().floors.filter((f) => f
 
 app.get("/api/broker", (_req, res) => res.json(brokerStatus()));
 // Operazioni chiuse con il risultato (vinto o perso), dalla più recente.
+// Il portafoglio vero dell'utente (azioni comprate e vendute da lui) e il suo profilo d'investimento.
+app.get("/api/holdings", handleAsync(() => holdings.snapshot()));
+app.put("/api/holdings/profile", handle((req) => holdings.setProfile(req.body ?? {})));
+app.post("/api/holdings", handleAsync((req) => holdings.addManual(req.body ?? {})));
+app.post("/api/holdings/:id/sell", handle((req) => holdings.addSell(req.params.id, req.body ?? {})));
+app.put("/api/holdings/:id", handle((req) => holdings.updatePosition(req.params.id, req.body ?? {})));
+app.delete("/api/holdings/:id", handle((req) => holdings.removePosition(req.params.id)));
 app.get("/api/broker/summary", handleAsync(() => accountSummary()));
 app.get("/api/broker/history", handleAsync((req) => tradeHistory({ days: [7, 30, 90].includes(Number(req.query.days)) ? Number(req.query.days) : 30 })));
 app.put("/api/broker/credentials", handle((req) => {
@@ -789,6 +799,20 @@ const monitor = async () => {
 };
 setInterval(monitor, 60_000);
 setTimeout(monitor, 5_000);
+
+// Azioni dell'utente: stop loss o obiettivo raggiunti → segnale di vendita in ✅ Approvazioni (gratis, senza Claude).
+let levelsChecking = false;
+setInterval(async () => {
+  if (shuttingDown || levelsChecking) return;
+  levelsChecking = true;
+  try {
+    await holdings.checkLevels();
+  } catch (err) {
+    log("controllo-portafoglio", "error", `Controllo delle azioni non riuscito: ${err.message}`);
+  } finally {
+    levelsChecking = false;
+  }
+}, holdings.LEVEL_CHECK_MS);
 
 // Chiusura del venerdì (⚙️ Impostazioni → Orario): dall'ora scelta chiude le posizioni aperte dagli agenti
 // su tutti i conti cTrader, così nessuna resta aperta nel weekend. Riprova ogni minuto finché ne resta qualcuna.

@@ -412,8 +412,12 @@ function renderView() {
   else if (state.view === "approvals") renderApprovals();
   else if (state.view === "notes") renderNotes();
   else if (state.view === "log") renderLog();
-  else if (state.view === "portfolio") renderPortfolio();
-  else if (state.view === "broker") renderBroker();
+  else if (state.view === "portfolio") {
+    renderHoldings();
+    loadHoldings();
+    if (state.portfolio) renderPortfolio();
+    else api("/api/portfolio").then((p) => { state.portfolio = p; renderPortfolio(); }, () => {});
+  } else if (state.view === "broker") renderBroker();
   else if (state.view === "social") renderSocial();
   else if (state.view === "costs") renderCosts();
 }
@@ -858,9 +862,12 @@ function renderApprovals() {
     return;
   }
   const label = { pending: "", executed: "✔ Eseguito", rejected: "Scartato", failed: "✖ Non eseguito", executing: "In esecuzione…", uncertain: "⚠️ Esito incerto", scheduled: "🕒 Programmato" };
+  // Moduli dei segnali aperti (quantità e prezzo che stai scrivendo): restano aperti quando arriva un'altra proposta.
+  const openForms = new Map([...document.querySelectorAll("#approvals-list [data-signal-form]:not(.hidden)")].map((f) => [f.dataset.signalForm, Object.fromEntries(new FormData(f))]));
   $("#approvals-list").innerHTML = list
     .map((a) => {
       if (a.kind === "post") return renderPostApproval(a, label);
+      if (a.kind === "signal") return renderSignalApproval(a, label);
       const o = a.order;
       const pending = a.status === "pending";
       const t = a.target;
@@ -898,6 +905,110 @@ function renderApprovals() {
     }),
   );
   bindShareButtons($("#approvals-list"), list);
+  bindSignalForms($("#approvals-list"));
+  for (const [id, values] of openForms) {
+    const f = $("#approvals-list").querySelector(`[data-signal-form="${id}"]`);
+    if (!f) continue;
+    f.classList.remove("hidden");
+    $("#approvals-list").querySelector(`[data-signal-open="${id}"]`)?.classList.add("hidden");
+    for (const [k, v] of Object.entries(values)) if (f.elements[k]) f.elements[k].value = v;
+  }
+}
+
+// ---------- segnali sulle azioni dell'utente ----------
+
+const curSign = (c) => ({ EUR: "€", USD: "$", GBP: "£", GBp: "p", CHF: "CHF" })[c] ?? (c || "");
+const px = (n, c) => (n == null ? "—" : `${fmt(n, n >= 1000 ? 2 : n >= 1 ? 2 : 4)} ${esc(curSign(c))}`.trim());
+const plus = (n, d = 2) => (n == null ? "—" : `${n > 0 ? "+" : ""}${fmt(n, d)}`);
+const horizonText = { breve: "settimane", medio: "mesi", lungo: "anni" };
+/** Numero da proporre in un campo (virgola italiana, 2 decimali; 4 sotto 1). */
+const inputNum = (n) => (n == null || !Number.isFinite(Number(n)) ? "" : String(Number(Number(n).toFixed(Math.abs(n) >= 1 ? 2 : 4))).replace(".", ","));
+
+/** Segnale di un agente: comprare o vendere un'azione. «Approva» apre il modulo per scrivere quante azioni e a che prezzo. */
+function renderSignalApproval(a, label) {
+  const s = a.signal;
+  const buy = s.side === "buy";
+  const pending = a.status === "pending";
+  const c = s.currency;
+  const facts = buy
+    ? [
+        `prezzo al segnale ${px(s.priceAtSignal, c)}`,
+        s.entryMin || s.entryMax ? `fascia d'ingresso ${px(s.entryMin, c)} – ${px(s.entryMax, c)}` : "",
+        `stop loss ${px(s.stopLoss, c)}`,
+        s.target ? `obiettivo ${px(s.target, c)}` : "",
+        s.horizon ? `orizzonte: ${horizonText[s.horizon]}` : "",
+      ]
+    : [`prezzo ${px(s.priceAtSignal, c)}`, `hai ${fmt(s.heldQty, 0)} azioni a ${px(s.avgPrice, c)} (${plus(s.pnlPct)}%)`, s.sellPct < 100 ? `vendere il ${fmt(s.sellPct, 0)}%` : "vendere tutto"];
+  const size = buy && s.suggestedPct
+    ? `<p class="signal-size">Suggerito: ${fmt(s.suggestedPct, 0)}% del capitale${s.suggestedEur ? ` ≈ € ${fmt(s.suggestedEur, 0)}` : ""}${s.suggestedQty ? ` (circa ${s.suggestedQty} azioni)` : ""}${s.alreadyHeld ? ` · ne hai già ${fmt(s.alreadyHeld.qty, 0)}` : ""}</p>`
+    : "";
+  let outcome = "";
+  if (!pending) {
+    const f = a.fill;
+    outcome = a.status === "executed" && f
+      ? buy ? `✔ Comprate ${esc(f.qty)} azioni a ${px(f.price, c)}` : `✔ Vendute ${esc(f.qty)} azioni a ${px(f.price, c)} · risultato ${plus(f.pnl)} ${esc(curSign(c))} (${plus(f.pnlPct)}%)`
+      : a.status === "rejected" ? "Scartato" : (label[a.status] ?? esc(a.status));
+  }
+  return `<article class="card signal-card ${pending ? "" : "decided"}" data-signal="${a.id}">
+    <div class="kicker"><span class="${buy ? "buy" : "sell"}">${buy ? "📈 Segnale d'acquisto" : "📉 Segnale di vendita"}</span><span class="meta">· ${esc(a.agentName)} · ${when(a.at)}</span></div>
+    <h3>${buy ? "Compra" : "Vendi"} ${esc(s.symbol)}${s.name ? ` <span class="meta">${esc(s.name)}</span>` : ""}</h3>
+    <div class="where"><span class="meta">${facts.filter(Boolean).join(" · ")}</span></div>
+    ${size}
+    <p>${esc(s.reason)}</p>
+    <div class="actions">
+      ${pending
+        ? `<button class="btn good" data-signal-open="${a.id}">Approva</button><button class="btn ghost" data-signal-reject="${a.id}">Scarta</button>`
+        : `<span class="meta">${outcome}</span>`}
+    </div>
+    ${pending ? `<form class="signal-form hidden" data-signal-form="${a.id}">
+      <p class="hint">${buy ? "Hai comprato? Scrivi quante azioni e il prezzo medio pagato: gli agenti seguiranno il titolo e ti diranno quando vendere." : "Hai venduto? Scrivi quante azioni e il prezzo incassato."}</p>
+      <div class="grid3">
+        <label>Quante azioni<input name="qty" inputmode="decimal" autocomplete="off" required value="${esc(inputNum(s.suggestedQty))}"></label>
+        <label>Prezzo per azione (${esc(c || "valuta del titolo")})<input name="price" inputmode="decimal" autocomplete="off" required value="${esc(inputNum(s.priceAtSignal))}"></label>
+        <label>Commissioni (facoltative)<input name="fees" inputmode="decimal" autocomplete="off" placeholder="0"></label>
+      </div>
+      <div class="row wrap"><button class="btn good" type="submit">${buy ? "Conferma acquisto" : "Conferma vendita"}</button><button class="btn ghost" type="button" data-signal-cancel="${a.id}">Annulla</button><span class="errors"></span></div>
+    </form>` : ""}
+  </article>`;
+}
+
+function bindSignalForms(root) {
+  root.querySelectorAll("[data-signal-open]").forEach((b) =>
+    b.addEventListener("click", () => {
+      const f = root.querySelector(`[data-signal-form="${b.dataset.signalOpen}"]`);
+      f.classList.remove("hidden");
+      b.classList.add("hidden");
+      f.querySelector("input[name=qty]").focus();
+    }));
+  root.querySelectorAll("[data-signal-cancel]").forEach((b) =>
+    b.addEventListener("click", () => {
+      root.querySelector(`[data-signal-form="${b.dataset.signalCancel}"]`).classList.add("hidden");
+      root.querySelector(`[data-signal-open="${b.dataset.signalCancel}"]`)?.classList.remove("hidden");
+    }));
+  root.querySelectorAll("[data-signal-reject]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      b.disabled = true;
+      try {
+        await api(`/api/approvals/${b.dataset.signalReject}`, { method: "POST", body: JSON.stringify({ approve: false }) });
+      } catch (err) {
+        b.disabled = false;
+        alert(err.message);
+      }
+    }));
+  root.querySelectorAll("[data-signal-form]").forEach((f) =>
+    f.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = f.querySelector("button[type=submit]");
+      btn.disabled = true;
+      const v = Object.fromEntries(new FormData(f));
+      try {
+        await api(`/api/approvals/${f.dataset.signalForm}`, { method: "POST", body: JSON.stringify({ approve: true, ...v }) });
+        loadHoldings();
+      } catch (err) {
+        f.querySelector(".errors").textContent = err.message;
+        btn.disabled = false;
+      }
+    }));
 }
 
 /** Esito di una proposta già decisa (sui conti cTrader il prezzo resta con tutti i decimali). */
@@ -976,6 +1087,178 @@ function renderPortfolio() {
     ${p.trades.length ? `<table class="stack"><tr><th>Quando</th><th>Titolo</th><th>Lato</th><th>Q.tà</th><th>Prezzo</th><th>Agente</th></tr>
       ${p.trades.slice().reverse().map((t) => `<tr title="${esc(t.reason)}"><td data-label="Quando">${when(t.at)}</td><td data-label="Titolo">${esc(t.symbol)}</td><td data-label="Lato" class="${t.side === "buy" ? "up" : "down"}">${t.side}</td><td data-label="Quantità">${t.qty}</td><td data-label="Prezzo">${fmt(t.price)}</td><td data-label="Agente">${esc(t.agentId)}</td></tr>`).join("")}</table>` : `<p class="empty">Nessun ordine.</p>`}
     <p class="hint">* prezzo da dati demo (mercato non raggiungibile)</p>`;
+}
+
+// ---------- il mio portafoglio (azioni vere dell'utente) ----------
+
+let holdingsLoading = null;
+function loadHoldings() {
+  holdingsLoading ??= api("/api/holdings")
+    .then((h) => {
+      state.holdings = h;
+      if (state.view === "portfolio") renderHoldings();
+    }, (err) => {
+      if (!state.holdings) $("#holdings-body").innerHTML = `<p class="errors">Portafoglio non disponibile: ${esc(err.message)}</p>`;
+    })
+    .finally(() => (holdingsLoading = null));
+  return holdingsLoading;
+}
+
+const holdingForm = { mode: null, id: null }; // modulo aperto: "add" | "sell" | "edit" | "profile"
+
+function renderHoldings() {
+  const h = state.holdings;
+  if (!h) return;
+  // Non si ridisegna mentre stai scrivendo in un modulo (arrivano aggiornamenti dei prezzi).
+  if (document.activeElement?.closest?.("#holdings-body form")) return;
+  const t = h.totals;
+  const pr = h.profile;
+  const realized = Object.entries(t.realizedByCurrency ?? {}).map(([c, v]) => `<span class="${v >= 0 ? "up" : "down"}">${plus(v)} ${esc(curSign(c))}</span>`).join(" · ") || "—";
+  const rows = h.positions.map((p) => `
+    <tr>
+      <td data-label="Azione"><b>${esc(p.symbol)}</b>${p.name ? `<small class="hint">${esc(p.name)}</small>` : ""}${p.agentName ? `<small class="hint">segnalata da ${esc(p.agentName)}</small>` : ""}</td>
+      <td data-label="Quantità">${fmt(p.qty, p.qty % 1 ? 3 : 0)}</td>
+      <td data-label="Prezzo medio">${px(p.avgPrice, p.currency)}</td>
+      <td data-label="Prezzo oggi">${px(p.price, p.currency)}${p.changePct != null ? ` <small class="${p.changePct >= 0 ? "up" : "down"}">${plus(p.changePct)}%</small>` : ""}</td>
+      <td data-label="Valore">${p.valueEur != null ? `€ ${fmt(p.valueEur)}` : "—"}</td>
+      <td data-label="Risultato" class="${(p.pnl ?? 0) >= 0 ? "up" : "down"}">${p.pnl != null ? `${plus(p.pnl)} ${esc(curSign(p.currency))} · ${plus(p.pnlPct)}%` : "—"}</td>
+      <td data-label="Peso">${p.weightPct != null ? `${fmt(p.weightPct, 1)}%` : "—"}</td>
+      <td data-label="Stop / obiettivo">${px(p.stopLoss, p.currency)} / ${px(p.target, p.currency)}</td>
+      <td data-label=""><div class="row-actions"><button class="btn ghost small" data-h-sell="${p.id}">Ho venduto</button><button class="btn ghost small" data-h-edit="${p.id}">Modifica</button></div></td>
+    </tr>`).join("");
+  const closed = h.closed.map((c) => `
+    <tr>
+      <td data-label="Azione"><b>${esc(c.symbol)}</b>${c.agentName ? `<small class="hint">${esc(c.agentName)}</small>` : ""}</td>
+      <td data-label="Quantità">${fmt(c.qty, c.qty % 1 ? 3 : 0)}</td>
+      <td data-label="Comprata a">${px(c.avgPrice, c.currency)}</td>
+      <td data-label="Venduta a">${px(c.sellPrice, c.currency)}</td>
+      <td data-label="Risultato" class="${c.pnl >= 0 ? "up" : "down"}">${plus(c.pnl)} ${esc(curSign(c.currency))} · ${plus(c.pnlPct)}%</td>
+      <td data-label="Chiusa il">${when(c.closedAt)}</td>
+    </tr>`).join("");
+  $("#holdings-body").innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><small>Valore delle azioni</small><b>€ ${fmt(t.value)}</b></div>
+      <div class="kpi"><small>Guadagno o perdita</small><b class="${(t.pnl ?? 0) >= 0 ? "up" : "down"}">${t.cost ? `${plus(t.pnl)} € · ${plus(t.pnlPct)}%` : "—"}</b></div>
+      <div class="kpi"><small>Azioni in portafoglio</small><b>${t.count}</b></div>
+      <div class="kpi"><small>Vendite chiuse (vinte / perse)</small><b>${t.wins} / ${t.losses}</b></div>
+    </div>
+    ${h.missing?.length ? `<p class="hint">⚠️ Prezzi mancanti (non contano nel totale): ${esc(h.missing.join(" · "))}</p>` : ""}
+    <div class="row wrap"><button class="btn primary" data-h-add>+ Aggiungi un'azione che hai già</button><button class="btn ghost" data-h-profile>🎯 Il mio profilo d'investimento</button><span class="hint">Valori in euro al cambio di oggi; prezzi da Yahoo Finance, aggiornati ogni minuto.</span></div>
+    <div id="holding-form-box">${holdingFormHtml(h)}</div>
+    <h4>Le mie azioni</h4>
+    ${rows ? `<div class="table-box"><table class="stack holdings-table"><tr><th>Azione</th><th>Quantità</th><th>Prezzo medio</th><th>Prezzo oggi</th><th>Valore</th><th>Risultato</th><th>Peso</th><th>Stop / obiettivo</th><th></th></tr>${rows}</table></div>`
+      : `<p class="empty">Nessuna azione per ora. Quando approvi un segnale d'acquisto in ✅ Approvazioni (scrivendo quante azioni hai comprato) compare qui. Se hai già delle azioni, aggiungile con il pulsante qui sopra.</p>`}
+    <h4>Vendite chiuse · risultato realizzato: ${realized}</h4>
+    ${closed ? `<div class="table-box"><table class="stack holdings-table"><tr><th>Azione</th><th>Quantità</th><th>Comprata a</th><th>Venduta a</th><th>Risultato</th><th>Chiusa il</th></tr>${closed}</table></div>` : `<p class="empty">Nessuna vendita ancora.</p>`}
+    <p class="hint">Profilo: ${pr.capital ? `capitale € ${fmt(pr.capital, 0)}` : "capitale non indicato"} · rischio ${esc(pr.risk)} · orizzonte ${esc(horizonText[pr.horizon] ?? pr.horizon)}${pr.markets ? ` · mercati: ${esc(pr.markets)}` : ""}${pr.sectors ? ` · settori: ${esc(pr.sectors)}` : ""}. Gli agenti lo usano per scegliere le azioni e quanto suggerirti di comprare. I segnali sono analisi automatiche, non consulenza: decidi tu.</p>`;
+  bindHoldings();
+}
+
+function holdingFormHtml(h) {
+  const m = holdingForm.mode;
+  if (!m) return "";
+  const p = h.positions.find((x) => x.id === holdingForm.id);
+  const num = inputNum;
+  const field = (name, label, value = "", extra = "") => `<label>${label}<input name="${name}" inputmode="decimal" autocomplete="off" value="${esc(value)}" ${extra}></label>`;
+  const foot = (ok) => `<div class="row wrap"><button class="btn good" type="submit">${ok}</button><button class="btn ghost" type="button" data-h-close>Annulla</button><span class="errors"></span></div>`;
+  if (m === "add") return `<form class="card holding-form" data-h-form="add">
+    <h3>Aggiungi un'azione che hai già</h3>
+    <div class="grid3">
+      <label>Simbolo (come su Yahoo Finance)<input name="symbol" autocomplete="off" autocapitalize="characters" placeholder="es. AAPL, ENI.MI, ISP.MI" required></label>
+      ${field("qty", "Quante azioni", "", "required")}
+      ${field("price", "Prezzo medio pagato (valuta del titolo)", "", "required")}
+      ${field("fees", "Commissioni (facoltative)")}
+      ${field("stopLoss", "Stop loss (facoltativo)")}
+      ${field("target", "Obiettivo (facoltativo)")}
+      <label>Data d'acquisto<input name="date" type="date"></label>
+    </div>${foot("Aggiungi")}</form>`;
+  if (m === "sell" && p) return `<form class="card holding-form" data-h-form="sell">
+    <h3>Ho venduto ${esc(p.symbol)} <span class="meta">ne hai ${fmt(p.qty, p.qty % 1 ? 3 : 0)}</span></h3>
+    <div class="grid3">${field("qty", "Quante azioni hai venduto", num(p.qty), "required")}${field("price", `Prezzo incassato per azione (${esc(p.currency || "")})`, num(p.price), "required")}${field("fees", "Commissioni (facoltative)")}</div>
+    ${foot("Conferma vendita")}</form>`;
+  if (m === "edit" && p) return `<form class="card holding-form" data-h-form="edit">
+    <h3>Modifica ${esc(p.symbol)}</h3>
+    <div class="grid3">${field("qty", "Quantità", num(p.qty))}${field("avgPrice", "Prezzo medio", num(p.avgPrice))}${field("stopLoss", "Stop loss (vuoto = nessuno)", num(p.stopLoss))}${field("target", "Obiettivo (vuoto = nessuno)", num(p.target))}</div>
+    <label>Note<input name="notes" value="${esc(p.notes ?? "")}" autocomplete="off"></label>
+    <div class="row wrap"><button class="btn good" type="submit">Salva</button><button class="btn ghost" type="button" data-h-close>Annulla</button><span class="spacer"></span><button class="btn danger" type="button" data-h-remove="${p.id}">Togli (inserita per sbaglio)</button><span class="errors"></span></div></form>`;
+  if (m === "profile") {
+    const pr = h.profile;
+    const opt = (list, cur, names) => list.map((v) => `<option value="${v}" ${v === cur ? "selected" : ""}>${names[v]}</option>`).join("");
+    return `<form class="card holding-form" data-h-form="profile">
+    <h3>🎯 Il mio profilo d'investimento</h3>
+    <p class="hint">Lo leggono gli agenti delle azioni per scegliere i titoli adatti a te e dirti quanto comprare.</p>
+    <div class="grid3">
+      ${field("capital", "Capitale da investire in azioni (€)", pr.capital ?? "")}
+      <label>Rischio che accetti<select name="risk">${opt(["basso", "medio", "alto"], pr.risk, { basso: "Basso: prima di tutto non perdere", medio: "Medio", alto: "Alto: cerco crescita, accetto oscillazioni forti" })}</select></label>
+      <label>Orizzonte<select name="horizon">${opt(["breve", "medio", "lungo"], pr.horizon, { breve: "Breve (settimane)", medio: "Medio (mesi)", lungo: "Lungo (anni)" })}</select></label>
+    </div>
+    <label>Mercati preferiti<input name="markets" value="${esc(pr.markets)}" placeholder="es. Italia, USA, Europa" autocomplete="off"></label>
+    <label>Settori preferiti (o da evitare)<input name="sectors" value="${esc(pr.sectors)}" placeholder="es. tecnologia, energia; niente armi" autocomplete="off"></label>
+    <label>Altre indicazioni<input name="notes" value="${esc(pr.notes)}" placeholder="es. voglio dividendi, massimo 10 titoli" autocomplete="off"></label>
+    ${foot("Salva profilo")}</form>`;
+  }
+  return "";
+}
+
+function openHoldingForm(mode, id = null) {
+  holdingForm.mode = mode;
+  holdingForm.id = id;
+  $("#holding-form-box").innerHTML = holdingFormHtml(state.holdings);
+  bindHoldingForm();
+  $("#holding-form-box input")?.focus();
+  $("#holding-form-box").scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+function bindHoldings() {
+  const box = $("#holdings-body");
+  box.querySelector("[data-h-add]").onclick = () => openHoldingForm("add");
+  box.querySelector("[data-h-profile]").onclick = () => openHoldingForm("profile");
+  box.querySelectorAll("[data-h-sell]").forEach((b) => (b.onclick = () => openHoldingForm("sell", b.dataset.hSell)));
+  box.querySelectorAll("[data-h-edit]").forEach((b) => (b.onclick = () => openHoldingForm("edit", b.dataset.hEdit)));
+  bindHoldingForm();
+}
+
+function bindHoldingForm() {
+  const f = $("#holding-form-box form");
+  if (!f) return;
+  const close = () => {
+    holdingForm.mode = null;
+    $("#holding-form-box").innerHTML = "";
+  };
+  f.querySelector("[data-h-close]").onclick = close;
+  const remove = f.querySelector("[data-h-remove]");
+  if (remove) remove.onclick = async () => {
+    if (!confirm("Togliere questa azione dal portafoglio? Non conta come vendita (nessun risultato registrato).")) return;
+    try {
+      await api(`/api/holdings/${remove.dataset.hRemove}`, { method: "DELETE" });
+      close();
+      loadHoldings();
+    } catch (err) {
+      f.querySelector(".errors").textContent = err.message;
+    }
+  };
+  f.onsubmit = async (e) => {
+    e.preventDefault();
+    const btn = f.querySelector("button[type=submit]");
+    btn.disabled = true;
+    const v = Object.fromEntries(new FormData(f));
+    const id = holdingForm.id;
+    const call = {
+      add: () => api("/api/holdings", { method: "POST", body: JSON.stringify(v) }),
+      sell: () => api(`/api/holdings/${id}/sell`, { method: "POST", body: JSON.stringify(v) }),
+      edit: () => api(`/api/holdings/${id}`, { method: "PUT", body: JSON.stringify(v) }),
+      profile: () => api("/api/holdings/profile", { method: "PUT", body: JSON.stringify(v) }),
+    }[f.dataset.hForm];
+    try {
+      await call();
+      close();
+      document.activeElement?.blur();
+      loadHoldings();
+    } catch (err) {
+      f.querySelector(".errors").textContent = err.message;
+      btn.disabled = false;
+    }
+  };
 }
 
 $("#reset-btn").onclick = async () => {
@@ -2336,6 +2619,9 @@ function handleEvent(ev) {
       break;
     case "platform":
       onPlatformEvent();
+      break;
+    case "holdings":
+      if (state.view === "portfolio") loadHoldings();
       break;
     case "approval": {
       const i = state.approvals.findIndex((a) => a.id === ev.approval.id);

@@ -112,6 +112,8 @@ Claude esegue le `instructions` usando solo gli strumenti abilitati in `tools`:
 | `get_portfolio` | Liquidità o saldo, posizioni, P&L del conto del suo piano |
 | `place_order` | Ordine sul conto del suo piano: simulato (`qty`) oppure cTrader (`lots`, `stop_loss_pct`, `take_profit_pct`); richiede `canTrade: true` |
 | `close_position` | Chiude (anche in parte) una posizione cTrader aperta dallo stesso agente; è sempre disponibile per chi ha `place_order` |
+| `my_portfolio` | Il portafoglio VERO dell'utente (azioni che compra e vende lui): profilo d'investimento, azioni con prezzo medio, prezzo di oggi, risultato, stop loss e obiettivo, vendite chiuse, segnali in attesa e decisi |
+| `send_signal` | Segnale all'utente in ✅ Approvazioni: comprare (con `stop_loss` obbligatorio, `target`, fascia d'ingresso, `suggested_pct` del capitale) o vendere un'azione che possiede (`position_id`, `sell_pct`). Nessun ordine parte: l'utente approva scrivendo quante azioni ha comprato o venduto e a che prezzo |
 
 `effort` (`low` … `max`) regola quanto a fondo ragiona il modello: più è alto, più l'analisi è accurata e più costa.
 

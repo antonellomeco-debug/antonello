@@ -304,6 +304,24 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   aperte, saldo, posizioni, risultato aperto e di oggi da `safety.daily`), da `accountSummary()` in `lib/broker.js` (conti dei piani,
   altrimenti quello dei dati) e `GET /api/broker/summary`; il portafoglio simulato da 100.000 € solo senza cTrader in uso.
 
+## Il mio portafoglio di azioni e segnali degli agenti (19 ottobre 2026)
+
+- L'utente compra e vende azioni da solo (banca o broker suo): gli agenti mandano **segnali** e lui decide. `lib/holdings.js`
+  (`<dati>/holdings.json`, nei backup, «Azzera tutto» non lo tocca): profilo d'investimento (capitale, rischio, orizzonte, mercati,
+  settori, note), posizioni (quantità, prezzo medio, commissioni, stop loss, obiettivo, tesi, chi l'ha segnalata), vendite chiuse con
+  il risultato. Prezzi sempre da Yahoo (`stockQuote` in `lib/market.js`: ticker AAPL, ENI.MI…; niente dati demo fuori da
+  `MARKET_MODE=demo`: senza Yahoo il prezzo «manca»), valori in euro con il cambio `<VALUTA>EUR=X` (GBp/GBX in pence).
+- Strumenti degli agenti `my_portfolio` e `send_signal` (anche `my_portfolio` per Orion). `send_signal` → approvazione `kind: "signal"`
+  (buy: `stop_loss` obbligatorio sotto il prezzo, `target`, fascia, `suggested_pct` ≤ 25 → euro e azioni suggerite dal capitale; sell: solo
+  azioni possedute, `sell_pct`; niente doppioni; al massimo 5 segnali d'acquisto in attesa; lo STOP blocca i segnali). In ✅ Approvazioni:
+  **Approva** apre il modulo quantità / prezzo / commissioni → `decideSignal` (POST `/api/approvals/:id` con `qty`, `price`, `fees`),
+  **Scarta**. Le proposte in attesa non vengono più tolte dal limite di 100 approvazioni (si tolgono prima le decise).
+- Controllo gratuito ogni 15 minuti (`checkLevels`, scheduler di `server.js`): stop loss o obiettivo toccati → segnale di vendita di
+  «Controllo portafoglio», una volta per livello. Notifica push per i segnali.
+- Interfaccia 💼 Portafoglio = «Il mio portafoglio» (`renderHoldings` in `public/app.js`: totali in euro, tabella, vendite chiuse, moduli
+  «Aggiungi un'azione che hai già», «Ho venduto», «Modifica»/«Togli», «🎯 Il mio profilo d'investimento»); il portafoglio simulato è sotto,
+  in un riquadro chiuso, con «Azzera tutto». API `/api/holdings*`. Test: `test/holdings.test.js`.
+
 ## Piano Gold (XAUUSD) per Orion
 
 - L'utente ha una pagina (artifact claude.ai "Piano Gold per Orion") con i messaggi da incollare a Orion:
