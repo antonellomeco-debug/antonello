@@ -5,7 +5,8 @@
 // ctx contiene:
 //   agent      → la configurazione dell'agente (watchlist, limits, ...)
 //   params     → i parametri impostati nella configurazione
-//   market     → getQuote(sym), getHistory(sym) → { candles:[{date,open,high,low,close,volume}] },
+//   market     → getQuote(sym), getHistory(sym, { period, count }) → { candles:[{date,open,high,low,close,volume}] },
+//                symbols() → tutti i mercati del broker [{ symbol, description, category, assetClass }] (null senza cTrader),
 //                indicators.{ sma, rsi, volatility, returnPct, summary }
 //   notes      → read(roomId?, limit?), post(testo, tags?)
 //   trading    → dove opera il piano: { mode: "paper" } oppure { mode: "ctrader", accountId, isLive, label }

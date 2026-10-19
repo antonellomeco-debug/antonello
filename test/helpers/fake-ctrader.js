@@ -6,11 +6,19 @@ import { encodeMessage, decodeMessage, frame, unframe } from "../../lib/ctrader/
 
 export const ACCOUNTS = { demo: 1001, live: 2002 };
 const SYMBOLS = [
-  { symbolId: 1, symbolName: "EURUSD", description: "Euro vs US Dollar", enabled: true, sortingNumber: 1 },
-  { symbolId: 2, symbolName: "XAUUSD", description: "Gold vs US Dollar", enabled: true, sortingNumber: 2 },
-  { symbolId: 3, symbolName: "US500", description: "US 500 Index", enabled: true, sortingNumber: 3 },
-  { symbolId: 4, symbolName: "ENI.IT", description: "Eni SpA", enabled: true, sortingNumber: 4 },
+  { symbolId: 1, symbolName: "EURUSD", description: "Euro vs US Dollar", enabled: true, sortingNumber: 1, symbolCategoryId: 10 },
+  { symbolId: 2, symbolName: "XAUUSD", description: "Gold vs US Dollar", enabled: true, sortingNumber: 2, symbolCategoryId: 20 },
+  { symbolId: 3, symbolName: "US500", description: "US 500 Index", enabled: true, sortingNumber: 3, symbolCategoryId: 30 },
+  { symbolId: 4, symbolName: "ENI.IT", description: "Eni SpA", enabled: true, sortingNumber: 4, symbolCategoryId: 40 },
 ];
+// Categorie e classi come le dà il broker (nomi in inglese, decisi da lui).
+const CATEGORIES = [
+  { id: 10, assetClassId: 1, name: "Majors" },
+  { id: 20, assetClassId: 2, name: "Spot Metals" },
+  { id: 30, assetClassId: 3, name: "Cash Indices" },
+  { id: 40, assetClassId: 4, name: "Italian Shares" },
+];
+const ASSET_CLASSES = [{ id: 1, name: "Forex" }, { id: 2, name: "Metals" }, { id: 3, name: "Indices" }, { id: 4, name: "Stocks" }];
 const DETAILS = {
   1: { digits: 5, pipPosition: 4, lotSize: 10_000_000, minVolume: 100_000, stepVolume: 100_000, maxVolume: 10_000_000_000, price: 108_500 },
   2: { digits: 2, pipPosition: 2, lotSize: 10_000, minVolume: 100, stepVolume: 100, maxVolume: 10_000_000, price: 240_037_000 }, // 2400.37
@@ -96,6 +104,10 @@ export function startFake({ port = 0, tokenPort = 0, validTokens = new Set(["tok
       switch (name) {
         case "ProtoOASymbolsListReq":
           return send("ProtoOASymbolsListRes", { ctidTraderAccountId: acc, symbol: SYMBOLS }, id);
+        case "ProtoOASymbolCategoryListReq":
+          return send("ProtoOASymbolCategoryListRes", { ctidTraderAccountId: acc, symbolCategory: CATEGORIES }, id);
+        case "ProtoOAAssetClassListReq":
+          return send("ProtoOAAssetClassListRes", { ctidTraderAccountId: acc, assetClass: ASSET_CLASSES }, id);
         case "ProtoOASymbolByIdReq":
           return send(
             "ProtoOASymbolByIdRes",
@@ -124,7 +136,7 @@ export function startFake({ port = 0, tokenPort = 0, validTokens = new Set(["tok
             return err("BLOCKED_PAYLOAD_TYPE", id, { retryAfter: 1 });
           }
           state.trendbarWindows.push(data.toTimestamp - data.fromTimestamp);
-          const n = Math.min(data.count ?? 50, 50);
+          const n = Math.min(data.count ?? 50, 150);
           const base = DETAILS[data.symbolId].price;
           const step = { D1: 1440, H1: 60 }[data.period] ?? 1440;
           const nowMin = Math.floor(data.toTimestamp / 60000);

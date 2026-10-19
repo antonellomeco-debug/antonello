@@ -277,6 +277,19 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   dollari; il saldo dei crediti di Claude e le fatture esterne la piattaforma non li vede (l'utente li segna come abbonamenti).
   Test in `test/costs.test.js` e `test/push.test.js`. Messaggi per Orion (5): https://claude.ai/artifact/7irT6FTXURqwufo9iRzPzu
 
+## Scanner dei mercati e trading senza approvazione sul demo (19 ottobre 2026)
+
+- L'utente voleva «tutti gli agenti su tutti i mercati del broker»: sconsigliato (costo ×N, analisi superficiali, limiti di
+  cTrader). Al suo posto un imbuto: `strategies/scanner.js` (agente `rule`, gratis) controlla ogni ora tutti i mercati del broker
+  (`ctx.market.symbols()` → `catalog()` in `lib/ctrader/service.js`: simboli + categorie + classi, gruppi forex/metalli/energia/
+  indici/cripto/azioni/altro; azioni escluse di base, `maxSymbols` 150, un gruppo per volta a turno, pausa 250 ms) e scrive la
+  «CLASSIFICA SCANNER» (punteggio 0–100: tendenza medie 20/50, rottura del massimo/minimo di 20 candele, spinta in ATR, RSI,
+  volatilità in aumento); gli agenti Claude studiano solo le prime 3–5. Senza cTrader usa la watchlist (D1).
+- **Senza approvazione solo sul demo**: `submitOrder` in `lib/broker.js` ignora `requireApproval: false` se il piano opera su un
+  conto reale (sempre in ✅ Approvazioni). L'utente vuole che sul demo gli agenti operino da soli.
+- Test: `test/scanner.test.js`, `test/broker.test.js` (scanner sul finto cTrader, conto reale sempre con approvazione),
+  `test/ctrader.test.js` (catalogo). Il finto cTrader ha categorie e classi e dà fino a 150 candele.
+
 ## Piano Gold (XAUUSD) per Orion
 
 - L'utente ha una pagina (artifact claude.ai "Piano Gold per Orion") con i messaggi da incollare a Orion:

@@ -80,6 +80,15 @@ test("ricerca strumenti per nome e descrizione", async () => {
   assert.equal(await ct.hasSymbol(demo, "AAPL"), false);
 });
 
+test("elenco dei mercati del broker con categoria e classe (per lo scanner)", async () => {
+  const list = await ct.catalog(demo);
+  assert.deepEqual(list.map((m) => [m.symbol, m.category, m.assetClass]), [
+    ["EURUSD", "Majors", "Forex"], ["XAUUSD", "Spot Metals", "Metals"], ["US500", "Cash Indices", "Indices"], ["ENI.IT", "Italian Shares", "Stocks"],
+  ]);
+  const { groupOf } = await import("../strategies/scanner.js");
+  assert.deepEqual(list.map(groupOf), ["forex", "metalli", "indici", "azioni"]);
+});
+
 test("candele: ordinate, OHLC convertiti, limite di velocità rispettato", async () => {
   const t0 = Date.now();
   const bars = await ct.candles(demo, "EURUSD", "D1", 10);
