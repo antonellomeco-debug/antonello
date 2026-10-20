@@ -58,5 +58,8 @@ dall'iPhone). Claude Code non parla con Orion direttamente: prepara i messaggi, 
   2° Prodotto (Laboratorio), 3° Capitali e Borsa (Finanza), 4° Regole (Conformità); 9 agenti, quasi tutti settimanali su Haiku.
 - **Palazzo Investimenti:** trading (piano Gold e altri), non legato a Venturo.
 
+Attenzione: negli agenti del Palazzo Social PROFILO e REGOLE COMUNI non sono blocchi separati riconoscibili (Orion non riesce a
+copiarli): nei messaggi scrivi sempre per intero le regole da mettere in fondo; il profilo non serve, lo dà il brief del progetto.
+
 I dati veri stanno sul server dell'utente: verifica con Antonello (o chiedi a Orion `list_agents`) prima di dare per
 scontati nomi e id.
