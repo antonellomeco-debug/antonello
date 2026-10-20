@@ -58,7 +58,7 @@ cosa su Venturo. È lo stesso testo che gli agenti della piattaforma ricevono co
 raggiungono). In UE e Italia, nelle classi 35, 36 e 41, nessun marchio «VENTURO» attivo. Classe 42: **EM 018474665
 «Venturo» di Eggersmann GmbH** (registrato, classi 7, 9, 37, 42: macchine e impianti), DE 301050139 VENTURO Ing.-Ges. mbH
 (42), PL Z.525468 VENTURO sp. z o.o. (1, 4, 42), FR 5109963 «ATELIER VENTURO» (42). In Italia c'è solo IT 2024000070450
-VENTURO di R & A Bailey (classe 33, liquori). Simili: VENTURON di Boehringer Ingelheim (DE e WO, classe 42). Fuori dall'UE:
+VENTURO di R & A Bailey (classe 33, liquori; confermato sulla banca dati UIBM: unico record «VENTURO», n. 302024000070450). Simili: VENTURON di Boehringer Ingelheim (DE e WO, classe 42). Fuori dall'UE:
 GB (Rohit Sharma 35/37; Harry Quarendon 25/41), CH (Hess Automobile 11/12/35/37). Scaduti: EM 013534565 (35/41/42),
 WO 1296076 FleetCor (9/35/36). Prima di depositare: leggere i servizi di classe 42 di Eggersmann e sentire un consulente
 in marchi; i nomi d'impresa non registrati come marchio non compaiono in TMview (controllare il Registro Imprese).
