@@ -28,7 +28,9 @@ Dopo ogni Reel il Regista scrive la nota **REEL PRONTO** (id, tema, ora, durata,
 Orari di partenza (poi si guardano i numeri): Reel 11:30 e 18:30, caroselli 10:00, storie distribuite nella giornata.
 Nell'app: Instagram → massimo **2 post al giorno**, **storie al giorno 5** (contate a parte dai post).
 Voce clonata: 10 Reel a settimana ≈ 28.000–30.000 caratteri al mese, quasi tutto lo Starter di ElevenLabs: consigliato il
-modello Flash v2.5 (metà crediti). Le storie e i video riusati sugli altri social non usano la voce.
+modello Flash v2.5 (metà crediti). I video riusati sugli altri social non usano altra voce. Con il piano Creator
+(~22 $/mese, ~100.000 crediti) anche le 3 storie video hanno la voce (~13.000–15.000 caratteri al mese in più; messaggio 6
+nella pagina del nuovo ritmo): totale ~45.000 su 100.000.
 
 ## Reel e Shorts (strumento `create_motion_video`)
 
