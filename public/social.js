@@ -67,7 +67,7 @@ function howto(net, redirect, server) {
       `Sempre lì, <b>Pubblico</b> → <b>Pubblica app</b> → <b>Conferma</b> (stato «In produzione»). Se resta «Test» il collegamento scade ogni 7 giorni.`,
       `<b>Client</b> → <b>Crea client</b> → tipo <b>Applicazione web</b>, nome «Venturo». In <b>URI di reindirizzamento autorizzati</b> → <b>Aggiungi URI</b> e incolla:${copy} poi <b>Crea</b>.`,
       `Copia <b>ID client</b> e <b>Client secret</b> qui sotto, premi <b>Salva</b> e poi <b>Collega</b>: scegli l'account e il canale. Google avvisa «app non verificata»: è la tua app, tocca <b>Avanzate</b> → <b>Vai a Venturo Agenti</b> → <b>Continua</b>.`,
-      `<b>Video privati:</b> finché YouTube non verifica l'app, i video caricati dall'app restano privati. Chiedi la verifica (gratis) con il modulo <a href="https://support.google.com/youtube/contact/yt_api_form" target="_blank" rel="noopener">YouTube API Services – Audit</a>: «carico i video del mio canale Venturo dalla mia piattaforma». Nell'attesa puoi lasciare YouTube <b>scollegato</b>: i video arrivano in ✅ Approvazioni e li carichi tu con <b>📲 Condividi</b> → YouTube.`,
+      `<b>Verifica di Google:</b> finché YouTube non verifica l'app, i video caricati dall'app restano <b>bloccati come privati</b>. Per questo, all'inizio, i video arrivano in ✅ Approvazioni e li carichi tu (📲 Condividi), mentre commenti e statistiche funzionano già. Chiedi la verifica (gratis) con il modulo <a href="https://support.google.com/youtube/contact/yt_api_form" target="_blank" rel="noopener">YouTube API Services – Audit</a>; quando Google risponde che l'app è approvata, qui sotto scegli <b>Caricamento dei video → Dall'app</b>.`,
     ],
   }[net];
   const note = !server && (net === "instagram" || net === "threads")
@@ -103,7 +103,9 @@ function networkCard(n, st) {
         ${acc ? `<button class="btn small ghost" data-unlink="${n.id}">Scollega</button>` : ""}
       </div>`
     : "";
-  const manualNote = !acc
+  const manualNote = acc && n.id === "youtube" && !n.apiVerified
+    ? `<p class="hint">Commenti e statistiche passano dal collegamento. I <b>video</b> invece li carichi tu da ✅ Approvazioni (📲 Condividi, poi <b>Fatto</b>) finché Google non verifica l'app: caricati dall'app resterebbero bloccati come privati.</p>`
+    : !acc
     ? `<p class="hint">Senza collegamento i post degli agenti arrivano lo stesso in ✅ Approvazioni: li pubblichi tu con <b>📲 Condividi</b> (foto pronte e testo già copiato), poi tocchi <b>Fatto</b>.</p>`
     : "";
   const settings = `${manualNote}<div class="social-settings">
@@ -137,6 +139,12 @@ function networkCard(n, st) {
 /** YouTube: copia automatica dei video degli altri social, visibilità, etichetta IA e testo fisso della descrizione. */
 function youtubeSettings(n) {
   return `<div class="social-settings yt">
+    <label>Caricamento dei video
+      <select data-yt="apiVerified">
+        <option value="0" ${n.apiVerified ? "" : "selected"}>A mano da Approvazioni (finché Google non verifica l'app)</option>
+        <option value="1" ${n.apiVerified ? "selected" : ""}>Dall'app (Google ha verificato l'app)</option>
+      </select>
+    </label>
     <label>Copia automatica
       <select data-yt="mirror">
         <option value="1" ${n.mirror ? "selected" : ""}>Ogni video uscito sugli altri social va anche su YouTube</option>
@@ -719,6 +727,10 @@ function bindEvents() {
     } else if (t.dataset.yt) {
       const f = t.dataset.yt;
       const value = f === "privacy" || f === "footer" ? t.value : t.value === "1";
+      if (f === "apiVerified" && value && !confirm("Scegli «Dall'app» solo se Google ti ha scritto che l'app è approvata (audit di YouTube): prima, i video caricati dall'app restano bloccati come privati. Continuare?")) {
+        renderSocial();
+        return;
+      }
       status = await api("/api/social/youtube/settings", { method: "PUT", body: JSON.stringify({ [f]: value }) });
       t.blur();
       renderSocial();

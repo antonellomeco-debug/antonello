@@ -52,14 +52,27 @@ test("collegamento: account Google senza canale rifiutato, poi canale collegato 
   assert.equal(yt.mirror, true, "copia automatica dei video attiva");
   assert.equal(yt.mirrorStories, false);
   assert.equal(yt.privacy, "public");
+  assert.equal(yt.apiVerified, false, "finché Google non verifica l'app i video si caricano a mano");
   const saved = JSON.parse(fs.readFileSync(path.join(DATA, "social.json"), "utf8"));
   assert.equal(saved.accounts.youtube.refreshToken, "yt-refresh-1");
   assert.equal(saved.accounts.youtube.userId, "UCventuro");
   assert.ok(!JSON.stringify(social.socialStatus()).includes("GOCSPX-segreto"));
 });
 
+test("app non ancora verificata da Google: collegato, ma i video vanno caricati a mano", async () => {
+  social.setNetworkSettings("youtube", { auto: true });
+  const v = await newVideo("a-mano");
+  const before = uploads().length;
+  const r = await social.proposePost(agent, { network: "youtube", title: "Il bando della settimana", text: "Descrizione", media: [v.id], reason: "Short" });
+  assert.equal(r.status, "pending_manual");
+  assert.match(r.message, /Google non ha ancora verificato l'app/);
+  assert.equal(uploads().length, before, "niente caricamento: resterebbe bloccato come privato");
+  assert.match(social.statusForAgents().social.find((s) => s.network === "youtube").pubblicazione, /i video a mano/);
+  social.cancelPost(r.post_id);
+});
+
 test("video su YouTube: titolo, descrizione con il testo fisso, tag dagli hashtag, visibilità ed etichetta IA", async () => {
-  social.setNetworkSettings("youtube", { auto: true, footer: "📩 Newsletter gratuita: https://venturo.example/news" });
+  social.setNetworkSettings("youtube", { auto: true, apiVerified: true, footer: "📩 Newsletter gratuita: https://venturo.example/news" });
   const v = await newVideo("bando");
   const r = await social.proposePost(agent, {
     network: "youtube",
@@ -103,13 +116,19 @@ test("YouTube vuole UN video: niente foto, niente solo testo; titolo lungo accor
   assert.ok(fake.calls.some((c) => c.path === "/upload/youtube/v3/thumbnails/set"));
 });
 
-test("app Google non verificata: YouTube mette il video privato e l'utente lo sa", async () => {
+test("YouTube blocca il video come privato: l'utente lo sa e i video successivi tornano a mano", async () => {
   fake.opts.ytForcePrivate = true;
   const v = await newVideo("privato");
   const r = await social.proposePost(agent, { network: "youtube", title: "Prova", text: "", media: [v.id], reason: "x" });
   fake.opts.ytForcePrivate = false;
   assert.equal(r.status, "published");
-  assert.match(ytPosts().find((p) => p.id === r.post_id).note, /PRIVATO.*Audit/);
+  assert.match(ytPosts().find((p) => p.id === r.post_id).note, /bloccato il video come PRIVATO.*caricalo a mano/);
+  assert.equal(social.socialStatus().networks.find((n) => n.id === "youtube").apiVerified, false);
+  const v2 = await newVideo("dopo");
+  const r2 = await social.proposePost(agent, { network: "youtube", title: "Dopo", text: "", media: [v2.id], reason: "x" });
+  assert.equal(r2.status, "pending_manual");
+  social.cancelPost(r2.post_id);
+  social.setNetworkSettings("youtube", { apiVerified: true });
 });
 
 test("copia automatica: un video uscito su un altro social arriva anche su YouTube, una volta sola", async () => {
