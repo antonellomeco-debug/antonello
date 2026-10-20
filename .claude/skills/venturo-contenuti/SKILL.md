@@ -92,7 +92,10 @@ nella pagina del nuovo ritmo): totale ~45.000 su 100.000.
 - **X**: 3–4 post al giorno + 2 thread a settimana, **ogni post con un file** (grafica 1200×675 o un Reel; nei thread una
   grafica numerata per post). L'Editore non pubblica mai post solo testo: aspetta la GRAFICA.
 - Messaggi per Orion del nuovo ritmo: https://claude.ai/artifact/6nyDKnf6AC62KygzXXLsWV
-- **YouTube**: gli Shorts sono i Reel; una volta al mese un video lungo 8–15 minuti dal caso studio del giovedì.
+- **YouTube** (canale collegato il 20/10/2026): gli Shorts sono i Reel (Editore YouTube con titoli SEO, altrimenti copia automatica
+  di ogni video uscito sugli altri social, una volta sola, storie escluse); ogni sabato un video lungo 3–5 minuti in 16:9 con
+  capitoli e miniatura `youtube_thumb`; 4 playlist fisse (Bandi e agevolazioni, Come fa soldi, Casi studio, Borsa e quotazioni).
+  Pagina: https://claude.ai/artifact/SkW7dyN8rMJskbyp5xYwqw
 
 ## Cosa si misura (ogni lunedì)
 

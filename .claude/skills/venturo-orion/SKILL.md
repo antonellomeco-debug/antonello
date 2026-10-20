@@ -50,7 +50,7 @@ dall'iPhone). Claude Code non parla con Orion direttamente: prepara i messaggi, 
 
 ## Palazzi di Venturo (ottobre 2026)
 
-- **Palazzo Social:** 4 piani (Instagram, LinkedIn, Threads, X), 5 stanze per piano (Direzione, Trend, Studio, Redazione,
+- **Palazzo Social:** 5 piani (Instagram, LinkedIn, Threads, X e dal 20/10/2026 YouTube), 5 stanze per piano (Direzione, Trend, Studio, Redazione,
   Analisi), più di 30 agenti tra cui un Brand Manager e un Community Manager per piano. Orario «tutti-i-giorni».
 - **Palazzo Ricerca e Sviluppo:** Piano Terra Brand e Numeri (Cruscotto, Direzione), 1° Mercato e Concorrenti (Osservatorio;
   dal 20/10/2026 anche «Pianificazione e Fisco» con il 🧮 Consulente Pianificazione e Fisco, Sonnet medium ogni 2880 min, note

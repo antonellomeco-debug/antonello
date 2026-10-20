@@ -183,7 +183,7 @@ Nella chat il pulsante 🎤 registra un messaggio vocale (➤ lo manda, ✕ lo a
 - **Risposte a voce** (`public/speech.js`): con 🔊 acceso (scelta di ogni dispositivo) le risposte ai messaggi vocali si leggono con le voci italiane del dispositivo (`speechSynthesis`, gratis), a frasi brevi e senza i simboli del formato. Sull'iPhone la voce si sblocca con il tocco su ➤.
 - Test: `test/voice.test.js` con un finto motore (`test/helpers/fake-sherpa.cjs`, variabile `VOICE_ENGINE`) e un finto archivio del modello (`VOICE_MODEL_URL`, `VOICE_MODEL_SHA256`).
 
-## Social: Instagram, Threads, LinkedIn e X
+## Social: Instagram, Threads, LinkedIn, X e YouTube
 
 Sezione **📣 Social** dell'app. L'utente crea una volta l'app di sviluppatore di ogni social (guida passo passo dentro la
 sezione), incolla Client ID e Secret e preme **Collega** (OAuth; ritorno su `<indirizzo>/social/callback`, che passa anche
@@ -198,6 +198,15 @@ indirizzo https e scaricano foto e video da lì.
   (OAuth 2 con PKCE, caricamento a pezzi `/2/media/upload/*`; a consumo: 0,015 $ a post, 0,20 $ con un link, 0,005 $ a
   post letto, sommati alla spesa con `addCost`). Codici d'accesso: X si rinnova ogni 2 ore (il codice di rinnovo cambia e
   si salva subito), Instagram e Threads prima dei 60 giorni (controllo ogni ora), LinkedIn va ricollegato dopo 60 giorni.
+- **YouTube** (YouTube Data API v3, app OAuth di Google Cloud «In produzione»; permessi `youtube.upload` e `youtube.force-ssl`,
+  `access_type=offline`): un post = un video (`title` fino a 100 caratteri, testo = descrizione, `thumbnail` facoltativa con
+  `thumbnails.set`), caricamento «ripristinabile», visibilità, etichetta IA (`containsSyntheticMedia`) e testo fisso in fondo
+  alla descrizione scelti in 📣 Social → YouTube (anche Orion con `set_social_settings`); statistiche, commenti (`commentThreads`)
+  e risposte (`comments.insert`). Le app non ancora verificate da YouTube (audit) caricano i video come privati: il post lo
+  segnala (`note`). **Copia automatica** (`mirror`, attiva di partenza): quando un post con un video esce su un altro social
+  (anche «a mano» con Fatto) lo stesso video viene proposto a YouTube con titolo e descrizione presi dal post; mai due volte
+  lo stesso video (`youtubeWith`), storie escluse salvo `mirrorStories`; la versione scritta da un agente sostituisce la copia
+  ancora in attesa. Formati grafici `youtube_thumb` 1280×720 e `banner_youtube` 2560×1440. Test: `test/youtube.test.js`.
 - **Notifiche sul telefono** (`lib/push.js`, `public/notify.js`, `public/sw.js`): Web Push per approvazioni, domande degli
   agenti, post usciti o non riusciti (raggruppati), attivabili per dispositivo da ⚙️ Impostazioni → 🔔.
 - **Commenti da rispondere** (`social_inbox`): commenti nuovi senza risposta, mai due risposte allo stesso commento; risposte

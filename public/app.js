@@ -2817,7 +2817,7 @@ function refreshSocialBadge() {
       const linked = st.networks.filter((n) => n.account).map((n) => n.label);
       $("#more-social-state").textContent = bad.length
         ? `Da ricollegare: ${bad.map((n) => n.label).join(", ")}`
-        : linked.length ? `Collegati: ${linked.join(", ")}` : "Instagram, Threads, LinkedIn, X · foto e video";
+        : linked.length ? `Collegati: ${linked.join(", ")}` : "Instagram, Threads, LinkedIn, X, YouTube · foto e video";
     } catch {
       // nessuna risposta: si riprova al prossimo evento
     }

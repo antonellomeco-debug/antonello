@@ -259,6 +259,18 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   Fisco» (il piano porta già le note a tutti i piani Social); solo fisco legale con fonti ufficiali e «non è consulenza fiscale».
   Messaggi per Orion: https://claude.ai/artifact/Cxk4dxe4LRZE25FaEVm4WK
 
+## YouTube (20 ottobre 2026)
+
+- Quinto social in `lib/social/` (`youtube` in `networks.js`): OAuth di Google (app «In produzione», altrimenti il rinnovo scade
+  in 7 giorni: il messaggio d'errore lo dice), upload ripristinabile, `title`/`thumbnail` in `social_publish`, statistiche,
+  `social_inbox` e risposte. App non verificata da YouTube (audit) → video privati (avviso `note` sul post); intanto si può
+  lasciare scollegato e caricare «a mano» (📲 Condividi copia il titolo, 📋 Copia descrizione). Da verificare dal vero: risposta
+  dell'upload, nomi delle voci in Google Cloud, se l'app YouTube compare nella condivisione dell'iPhone.
+- **Copia automatica** (`mirrorToYouTube` in `lib/social/index.js`, chiamata da `setPost` quando un post diventa `published`): ogni
+  video uscito su un altro social va su YouTube una volta sola; l'Editore YouTube può sostituire la copia in attesa con titoli SEO.
+- Piano YouTube nel Palazzo Social (8 agenti, blocco «come ragionano i migliori esperti»): https://claude.ai/artifact/SkW7dyN8rMJskbyp5xYwqw
+  Compiti YouTube aggiunti al piano dei 30 giorni (21/10–13/11, tag `youtube`, obiettivo g8).
+
 ## Spesa e risparmio (15 ottobre 2026)
 
 - `lib/store.js`: `costScope` (AsyncLocalStorage) dice chi spende: `runAgent` → `{agentId, palace}`, chat di Orion →

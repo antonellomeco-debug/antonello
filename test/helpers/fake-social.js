@@ -1,4 +1,4 @@
-// Finto server di Instagram, Threads, LinkedIn, X, Gemini, Pexels e Pixabay per le prove (SOCIAL_API_BASE): risponde come le API
+// Finto server di Instagram, Threads, LinkedIn, X, YouTube, Gemini, Pexels e Pixabay per le prove (SOCIAL_API_BASE): risponde come le API
 // vere ai percorsi /<host originale>/<percorso>. Le pagine di accesso approvano subito e rimandano al redirect_uri.
 // Instagram e Threads scaricano davvero foto e video dagli indirizzi pubblici, come fanno i server di Meta.
 // Si può anche avviare da solo: node test/helpers/fake-social.js [porta] (per le prove nel browser).
@@ -186,6 +186,57 @@ export async function startFakeSocial({ port = 0 } = {}) {
         }
         if (/^\/2\/users\/\d+\/tweets$/.test(p)) return json(200, { data: [{ id: "1801", text: "Post su X", created_at: "2026-10-14T08:00:00.000Z", public_metrics: { like_count: 4, retweet_count: 1, reply_count: 0, impression_count: 230 } }] });
         if (p === "/2/tweets/search/recent") return json(200, { data: [{ id: "1802", text: "@antonello_prova bello", author_id: "7", created_at: "2026-10-14T09:00:00.000Z" }], includes: { users: [{ id: "7", username: "pino" }] } });
+      }
+      // ---------------- YouTube (accesso Google, canale, caricamento «ripristinabile», statistiche, commenti)
+      if (host === "accounts.google.com" && p === "/o/oauth2/v2/auth") {
+        if (q.access_type !== "offline" || !String(q.scope).includes("youtube.upload")) return json(400, { error: "invalid_request" });
+        return consent();
+      }
+      if (host === "oauth2.googleapis.com" && p === "/token") {
+        if (!body.client_secret) return json(401, { error: "invalid_client", error_description: "The OAuth client was not found." });
+        if (body.grant_type === "authorization_code") return json(200, { access_token: "yt-access-1", expires_in: 3599, refresh_token: "yt-refresh-1", scope: "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.force-ssl", token_type: "Bearer" });
+        if (body.grant_type === "refresh_token") {
+          if (opts.ytRevoked) return json(400, { error: "invalid_grant", error_description: "Token has been expired or revoked." });
+          return json(200, { access_token: `yt-access-${++seq}`, expires_in: 3599, token_type: "Bearer" });
+        }
+      }
+      if (host === "www.googleapis.com") {
+        if (!String(req.headers.authorization ?? "").startsWith("Bearer yt-access-")) return json(401, { error: { code: 401, message: "Request had invalid authentication credentials.", status: "UNAUTHENTICATED" } });
+        if (p === "/youtube/v3/channels") {
+          if (opts.ytNoChannel) return json(200, { kind: "youtube#channelListResponse", items: [] });
+          return json(200, { items: [{ id: "UCventuro", snippet: { title: "Venturo", customUrl: "@venturo" }, statistics: { subscriberCount: "42", viewCount: "1000", videoCount: "3", hiddenSubscriberCount: false }, contentDetails: { relatedPlaylists: { uploads: "UUventuro" } } }] });
+        }
+        if (p === "/upload/youtube/v3/videos" && req.method === "POST") {
+          if (q.uploadType !== "resumable" || !req.headers["x-upload-content-length"]) return json(400, { error: { code: 400, message: "Missing upload headers" } });
+          const t = body.snippet?.title ?? "";
+          if (!t || [...t].length > 100 || /[<>]/.test(t)) return json(400, { error: { code: 400, message: "The request metadata specifies an invalid video title.", errors: [{ reason: "invalidTitle" }] } });
+          const id = `up${++seq}`;
+          polls.set(id, body);
+          res.writeHead(200, { location: `https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&upload_id=${id}` });
+          return res.end();
+        }
+        if (p === "/upload/youtube/v3/videos" && req.method === "PUT") {
+          const meta = polls.get(q.upload_id);
+          if (!meta) return json(404, { error: { code: 404, message: "upload not found" } });
+          if (opts.failPublish === "youtube") return json(403, { error: { code: 403, message: "The user has exceeded the number of videos they may upload.", errors: [{ reason: "uploadLimitExceeded" }] } });
+          const id = `yt${++seq}`;
+          return json(200, { id, snippet: meta.snippet, status: { uploadStatus: "uploaded", privacyStatus: opts.ytForcePrivate ? "private" : meta.status?.privacyStatus } });
+        }
+        if (p === "/upload/youtube/v3/thumbnails/set") {
+          if (opts.ytThumbFail) return json(403, { error: { code: 403, message: "The authenticated user doesn't have permissions to upload and set custom video thumbnails." } });
+          return json(200, { items: [{ default: { url: "https://i.ytimg.com/x.jpg" } }] });
+        }
+        if (p === "/youtube/v3/playlistItems") return json(200, { items: [{ contentDetails: { videoId: "yt-v1" } }] });
+        if (p === "/youtube/v3/videos") return json(200, { items: [{ id: "yt-v1", snippet: { title: "Primo Short", publishedAt: new Date().toISOString() }, statistics: { viewCount: "300", likeCount: "20", commentCount: "2" }, status: { privacyStatus: "public" }, contentDetails: { duration: "PT35S" } }] });
+        if (p === "/youtube/v3/commentThreads") {
+          return json(200, {
+            items: [
+              { id: "th-a", snippet: { totalReplyCount: 0, topLevelComment: { id: "Ugw-commento1", snippet: { authorDisplayName: "@giulia", authorChannelId: { value: "UCgiulia" }, textOriginal: "Come si chiede questo bando?", publishedAt: "2026-10-20T08:00:00Z", likeCount: 1 } } } },
+              { id: "th-b", snippet: { totalReplyCount: 0, topLevelComment: { id: "Ugw-mio", snippet: { authorDisplayName: "Venturo", authorChannelId: { value: "UCventuro" }, textOriginal: "Fonte nel primo commento", publishedAt: "2026-10-20T08:01:00Z", likeCount: 0 } } } },
+            ],
+          });
+        }
+        if (p === "/youtube/v3/comments" && req.method === "POST") return json(200, { id: `Ugw-risposta${++seq}`, snippet: body.snippet });
       }
       // ---------------- Gemini
       if (host === "generativelanguage.googleapis.com") {
