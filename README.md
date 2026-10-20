@@ -202,8 +202,9 @@ indirizzo https e scaricano foto e video da lì.
   `access_type=offline`): un post = un video (`title` fino a 100 caratteri, testo = descrizione, `thumbnail` facoltativa con
   `thumbnails.set`), caricamento «ripristinabile», visibilità, etichetta IA (`containsSyntheticMedia`) e testo fisso in fondo
   alla descrizione scelti in 📣 Social → YouTube (anche Orion con `set_social_settings`); statistiche, commenti (`commentThreads`)
-  e risposte (`comments.insert`). Le app non ancora verificate da YouTube (audit) caricano i video come privati: il post lo
-  segnala (`note`). **Copia automatica** (`mirror`, attiva di partenza): quando un post con un video esce su un altro social
+  e risposte (`comments.insert`). Le app non ancora verificate da YouTube (audit) caricano i video bloccati come privati: finché l'utente non sceglie
+  «Dall'app» (`apiVerified`) i video si caricano a mano da Approvazioni anche con l'account collegato; un caricamento tornato privato
+  lo rimette a mano da solo (`note` sul post). **Copia automatica** (`mirror`, attiva di partenza): quando un post con un video esce su un altro social
   (anche «a mano» con Fatto) lo stesso video viene proposto a YouTube con titolo e descrizione presi dal post; mai due volte
   lo stesso video (`youtubeWith`), storie escluse salvo `mirrorStories`; la versione scritta da un agente sostituisce la copia
   ancora in attesa. Formati grafici `youtube_thumb` 1280×720 e `banner_youtube` 2560×1440. Test: `test/youtube.test.js`.

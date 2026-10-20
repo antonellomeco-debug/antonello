@@ -263,8 +263,10 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
 
 - Quinto social in `lib/social/` (`youtube` in `networks.js`): OAuth di Google (app «In produzione», altrimenti il rinnovo scade
   in 7 giorni: il messaggio d'errore lo dice), upload ripristinabile, `title`/`thumbnail` in `social_publish`, statistiche,
-  `social_inbox` e risposte. App non verificata da YouTube (audit) → video privati (avviso `note` sul post); intanto si può
-  lasciare scollegato e caricare «a mano» (📲 Condividi copia il titolo, 📋 Copia descrizione). Da verificare dal vero: risposta
+  `social_inbox` e risposte. App non verificata da YouTube (audit) → i video caricati dall'API restano **bloccati come privati** (non si possono rendere
+  pubblici, niente ricorso): impostazione `apiVerified` (di partenza false, solo dall'interfaccia) → finché è false i video YouTube sono
+  «a mano» anche con l'account collegato (📲 Condividi copia il titolo, 📋 Copia descrizione), commenti e statistiche via API; se un
+  caricamento torna privato (`lockedPrivate`) `apiVerified` torna false da solo. Da verificare dal vero: risposta
   dell'upload, nomi delle voci in Google Cloud, se l'app YouTube compare nella condivisione dell'iPhone.
 - **Copia automatica** (`mirrorToYouTube` in `lib/social/index.js`, chiamata da `setPost` quando un post diventa `published`): ogni
   video uscito su un altro social va su YouTube una volta sola; l'Editore YouTube può sostituire la copia in attesa con titoli SEO.
