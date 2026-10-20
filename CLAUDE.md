@@ -255,6 +255,9 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   il primo post di X con un file (`/2/media/upload`). Pagina: https://claude.ai/artifact/6nyDKnf6AC62KygzXXLsWV
   (messaggio 6 = voce clonata anche nelle 3 storie video; 7 = Palazzo Spese). Il 20/10/2026 l'utente è passato a **ElevenLabs
   Creator** (~22 $/mese, ~100.000 crediti; uso previsto ~45.000 caratteri al mese, `get_costs` → servizi → elevenlabs).
+- **Consulente Pianificazione e Fisco** (20/10/2026): agente nel Palazzo Ricerca e Sviluppo, 1° piano, stanza nuova «Pianificazione e
+  Fisco» (il piano porta già le note a tutti i piani Social); solo fisco legale con fonti ufficiali e «non è consulenza fiscale».
+  Messaggi per Orion: https://claude.ai/artifact/Cxk4dxe4LRZE25FaEVm4WK
 
 ## Spesa e risparmio (15 ottobre 2026)
 
