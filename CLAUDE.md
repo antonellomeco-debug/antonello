@@ -273,6 +273,23 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
 - Piano YouTube nel Palazzo Social (8 agenti, blocco «come ragionano i migliori esperti»): https://claude.ai/artifact/SkW7dyN8rMJskbyp5xYwqw
   Compiti YouTube aggiunti al piano dei 30 giorni (21/10–13/11, tag `youtube`, obiettivo g8).
 
+## Report settimanali in PDF per email (20 ottobre 2026)
+
+- L'utente vuole ogni domenica un report PDF dettagliato per palazzo (trading: operazioni, strategie, modifiche; altri palazzi:
+  dati della settimana e piano della settimana dopo), anche per email a meconizziantonello@gmail.com (l'indirizzo lo scrive lui nell'app).
+- **Appuntamento fisso** degli agenti: `runDays` (0 = domenica … 6) e `runAt` "HH:MM" (di partenza 18:00) in `lib/schedule.js`
+  (`appointmentDue`): lavorano una volta in quei giorni, anche a palazzo chiuso, invece che ogni `everyMinutes`; giorno fatto in
+  `state.appointments`. Rispettano STOP, pausa e budget. Scheda dell'agente (caselle dei giorni + ora), `save_agent` di Orion, stima in `costs.js`.
+- Strumenti `week_notes` (note di tutte le stanze di un palazzo, 700 caratteri per nota, max 45.000) e `weekly_report` (contenuti in JSON:
+  summary, kpis, sections con tabelle, next_week, for_user; `include` spesa/operazioni = tabelle con i dati veri; uno ogni 6 ore, poi `replace`).
+- `lib/reports.js`: HTML con i colori di Venturo (Sora incorporato) → PDF con puppeteer-core (arriva con hyperframes) e Chrome
+  (`REPORT_BROWSER_PATH`, `HYPERFRAMES_BROWSER_PATH`, copia in `~/.cache/hyperframes`, Chrome del Mac); senza Chrome resta HTML.
+  JavaScript spento e richieste esterne bloccate. File in `<dati>/reports/` (fuori dai backup, max 200). Push `report-pdf`, sezione 📄 Report
+  (`public/reports.js`), API `/api/reports*`.
+- Email: Railway Hobby blocca l'SMTP → **Resend** (`lib/mailer.js`, `POST /emails`, chiave `resendKey`, `reportEmail`, `reportFrom` in settings,
+  solo dall'interfaccia). Senza dominio verificato si scrive solo all'email della registrazione, da onboarding@resend.dev.
+  Test: `test/reports.test.js` (finto Resend con `RESEND_BASE`, `REPORT_PDF=fake`).
+
 ## Spesa e risparmio (15 ottobre 2026)
 
 - `lib/store.js`: `costScope` (AsyncLocalStorage) dice chi spende: `runAgent` → `{agentId, palace}`, chat di Orion →
