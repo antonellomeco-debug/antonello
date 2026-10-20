@@ -5,6 +5,7 @@ import { VoiceRecorder, recordingSupported, micErrorText, MAX_SECONDS } from "./
 import * as speech from "./speech.js";
 import { initSocial, loadSocial, renderSocial, renderPostApproval, bindShareButtons } from "./social.js";
 import { initCosts, renderCosts, loadCosts } from "./costs.js";
+import { initReports, renderReports, loadReports } from "./reports.js";
 import { initPlatform, loadPlatform, onPlatformEvent } from "./platform.js";
 import { initNotify, renderNotify } from "./notify.js";
 
@@ -30,7 +31,7 @@ const voice = { status: null, rec: null, sending: false, speakTurn: false };
 const phoneMQ = matchMedia("(max-width: 860px)");
 const touchMQ = matchMedia("(hover: none) and (pointer: coarse)");
 // Sezioni che sul telefono stanno dentro "Altro".
-const MORE_VIEWS = ["building", "costs", "social", "portfolio", "broker", "log"];
+const MORE_VIEWS = ["building", "costs", "reports", "social", "portfolio", "broker", "log"];
 
 // ---------- utilità sul palazzo ----------
 const B = () => state.office.building;
@@ -382,6 +383,7 @@ function showView(view) {
     loadBrokerHistory();
   }
   if (view === "costs") loadCosts().then(() => state.view === "costs" && renderCosts(), () => {});
+  if (view === "reports") loadReports().then(() => state.view === "reports" && renderReports(), () => {});
   if (view === "social") loadSocial().then(() => state.view === "social" && renderSocial(), () => {});
   if (view === "chat") $("#chat-body").scrollTop = $("#chat-body").scrollHeight;
   else if (phoneMQ.matches && document.activeElement?.closest(".chat-form")) document.activeElement.blur(); // chiude la tastiera
@@ -420,6 +422,7 @@ function renderView() {
   } else if (state.view === "broker") renderBroker();
   else if (state.view === "social") renderSocial();
   else if (state.view === "costs") renderCosts();
+  else if (state.view === "reports") renderReports();
 }
 
 // ---------- ufficio ----------
@@ -436,7 +439,7 @@ function renderRoster() {
     .map((a) => `<div class="roster-row" data-id="${esc(a.id)}">
       <span>${esc(a.avatar)}</span>
       <span><b>${esc(a.name)}</b> <small>· ${esc(room(a.room))} · ${a.mode === "llm" ? "LLM" : esc(a.strategy)}</small></span>
-      <span><small>${a.everyMinutes ? `ogni ${a.everyMinutes}′` : "manuale"}</small> <i class="dot ${state.status[a.id]?.status ?? ""}"></i></span>
+      <span><small>${a.runDays?.length ? `${a.runDays.map((d) => ["dom", "lun", "mar", "mer", "gio", "ven", "sab"][d]).join(" ")} ${esc(a.runAt || "18:00")}` : a.everyMinutes ? `ogni ${a.everyMinutes}′` : "manuale"}</small> <i class="dot ${state.status[a.id]?.status ?? ""}"></i></span>
     </div>`)
     .join("");
   $("#roster-list").querySelectorAll(".roster-row").forEach((r) =>
@@ -2466,6 +2469,8 @@ function openEditor(agent) {
   form.room.value = agent.room;
   form.mode.value = agent.mode;
   form.everyMinutes.value = agent.everyMinutes;
+  for (const box of form.querySelectorAll('input[name="runDays"]')) box.checked = (agent.runDays ?? []).includes(Number(box.value));
+  form.runAt.value = agent.runAt || "18:00";
   form.watchlist.value = agent.watchlist.join(", ");
   form.instructions.value = agent.instructions ?? "";
   form.model.value = agent.model;
@@ -2539,6 +2544,8 @@ function readForm() {
     enabled: form.enabled.checked,
     onlyOnNews: form.onlyOnNews.checked,
     everyMinutes: Number(form.everyMinutes.value) || 0,
+    runDays: checked("runDays").map(Number),
+    runAt: form.runAt.value || "18:00",
     watchlist: form.watchlist.value.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean),
     readsFrom: checked("readsFrom"),
     tools: checked("tools"),
@@ -2671,6 +2678,9 @@ function handleEvent(ev) {
     case "request":
       upsertRequest(ev.request);
       break;
+    case "report-pdf":
+      if (state.view === "reports") loadReports().then(() => state.view === "reports" && renderReports(), () => {});
+      break;
     case "report":
       if (state.view === "costs") loadCosts().then(() => state.view === "costs" && renderCosts(), () => {});
       break;
@@ -2766,7 +2776,7 @@ if (window.visualViewport && touchMQ.matches) {
 /** Sezione indicata nell'indirizzo (#approvals, #social, #broker): ritorno da un social o tocco su una notifica. */
 function openFromHash(hash) {
   const view = String(hash ?? "").slice(1);
-  if (["broker", "social", "approvals", "costs"].includes(view)) {
+  if (["broker", "social", "approvals", "costs", "reports"].includes(view)) {
     showView(view);
     history.replaceState(null, "", location.pathname);
   }
@@ -2803,6 +2813,7 @@ initPlatform(api, {
   agentName: (id) => state.office.agents.find((a) => a.id === id)?.name ?? id,
   palaces: () => B().palaces,
 });
+initReports(api);
 initCosts(api, { palaceName: (id) => B().palaces.find((p) => p.id === id)?.name ?? id, openAgent: (id) => openEditor(state.office.agents.find((a) => a.id === id)) });
 /** Avviso "!" su 📣 Social quando un accesso è scaduto o sta per scadere. */
 let socialBadgeTimer = null;

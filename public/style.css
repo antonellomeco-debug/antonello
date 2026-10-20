@@ -721,3 +721,19 @@ dialog.small-dlg { width: min(480px, 94vw); }
 }
 .signal-card .signal-risks { margin-top: 8px; color: var(--text); }
 .signal-card .signal-sources { margin-top: 6px; font-size: 12px; }
+
+/* 📄 Report settimanali */
+#reports-body { display: flex; flex-direction: column; gap: 12px; max-width: 860px; }
+.report-mail h2 { margin: 0 0 6px; font-size: 17px; }
+.report-mail form { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.report-mail form label { display: flex; flex-direction: column; gap: 4px; }
+.report-mail .steps { margin: 8px 0; padding-left: 20px; line-height: 1.5; }
+.report-mail .row, .report-card .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.report-head { display: flex; align-items: flex-start; gap: 10px; }
+.report-ico { font-size: 24px; line-height: 1; }
+.report-tit { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.report-tit small { color: var(--muted); }
+.report-sum { margin: 8px 0 0; color: var(--muted); white-space: pre-line; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.rpill { flex-shrink: 0; padding: 2px 8px; border-radius: 99px; font-size: 11px; border: 1px solid var(--border); color: var(--muted); }
+.rpill.ok { color: var(--good); border-color: var(--good); }
+.rpill.bad { color: var(--bad); border-color: var(--bad); }

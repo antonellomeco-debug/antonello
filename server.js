@@ -19,7 +19,9 @@ import { exec } from "node:child_process";
 import { hasCredentials, keyStatus, verifyKey, cleanKey, MISSING_KEY } from "./lib/claude.js";
 import { updateSettings } from "./lib/settings.js";
 import { checkUpdate, applyUpdate, isUpdating, installedVersion, RESTART_CODE } from "./lib/updater.js";
-import { isWorkingTime, scheduleStatus, updateSchedule, isFridayCloseTime, romeParts, resumeText, scheduleFor, getSchedule } from "./lib/schedule.js";
+import * as reports from "./lib/reports.js";
+import * as mailer from "./lib/mailer.js";
+import { isWorkingTime, scheduleStatus, updateSchedule, isFridayCloseTime, romeParts, resumeText, scheduleFor, getSchedule, hasAppointment, appointmentDue } from "./lib/schedule.js";
 import { PORT, HOST, PUBLIC_URL, CLOUD, AUTH_ENABLED, FAIL_CLOSED, CONFIG_PROBLEMS, TRUST_PROXY, UPDATER_ON, VOLUME_OK, REDIRECT_URI } from "./lib/env.js";
 import { securityHeaders, failClosed, hostCheck, originCheck } from "./lib/guard.js";
 import * as auth from "./lib/auth.js";
@@ -472,6 +474,22 @@ app.post("/api/push/subscribe", handle((req) => push.subscribe(req.body?.subscri
 app.post("/api/push/unsubscribe", handle((req) => push.unsubscribe(req.body?.endpoint)));
 app.put("/api/push/prefs", handle((req) => push.setPrefs(req.body ?? {})));
 app.post("/api/push/test", handleAsync(() => push.sendTest()));
+// Report settimanali in PDF (📄 Report) e loro invio per email con Resend.
+const reportsView = () => ({ reports: reports.listReports(), mail: mailer.mailStatus() });
+app.get("/api/reports", (_req, res) => res.json(reportsView()));
+app.get("/api/reports/:id/file", (req, res) => {
+  const f = reports.reportFile(String(req.params.id));
+  if (!f) return res.status(404).json({ error: "report non trovato" });
+  res.setHeader("Content-Type", f.type === "pdf" ? "application/pdf" : "text/html; charset=utf-8");
+  // Il report HTML (senza Chrome) si scarica e non si apre come pagina dell'app.
+  res.setHeader("Content-Disposition", `${f.type === "pdf" && req.query.download !== "1" ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(f.filename)}`);
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.sendFile(f.file);
+});
+app.post("/api/reports/:id/mail", handleAsync((req) => reports.mailReport(String(req.params.id))));
+app.delete("/api/reports/:id", handle((req) => (reports.deleteReport(String(req.params.id)), reportsView())));
+app.put("/api/reports/mail", handle((req) => (mailer.setMailSettings({ key: req.body?.key, to: req.body?.to, from: req.body?.from }), reportsView())));
+app.post("/api/reports/mail/test", handleAsync(() => mailer.sendTestMail()));
 // Aspetto, tasti rapidi e idee (li cambia soprattutto Orion; dall'app si possono togliere o tornare all'originale).
 app.get("/api/platform", (_req, res) => res.json(platform.getPlatform()));
 app.put("/api/platform/look", handle((req) => (platform.setLook(req.body ?? {}), platform.getPlatform())));
@@ -763,11 +781,27 @@ function schedulerTick() {
   const building = office.building();
   const cfg = getSchedule();
   const open = new Map(building.palaces.map((p) => [p.id, isWorkingTime(scheduleFor(p.hours, cfg))]));
-  if (![...open.values()].some(Boolean)) return;
+  const agents = office.agents();
+  if (![...open.values()].some(Boolean) && !agents.some(hasAppointment)) return;
   const month = costs.monthSpend(); // una volta per giro: serve per i budget
-  for (const agent of office.agents()) {
+  for (const agent of agents) {
     if (isUpdating() || safety.isStopped()) return;
-    if (!agent.enabled || !(agent.everyMinutes > 0) || isRunning(agent.id)) continue;
+    if (!agent.enabled || isRunning(agent.id)) continue;
+    // Appuntamento fisso (es. il report della domenica alle 18): una volta in quei giorni, anche a palazzo chiuso.
+    if (hasAppointment(agent)) {
+      const done = getState().appointments ?? {};
+      if (!appointmentDue(agent, done[agent.id])) continue;
+      const blocked = costs.scheduleBlock(agent, building, month);
+      if (blocked) {
+        noteBlocked(agent, building, blocked);
+        continue;
+      }
+      getState().appointments = { ...done, [agent.id]: romeParts().date };
+      markRun(agent.id);
+      runAgent(agent, building).catch(() => {});
+      continue;
+    }
+    if (!(agent.everyMinutes > 0)) continue;
     if (!open.get(costs.palaceOfAgent(agent, building))) continue; // fuori dall'orario del suo palazzo
     const prev = lastRun.has(agent.id) ? Date.parse(lastRun.get(agent.id)) : 0;
     // Almeno ogni 5 minuti anche per agenti salvati prima del limite o arrivati da una copia importata; il ritmo del

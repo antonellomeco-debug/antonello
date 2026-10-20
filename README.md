@@ -117,6 +117,8 @@ Claude esegue le `instructions` usando solo gli strumenti abilitati in `tools`:
 | `fund_holdings` | Portafoglio di un grande fondo dall'ultimo 13F alla SEC, con i cambi rispetto al trimestre prima |
 | `ipo_calendar`, `earnings_calendar`, `company_news` | IPO in arrivo, risultati trimestrali (stime e usciti) e notizie per titolo da Finnhub (chiave gratuita dell'utente) |
 | `trade_journal` | Diario delle operazioni: chiuse su cTrader, vendite del portafoglio vero, segnali per agente |
+| `week_notes` | Note della settimana di tutte le stanze di un palazzo (per i report) |
+| `weekly_report` | Report settimanale in PDF (`lib/reports.js`), salvato in 📄 Report e mandato per email con Resend (`lib/mailer.js`) |
 | `send_signal` | Segnale all'utente in ✅ Approvazioni: comprare (con `stop_loss` obbligatorio, `target`, fascia d'ingresso, `suggested_pct` del capitale) o vendere un'azione che possiede (`position_id`, `sell_pct`). Nessun ordine parte: l'utente approva scrivendo quante azioni ha comprato o venduto e a che prezzo |
 
 `effort` (`low` … `max`) regola quanto a fondo ragiona il modello: più è alto, più l'analisi è accurata e più costa.
