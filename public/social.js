@@ -136,6 +136,12 @@ function networkCard(n, st) {
   </article>`;
 }
 
+/** Indirizzi delle pagine pubbliche Privacy e Termini, con il tasto Copia. */
+function legalLinks() {
+  const base = location.origin;
+  return ["privacy", "termini"].map((p) => `<span class="copy-row"><code>${esc(`${base}/${p}`)}</code><button type="button" class="btn small" data-copy="${esc(`${base}/${p}`)}">Copia</button></span>`).join(" ");
+}
+
 /** YouTube: copia automatica dei video degli altri social, visibilità, etichetta IA e testo fisso della descrizione. */
 function youtubeSettings(n) {
   return `<div class="social-settings yt">
@@ -170,6 +176,10 @@ function youtubeSettings(n) {
         <option value="0" ${n.aiLabel === false ? "selected" : ""}>Non dichiararlo</option>
       </select>
     </label>
+    <label class="wide">Email di contatto (compare nelle pagine Privacy e Termini che chiede Google)
+      <input type="email" data-yt="contactEmail" autocomplete="off" spellcheck="false" placeholder="ciao@venturo.it" value="${esc(n.contactEmail ?? "")}" />
+    </label>
+    <p class="meta wide-meta">Pagine pubbliche per il modulo di Google: ${legalLinks()}</p>
     <label class="wide">Testo in fondo a ogni descrizione (link, newsletter, altri social)
       <textarea data-yt="footer" rows="4" maxlength="1000" placeholder="📩 Newsletter gratuita: https://…&#10;📸 Instagram: …">${esc(n.footer ?? "")}</textarea>
     </label>
@@ -726,7 +736,7 @@ function bindEvents() {
       renderSocial();
     } else if (t.dataset.yt) {
       const f = t.dataset.yt;
-      const value = f === "privacy" || f === "footer" ? t.value : t.value === "1";
+      const value = ["privacy", "footer", "contactEmail"].includes(f) ? t.value : t.value === "1";
       if (f === "apiVerified" && value && !confirm("Scegli «Dall'app» solo se Google ti ha scritto che l'app è approvata (audit di YouTube): prima, i video caricati dall'app restano bloccati come privati. Continuare?")) {
         renderSocial();
         return;

@@ -66,6 +66,12 @@ test("senza accesso: le pagine pubbliche restano raggiungibili", async () => {
     assert.ok(r.status !== 401 && r.status !== 302, `${p}: ${r.status}`); // 200, o 404 se il file non c'è ancora
   }
   assert.equal((await cloud.req("GET", "/icons/..%2Fapp.js")).status, 302, "niente scorciatoie dalla cartella icons");
+  // Norme sulla privacy e termini (li chiede Google per verificare l'app di YouTube): pubblici, con i link obbligatori.
+  const privacy = await cloud.req("GET", "/privacy");
+  assert.equal(privacy.status, 200);
+  for (const link of ["https://www.youtube.com/t/terms", "https://policies.google.com/privacy", "https://security.google.com/settings/security/permissions"]) assert.ok(privacy.body.includes(link), link);
+  assert.match(privacy.body, /YouTube API Services/);
+  assert.equal((await cloud.req("GET", "/termini")).status, 200);
 });
 
 test("intestazioni di sicurezza", async () => {
