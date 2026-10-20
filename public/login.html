@@ -54,6 +54,10 @@
     .caps { margin: -6px 0 0; color: var(--warn); font-size: 13px; }
     .note { margin: 16px 4px 0; color: var(--muted); font-size: 13px; line-height: 1.5; text-align: center; }
     .hidden { display: none; }
+    .legal { margin: 22px 4px 0; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 14px; color: var(--muted); font-size: 13px; }
+    .legal a { color: inherit; }
+    .yt { display: inline-flex; align-items: center; gap: 6px; }
+    .yt svg { width: 22px; height: 16px; flex: none; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); border: 0; }
     @media (hover: hover) { .toggle:hover { border-color: var(--accent); } .enter:hover:not(:disabled) { filter: brightness(1.08); } }
   </style>
@@ -78,6 +82,11 @@
       <p class="error" id="error" role="alert" aria-live="polite"></p>
     </form>
     <p class="note">Non ricordi la password? È quella scelta per il server: la trovi nelle impostazioni del servizio, alla voce <b>APP_PASSWORD</b>.</p>
+    <footer class="legal">
+      <span class="yt"><svg viewBox="0 0 22 16" aria-hidden="true"><rect width="22" height="16" rx="4" fill="#FF0000"/><path d="M9 4.5v7l6-3.5z" fill="#fff"/></svg>Questa app usa i servizi API di YouTube</span>
+      <a href="/privacy">Norme sulla privacy</a>
+      <a href="/termini">Termini di servizio</a>
+    </footer>
   </main>
   <script src="/login.js"></script>
 </body>

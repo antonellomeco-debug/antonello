@@ -72,6 +72,8 @@ test("senza accesso: le pagine pubbliche restano raggiungibili", async () => {
   for (const link of ["https://www.youtube.com/t/terms", "https://policies.google.com/privacy", "https://security.google.com/settings/security/permissions"]) assert.ok(privacy.body.includes(link), link);
   assert.match(privacy.body, /YouTube API Services/);
   assert.equal((await cloud.req("GET", "/termini")).status, 200);
+  const login = await cloud.req("GET", "/login");
+  assert.ok(login.body.includes('href="/privacy"') && login.body.includes("servizi API di YouTube"), "pagina iniziale con il link alla privacy e il nome YouTube");
 });
 
 test("intestazioni di sicurezza", async () => {
