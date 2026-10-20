@@ -249,6 +249,10 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
 - **Storie di Instagram** con un massimo al giorno a parte (`maxStoriesPerDay`, di partenza 5; `max_stories_per_day` per Orion).
 - Ritmo deciso dall'utente: 5 Reel (lun–ven) + 2 caroselli (sab–dom) a settimana, 5 storie al giorno; regole nella skill
   `venturo-contenuti` (ricerca di ottobre 2026 sui contenuti più visti, account senza volto).
+- **Nuovo ritmo (20/10/2026)**, solo messaggi per Orion, nessun codice: Instagram 2 Reel al giorno lun–ven (11:30 notizia del
+  giorno, 18:30 tema), LinkedIn 1 al giorno lun–ven (4 con file, venerdì solo testo), Threads 3 al giorno (2 con file), X stesse
+  quantità ma ogni post con immagine o video. I Reel si riusano sugli altri social (nota REEL PRONTO). Da verificare dal vero:
+  il primo post di X con un file (`/2/media/upload`). Pagina: https://claude.ai/artifact/6nyDKnf6AC62KygzXXLsWV
 
 ## Spesa e risparmio (15 ottobre 2026)
 

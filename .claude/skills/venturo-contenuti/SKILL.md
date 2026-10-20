@@ -9,9 +9,13 @@ Leggi prima `venturo-brand` (identità e regole). Qui ci sono il **ritmo**, i **
 ricerca di ottobre 2026 sui contenuti più visti nel business e nella finanza (account senza volto). Antonello **non appare
 mai**: al massimo la sua voce clonata (ElevenLabs), dichiarata come voce generata con IA.
 
-## Ritmo di Instagram (deciso da Antonello il 18/10/2026)
+## Ritmo di Instagram (deciso da Antonello il 18/10/2026, Reel raddoppiati il 20/10/2026)
 
-| Giorno | Feed (1 al giorno) | Storie (5 al giorno) |
+Dal 20/10/2026 nei giorni dei Reel (lun–ven) escono **2 Reel**: alle 11:30 «La notizia del giorno per chi fa impresa»
+(20–35 s, notizia delle ultime 24 ore) e alle 18:30 il Reel del tema del giorno della tabella (45–75 s). Sab–dom 1 carosello.
+Dopo ogni Reel il Regista scrive la nota **REEL PRONTO** (id, tema, ora, durata, didascalia): gli altri social riusano quei video.
+
+| Giorno | Feed (Reel delle 18:30 o carosello) | Storie (5 al giorno) |
 | --- | --- | --- |
 | Lun | Reel «Bando della settimana» (chi può chiederlo, quanto, scadenza) | dato · sondaggio «Lo chiederesti?» · ripresa del Reel · dietro le quinte · link newsletter |
 | Mar | Reel «Come fa soldi» (azienda italiana nota, con i numeri) | risposta di ieri · quiz · ripresa · strumento del giorno · box domande |
@@ -21,8 +25,10 @@ mai**: al massimo la sua voce clonata (ElevenLabs), dichiarata come voce generat
 | Sab | Carosello «Guida passo per passo» (bando, finanziamento, checklist) | «Aggiungi il tuo» · Reel più inviati · sondaggio temi · box domande · link |
 | Dom | Carosello «Mappa o classifica» (regioni, settori, investimenti) | anteprima della settimana: scadenze, calendario, sondaggio, domanda, link |
 
-Orari di partenza (poi si guardano i numeri): Reel 12:30 o 18:30, caroselli 10:00, storie distribuite nella giornata.
-Nell'app: Instagram → massimo 1–2 post al giorno, **storie al giorno 5** (contate a parte dai post).
+Orari di partenza (poi si guardano i numeri): Reel 11:30 e 18:30, caroselli 10:00, storie distribuite nella giornata.
+Nell'app: Instagram → massimo **2 post al giorno**, **storie al giorno 5** (contate a parte dai post).
+Voce clonata: 10 Reel a settimana ≈ 28.000–30.000 caratteri al mese, quasi tutto lo Starter di ElevenLabs: consigliato il
+modello Flash v2.5 (metà crediti). Le storie e i video riusati sugli altri social non usano la voce.
 
 ## Reel e Shorts (strumento `create_motion_video`)
 
@@ -74,10 +80,16 @@ Nell'app: Instagram → massimo 1–2 post al giorno, **storie al giorno 5** (co
   nella nota per Antonello; altrimenti si usa una domanda scritta nella grafica («Rispondi con un messaggio»).
 - Finché Instagram non è collegato le storie arrivano in ✅ Approvazioni: Antonello tocca 📲 Condividi → Instagram → Storia.
 
-## Altri social
+## Altri social (ritmo deciso da Antonello il 20/10/2026)
 
-- **LinkedIn**: caroselli di 8–10 immagini (i PDF si caricano a mano dall'app di LinkedIn); post del fondatore come testo personale («costruiamo Venturo in pubblico»), link nel primo commento.
-- **Threads/X**: sempre il grafico del giorno insieme al testo; una domanda aperta al giorno su Threads.
+- **LinkedIn**: 1 post al giorno lun–ven, 8:00–9:30 (`max_per_day` 1). Lun carosello 6–8 immagini (guida o bando), mar video
+  (il Reel più forte di lun–mar, testo nuovo), mer immagine con il numero della settimana e la fonte, gio video (caso studio),
+  **ven solo testo** «Diario del fondatore» (costruiamo Venturo in pubblico). Niente link nel testo (primo commento).
+- **Threads**: 3 post al giorno (`max_per_day` 3): 8:30 grafica con il dato del giorno, 13:00 **solo testo** (domanda aperta o
+  opinione, anche mini-thread), 20:30 video (il Reel di oggi; sab–dom le slide del carosello).
+- **X**: 3–4 post al giorno + 2 thread a settimana, **ogni post con un file** (grafica 1200×675 o un Reel; nei thread una
+  grafica numerata per post). L'Editore non pubblica mai post solo testo: aspetta la GRAFICA.
+- Messaggi per Orion del nuovo ritmo: https://claude.ai/artifact/6nyDKnf6AC62KygzXXLsWV
 - **YouTube**: gli Shorts sono i Reel; una volta al mese un video lungo 8–15 minuti dal caso studio del giovedì.
 
 ## Cosa si misura (ogni lunedì)
