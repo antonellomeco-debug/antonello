@@ -227,7 +227,7 @@ test("accesso: si rinnova da solo; se Google lo revoca, il messaggio spiega «In
   assert.match(social.socialStatus().networks.find((n) => n.id === "youtube").account.problem, /In produzione/);
 });
 
-test("strumenti: YouTube negli strumenti degli agenti e nei formati delle grafiche; impostazioni controllate", () => {
+test("strumenti: YouTube negli strumenti degli agenti e nei formati delle grafiche; impostazioni controllate", async () => {
   assert.ok(TOOL_DEFS.social_publish.input_schema.properties.network.enum.includes("youtube"));
   assert.ok(TOOL_DEFS.social_publish.input_schema.properties.title);
   assert.ok(TOOL_DEFS.social_inbox.input_schema.properties.network.enum.includes("youtube"));
@@ -235,6 +235,10 @@ test("strumenti: YouTube negli strumenti degli agenti e nei formati delle grafic
   assert.equal(media.FORMATS.banner_youtube.w, 2560);
   assert.throws(() => social.setNetworkSettings("youtube", { privacy: "segreto" }), /public, unlisted o private/);
   assert.throws(() => social.setNetworkSettings("youtube", { footer: "<script>" }), /niente < e >/);
+  assert.throws(() => social.setNetworkSettings("youtube", { contactEmail: "non-una-email" }), /Email di contatto/);
+  social.setNetworkSettings("youtube", { contactEmail: "ciao@venturo.example" });
+  const { privacyPage } = await import("../lib/legal.js");
+  assert.match(privacyPage(), /mailto:ciao@venturo\.example/);
   const st = social.statusForAgents().social.find((s) => s.network === "youtube");
   assert.match(st.youtube, /Copia automatica ATTIVA/);
 });
