@@ -1,4 +1,4 @@
-// Sezione 📣 Social: collegamento degli account (Instagram, Threads, LinkedIn, X), pubblicazione automatica o con
+// Sezione 📣 Social: collegamento degli account (Instagram, Threads, LinkedIn, X, YouTube), pubblicazione automatica o con
 // approvazione, chiave per le immagini con l'IA, archivio di foto e video (caricamento dal telefono) e post.
 // Anche le schede dei post da approvare in ✅ Approvazioni (renderPostApproval).
 
@@ -26,8 +26,8 @@ export const POST_STATUS = {
   uncertain: "⚠️ Esito incerto",
 };
 const ORIGIN = { upload: "Caricato da te", graphic: "Grafica di un agente", ai: "Immagine IA", video: "Video montato da un agente", stock: "Repertorio (Pixabay/Pexels)", variant: "Copia" };
-const NET_ICON = { instagram: "📸", threads: "🧵", linkedin: "💼", x: "𝕏" };
-const NET_LABEL = { instagram: "Instagram", threads: "Threads", linkedin: "LinkedIn", x: "X" };
+const NET_ICON = { instagram: "📸", threads: "🧵", linkedin: "💼", x: "𝕏", youtube: "▶️" };
+const NET_LABEL = { instagram: "Instagram", threads: "Threads", linkedin: "LinkedIn", x: "X", youtube: "YouTube" };
 
 /** Spiegazioni passo passo per creare l'app di ogni social (una volta sola). */
 function howto(net, redirect, server) {
@@ -60,6 +60,15 @@ function howto(net, redirect, server) {
       `In <b>Callback URI / Redirect URL</b> incolla questo indirizzo; come <b>Website URL</b> metti l'indirizzo della tua app:${copy}`,
       `Salva e copia <b>OAuth 2.0 Client ID</b> e <b>Client Secret</b> nei campi qui sotto (non le «API Key» OAuth 1.0), premi <b>Salva</b> e poi <b>Collega</b>.`,
     ],
+    youtube: [
+      `Apri <a href="https://console.cloud.google.com" target="_blank" rel="noopener">console.cloud.google.com</a> con lo stesso account Google del canale. Puoi usare il progetto che hai già per la voce di Google, oppure crearne uno: in alto <b>Seleziona un progetto</b> → <b>Nuovo progetto</b> (nome «Venturo»).`,
+      `Menu ☰ → <b>API e servizi</b> → <b>Libreria</b>: cerca <b>YouTube Data API v3</b> e premi <b>Abilita</b>. È gratis.`,
+      `Menu ☰ → <b>Google Auth Platform</b> (o «Schermata consenso OAuth») → <b>Inizia</b>: nome dell'app «Venturo Agenti», la tua email, pubblico <b>Esterno</b>, di nuovo la tua email come contatto → <b>Crea</b>.`,
+      `Sempre lì, <b>Pubblico</b> → <b>Pubblica app</b> → <b>Conferma</b> (stato «In produzione»). Se resta «Test» il collegamento scade ogni 7 giorni.`,
+      `<b>Client</b> → <b>Crea client</b> → tipo <b>Applicazione web</b>, nome «Venturo». In <b>URI di reindirizzamento autorizzati</b> → <b>Aggiungi URI</b> e incolla:${copy} poi <b>Crea</b>.`,
+      `Copia <b>ID client</b> e <b>Client secret</b> qui sotto, premi <b>Salva</b> e poi <b>Collega</b>: scegli l'account e il canale. Google avvisa «app non verificata»: è la tua app, tocca <b>Avanzate</b> → <b>Vai a Venturo Agenti</b> → <b>Continua</b>.`,
+      `<b>Video privati:</b> finché YouTube non verifica l'app, i video caricati dall'app restano privati. Chiedi la verifica (gratis) con il modulo <a href="https://support.google.com/youtube/contact/yt_api_form" target="_blank" rel="noopener">YouTube API Services – Audit</a>: «carico i video del mio canale Venturo dalla mia piattaforma». Nell'attesa puoi lasciare YouTube <b>scollegato</b>: i video arrivano in ✅ Approvazioni e li carichi tu con <b>📲 Condividi</b> → YouTube.`,
+    ],
   }[net];
   const note = !server && (net === "instagram" || net === "threads")
     ? `<p class="hint warn-text">⚠️ ${NET_LABEL[net]} funziona solo dall'app sul server (vuole un indirizzo https e scarica le foto da lì).</p>`
@@ -80,7 +89,7 @@ function networkCard(n, st) {
     acc?.problem ? esc(acc.problem) : "",
   ].filter(Boolean).map((t) => `<p class="hint warn-text">⚠️ ${t}</p>`).join("");
   const showForm = !n.app || ui.editingApp.has(n.id);
-  const idLabel = { instagram: "ID app di Instagram", threads: "ID app di Threads", linkedin: "Client ID", x: "OAuth 2.0 Client ID" }[n.id];
+  const idLabel = { instagram: "ID app di Instagram", threads: "ID app di Threads", linkedin: "Client ID", x: "OAuth 2.0 Client ID", youtube: "ID client" }[n.id];
   const form = showForm
     ? `<form class="grid2" data-app-form="${n.id}" autocomplete="off">
         <label>${idLabel} <input name="clientId" spellcheck="false" autocomplete="off" value="${esc(n.app?.clientId ?? "")}" /></label>
@@ -114,7 +123,7 @@ function networkCard(n, st) {
         </select>
       </label>` : ""}
       <p class="meta">Oggi: ${n.today} su ${n.maxPerDay}${n.id === "instagram" ? ` · storie ${n.storiesToday ?? 0} su ${n.maxStoriesPerDay ?? 5}` : ""}${n.id === "x" ? " · 0,015 $ a post (0,20 $ con un link)" : ""}</p>
-    </div>${n.id === "linkedin" ? pageSettings(n) : ""}`;
+    </div>${n.id === "linkedin" ? pageSettings(n) : ""}${n.id === "youtube" ? youtubeSettings(n) : ""}`;
   return `<article class="card social-card" data-net="${n.id}">
     <h3><span class="net-ico">${n.icon}</span> ${esc(n.label)} <span class="social-state">${pill}</span></h3>
     ${warn}
@@ -123,6 +132,40 @@ function networkCard(n, st) {
     ${settings}
     ${howto(n.id, st.redirectUri, st.publicServer)}
   </article>`;
+}
+
+/** YouTube: copia automatica dei video degli altri social, visibilità, etichetta IA e testo fisso della descrizione. */
+function youtubeSettings(n) {
+  return `<div class="social-settings yt">
+    <label>Copia automatica
+      <select data-yt="mirror">
+        <option value="1" ${n.mirror ? "selected" : ""}>Ogni video uscito sugli altri social va anche su YouTube</option>
+        <option value="0" ${n.mirror ? "" : "selected"}>Spenta (solo i video che gli agenti mandano a YouTube)</option>
+      </select>
+    </label>
+    <label>Anche le storie di Instagram
+      <select data-yt="mirrorStories">
+        <option value="0" ${n.mirrorStories ? "" : "selected"}>No (consigliato: clip di pochi secondi)</option>
+        <option value="1" ${n.mirrorStories ? "selected" : ""}>Sì, anche le storie video</option>
+      </select>
+    </label>
+    <label>Visibilità dei video
+      <select data-yt="privacy">
+        <option value="public" ${n.privacy === "public" ? "selected" : ""}>Pubblici</option>
+        <option value="unlisted" ${n.privacy === "unlisted" ? "selected" : ""}>Non in elenco (solo chi ha il link)</option>
+        <option value="private" ${n.privacy === "private" ? "selected" : ""}>Privati</option>
+      </select>
+    </label>
+    <label>Voce o immagini fatte con l'IA
+      <select data-yt="aiLabel">
+        <option value="1" ${n.aiLabel !== false ? "selected" : ""}>Dichiaralo a YouTube (consigliato)</option>
+        <option value="0" ${n.aiLabel === false ? "selected" : ""}>Non dichiararlo</option>
+      </select>
+    </label>
+    <label class="wide">Testo in fondo a ogni descrizione (link, newsletter, altri social)
+      <textarea data-yt="footer" rows="4" maxlength="1000" placeholder="📩 Newsletter gratuita: https://…&#10;📸 Instagram: …">${esc(n.footer ?? "")}</textarea>
+    </label>
+  </div>`;
 }
 
 /** LinkedIn: pagina aziendale dove escono i post (oltre al profilo o al suo posto). */
@@ -319,8 +362,10 @@ function postCard(p) {
   const canCancel = p.status === "scheduled" || p.status === "pending";
   return `<article class="card post-card ${p.status === "published" ? "decided" : ""}">
     <div class="kicker"><span>${NET_ICON[p.network] ?? ""} ${esc(NET_LABEL[p.network] ?? p.network)}${p.page ? ` · pagina ${esc(p.page.name)}` : ""}</span><span class="meta">· ${esc(p.agentName ?? "")} · ${when(p.at)}</span></div>
+    ${p.title ? `<p class="post-title"><b>${esc(p.title)}</b></p>` : ""}
     <p class="post-text">${esc(p.text) || "<i>(senza testo)</i>"}</p>
     ${postMediaStrip(p.media)}
+    ${p.note ? `<p class="hint warn-text">⚠️ ${esc(p.note)}</p>` : ""}
     <p class="meta">${POST_STATUS[p.status] ?? esc(p.status)}${p.status === "scheduled" && p.publishAt ? ` per ${when(p.publishAt)}` : ""}${p.publishedAt ? ` · ${when(p.publishedAt)}` : ""}${p.url ? ` · <a href="${esc(p.url)}" target="_blank" rel="noopener">apri il post</a>` : ""}</p>
     ${p.error ? `<p class="hint warn-text">${esc(p.error)}</p>` : ""}
     ${canCancel ? `<button class="btn small ghost" data-post-cancel="${esc(p.id)}">Annulla</button>` : ""}
@@ -332,7 +377,7 @@ export function renderPostApproval(a, outcomeLabel) {
   const p = a.post ?? {};
   const pending = a.status === "pending";
   const net = p.page ? `${NET_LABEL[p.network] ?? p.network} · pagina ${p.page.name}` : NET_LABEL[p.network] ?? p.network;
-  const what = p.replyTo ? `Risposta su ${net}` : p.format === "story" ? `Storia su ${net}` : `Post su ${net}`;
+  const what = p.replyTo ? `Risposta su ${net}` : p.format === "story" ? `Storia su ${net}` : p.network === "youtube" ? `Video su ${net}${p.mirrorOf ? " (copia automatica)" : ""}` : `Post su ${net}`;
   const outcome = a.status === "scheduled"
     ? `🕒 Approvato: parte ${p.publishAt ? when(p.publishAt) : "all'ora scelta"}`
     : a.status === "executed"
@@ -340,6 +385,7 @@ export function renderPostApproval(a, outcomeLabel) {
       : `${outcomeLabel[a.status] ?? esc(a.status)}${a.error ? ` — ${esc(a.error)}` : ""}`;
   return `<article class="card ${pending ? "" : "decided"}">
     <div class="kicker"><span>${NET_ICON[p.network] ?? "📣"} ${esc(what)}</span><span class="meta">· ${esc(a.agentName)} · ${when(a.at)}</span></div>
+    ${p.title ? `<p class="post-title"><b>${esc(p.title)}</b></p>` : ""}
     <p class="post-text">${esc(p.text) || "<i>(senza testo)</i>"}</p>
     ${postMediaStrip(p.media)}
     ${p.publishAt ? `<p class="meta">${p.manual ? "Ora consigliata" : "Da pubblicare"}: ${when(p.publishAt)}</p>` : ""}
@@ -351,8 +397,8 @@ export function renderPostApproval(a, outcomeLabel) {
       <li>Torna qui e tocca <b>Fatto</b>.</li>
     </ol>` : ""}
     ${pending && p.manual && !p.page ? `<ol class="share-steps">
-      <li>Tocca <b>📲 Condividi</b>: ${(p.media ?? []).length ? "le foto sono pronte e il testo è già copiato" : "il testo è pronto (ed è già copiato)"}.</li>
-      <li>Scegli <b>${esc(net)}</b>${p.network === "instagram" ? (p.format === "story" ? " → <b>Storia</b>" : " → <b>Feed</b>") : ""}${p.network === "instagram" ? ", tieni premuto nella didascalia → <b>Incolla</b>" : ""} e pubblica.</li>
+      <li>Tocca <b>📲 Condividi</b>: ${(p.media ?? []).length ? `${(p.media ?? []).some((m) => m.kind === "video") ? "i file sono pronti" : "le foto sono pronte"} e ${p.network === "youtube" ? "il titolo è" : "il testo è"} già copiato` : "il testo è pronto (ed è già copiato)"}.</li>
+      <li>Scegli <b>${esc(net)}</b>${p.network === "instagram" ? (p.format === "story" ? " → <b>Storia</b>" : " → <b>Feed</b>") : ""}${p.network === "instagram" ? ", tieni premuto nella didascalia → <b>Incolla</b>" : ""}${p.network === "youtube" ? " (se non c'è: <b>Salva video</b> e caricalo dall'app YouTube con <b>+</b>). Incolla il titolo; poi torna qui, tocca <b>📋 Copia descrizione</b> e incollala nella descrizione" : ""} e pubblica.</li>
       <li>Torna qui e tocca <b>Fatto</b>.</li>
     </ol>` : ""}
     <div class="actions">
@@ -360,7 +406,7 @@ export function renderPostApproval(a, outcomeLabel) {
         ? p.manual && p.page
           ? `${(p.media ?? []).length ? `<button class="btn" data-share="${a.id}">📲 Salva i file</button>` : ""}<button class="btn primary" data-open-page="${a.id}">🏢 Apri la pagina</button><button class="btn good" data-approve="${a.id}">✔ Fatto</button><button class="btn ghost" data-reject="${a.id}">Scarta</button>`
           : p.manual
-          ? `<button class="btn primary" data-share="${a.id}">📲 Condividi su ${esc(net)}</button><button class="btn good" data-approve="${a.id}">✔ Fatto</button><button class="btn ghost" data-reject="${a.id}">Scarta</button>`
+          ? `<button class="btn primary" data-share="${a.id}">📲 Condividi su ${esc(net)}</button>${p.network === "youtube" ? `<button class="btn" data-copy-desc="${a.id}">📋 Copia descrizione</button>` : ""}<button class="btn good" data-approve="${a.id}">✔ Fatto</button><button class="btn ghost" data-reject="${a.id}">Scarta</button>`
           : `<button class="btn good" data-approve="${a.id}">${p.publishAt ? "Approva" : "Pubblica"}</button><button class="btn ghost" data-reject="${a.id}">Scarta</button>`
         : `<span class="meta">${outcome}</span>`}
     </div>
@@ -411,6 +457,13 @@ export function bindShareButtons(container, approvals) {
       if (a) sharePost(a, btn);
     }),
   );
+  // YouTube a mano: il titolo si copia con «Condividi», la descrizione con questo pulsante.
+  container.querySelectorAll("[data-copy-desc]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      const a = approvals.find((x) => x.id === btn.dataset.copyDesc);
+      navigator.clipboard?.writeText(a?.post?.text ?? "").then(() => { btn.textContent = "✔ Descrizione copiata"; }, () => alert("Non riesco a copiare: tieni premuto sul testo e copialo a mano."));
+    }),
+  );
   // Post della pagina aziendale: testo negli appunti (dentro il tocco) e pagina di LinkedIn da amministratore.
   container.querySelectorAll("[data-open-page]").forEach((btn) =>
     btn.addEventListener("click", () => {
@@ -426,7 +479,7 @@ async function sharePost(a, btn) {
   const p = a.post;
   const label = btn.textContent;
   // Prima di tutto (dentro il tocco) il testo negli appunti: su Instagram si incolla nella didascalia.
-  navigator.clipboard?.writeText(p.text ?? "").catch(() => {});
+  navigator.clipboard?.writeText(p.network === "youtube" ? p.title ?? "" : p.text ?? "").catch(() => {});
   const entry = prepareFiles(a);
   if (!entry.ready) {
     btn.disabled = true;
@@ -661,6 +714,12 @@ function bindEvents() {
         return;
       }
       status = await api(`/api/social/${t.dataset.replies}/settings`, { method: "PUT", body: JSON.stringify({ autoReplies: v === "" ? null : v === "1" }) });
+      t.blur();
+      renderSocial();
+    } else if (t.dataset.yt) {
+      const f = t.dataset.yt;
+      const value = f === "privacy" || f === "footer" ? t.value : t.value === "1";
+      status = await api("/api/social/youtube/settings", { method: "PUT", body: JSON.stringify({ [f]: value }) });
       t.blur();
       renderSocial();
     } else if (t.dataset.maxStories) {

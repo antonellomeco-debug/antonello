@@ -249,6 +249,27 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
 - **Storie di Instagram** con un massimo al giorno a parte (`maxStoriesPerDay`, di partenza 5; `max_stories_per_day` per Orion).
 - Ritmo deciso dall'utente: 5 Reel (lun–ven) + 2 caroselli (sab–dom) a settimana, 5 storie al giorno; regole nella skill
   `venturo-contenuti` (ricerca di ottobre 2026 sui contenuti più visti, account senza volto).
+- **Nuovo ritmo (20/10/2026)**, solo messaggi per Orion, nessun codice: Instagram 2 Reel al giorno lun–ven (11:30 notizia del
+  giorno, 18:30 tema), LinkedIn 1 al giorno lun–ven (4 con file, venerdì solo testo), Threads 3 al giorno (2 con file), X stesse
+  quantità ma ogni post con immagine o video. I Reel si riusano sugli altri social (nota REEL PRONTO). Da verificare dal vero:
+  il primo post di X con un file (`/2/media/upload`). Pagina: https://claude.ai/artifact/6nyDKnf6AC62KygzXXLsWV
+  (messaggio 6 = voce clonata anche nelle 3 storie video; 7 = Palazzo Spese). Il 20/10/2026 l'utente è passato a **ElevenLabs
+  Creator** (~22 $/mese, ~100.000 crediti; uso previsto ~45.000 caratteri al mese, `get_costs` → servizi → elevenlabs).
+- **Consulente Pianificazione e Fisco** (20/10/2026): agente nel Palazzo Ricerca e Sviluppo, 1° piano, stanza nuova «Pianificazione e
+  Fisco» (il piano porta già le note a tutti i piani Social); solo fisco legale con fonti ufficiali e «non è consulenza fiscale».
+  Messaggi per Orion: https://claude.ai/artifact/Cxk4dxe4LRZE25FaEVm4WK
+
+## YouTube (20 ottobre 2026)
+
+- Quinto social in `lib/social/` (`youtube` in `networks.js`): OAuth di Google (app «In produzione», altrimenti il rinnovo scade
+  in 7 giorni: il messaggio d'errore lo dice), upload ripristinabile, `title`/`thumbnail` in `social_publish`, statistiche,
+  `social_inbox` e risposte. App non verificata da YouTube (audit) → video privati (avviso `note` sul post); intanto si può
+  lasciare scollegato e caricare «a mano» (📲 Condividi copia il titolo, 📋 Copia descrizione). Da verificare dal vero: risposta
+  dell'upload, nomi delle voci in Google Cloud, se l'app YouTube compare nella condivisione dell'iPhone.
+- **Copia automatica** (`mirrorToYouTube` in `lib/social/index.js`, chiamata da `setPost` quando un post diventa `published`): ogni
+  video uscito su un altro social va su YouTube una volta sola; l'Editore YouTube può sostituire la copia in attesa con titoli SEO.
+- Piano YouTube nel Palazzo Social (8 agenti, blocco «come ragionano i migliori esperti»): https://claude.ai/artifact/SkW7dyN8rMJskbyp5xYwqw
+  Compiti YouTube aggiunti al piano dei 30 giorni (21/10–13/11, tag `youtube`, obiettivo g8).
 
 ## Spesa e risparmio (15 ottobre 2026)
 
