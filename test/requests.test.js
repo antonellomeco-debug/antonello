@@ -13,7 +13,7 @@ const media = await import("../lib/social/media.js");
 const agent = { id: "profilo_ig", name: "Brand Manager Instagram" };
 
 test("una nota RICHIESTA diventa una domanda per l'utente; la risposta torna nella stanza", () => {
-  postNote("direzione-instagram", agent, "Mi serve il logo in alta qualità e l'email di contatto.", ["RICHIESTA", "profilo"]);
+  postNote("direzione-instagram", agent, "Mi mandi il logo in alta qualità e l'email di contatto?", ["RICHIESTA", "profilo"]);
   postNote("direzione-instagram", agent, "RICHIESTA PER L'UTENTE: in che città lavori?");
   postNote("direzione-instagram", agent, "Kit profilo pronto.", ["PROFILO"]);
   const open = getState().requests.filter((r) => r.status === "open");
@@ -22,7 +22,7 @@ test("una nota RICHIESTA diventa una domanda per l'utente; la risposta torna nel
   assert.equal(r.status, "answered");
   const last = readNotes("direzione-instagram", 1)[0];
   assert.equal(last.agentId, "utente");
-  assert.match(last.text, /^RISPOSTA DELL'UTENTE a Brand Manager Instagram \(«Mi serve il logo/);
+  assert.match(last.text, /^RISPOSTA DELL'UTENTE a Brand Manager Instagram \(«Mi mandi il logo/);
   assert.match(last.text, /info@esempio\.it/);
   assert.equal(getState().requests.filter((x) => x.status === "open").length, 1, "la risposta dell'utente non è una nuova domanda");
   assert.throws(() => answerRequest(open[0].id, "di nuovo"), /già chiusa/);
@@ -36,4 +36,20 @@ test("copertine dei profili: X 1500×500 e LinkedIn 1584×396", async () => {
   assert.deepEqual([x.width, x.height], [1500, 500]);
   const li = await media.createGraphic({ svg: svg(1584, 396), format: "banner_linkedin", title: "Copertina LinkedIn" });
   assert.deepEqual([li.width, li.height], [1584, 396]);
+});
+
+test("all'utente arrivano solo domande brevi e precise: niente riepiloghi, errori, limiti o verifiche dei dati", async () => {
+  const { requestProblem } = await import("../lib/store.js");
+  const before = getState().requests.length;
+  const lungo = `PACCHETTO – giovedì. Due Short pronti. ${"Dettagli del video, titolo, descrizione. ".repeat(20)}Va bene?`;
+  assert.match(requestProblem(lungo), /troppo lunga/);
+  assert.match(requestProblem("RICHIESTA PER L'UTENTE: il logo è pronto."), /non è una domanda/);
+  assert.match(requestProblem("Abbiamo raggiunto il limite di 5 post: pubblico lo stesso?"), /li risolvi tu/);
+  assert.match(requestProblem("La cifra non confermata la tolgo?"), /li risolvi tu/);
+  assert.match(requestProblem("C'è un post doppione, quale tengo?"), /li risolvi tu/);
+  assert.equal(requestProblem("In che città lavori?"), null);
+  postNote("direzione-instagram", agent, lungo, ["RICHIESTA"]);
+  postNote("direzione-instagram", agent, "Abbiamo raggiunto il limite di 5 post: pubblico lo stesso?", ["RICHIESTA"]);
+  assert.equal(getState().requests.length, before, "nessuna domanda nuova");
+  assert.equal(readNotes("direzione-instagram", 1)[0].text.startsWith("Abbiamo raggiunto"), true, "la nota resta in bacheca");
 });

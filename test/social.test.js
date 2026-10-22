@@ -281,7 +281,11 @@ test("due approvazioni insieme non superano il massimo del giorno; id e date non
   await Promise.all(ids.map((id) => social.decidePost(id, true)));
   await social.whenIdle();
   const st = ids.map((id) => getState().approvals.find((x) => x.id === id).status).sort();
-  assert.deepEqual(st, ["executed", "failed"]);
+  assert.deepEqual(st, ["executed", "scheduled"], "quello oltre il massimo si sposta a domani, non fallisce");
+  const movedId = ids.find((id) => getState().approvals.find((x) => x.id === id).status === "scheduled");
+  const moved = social.socialStatus().posts.find((x) => x.approvalId === movedId);
+  assert.equal(moved.status, "scheduled");
+  assert.ok(Date.parse(moved.publishAt) > Date.now() + 23 * 3600_000, "domani alla stessa ora");
   social.setNetworkSettings("linkedin", { auto: false, maxPerDay: 2 });
   await assert.rejects(social.proposePost(agent, { network: "threads", text: "x", reply_to: "123?method=delete#", reason: "x" }), /id non valido/);
   await assert.rejects(social.comments("instagram", "1/../me"), /id non valido/);
