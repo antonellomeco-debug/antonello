@@ -26,7 +26,9 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
 
 - Agenti `llm` (Claude con strumenti, `lib/runner.js` + `lib/tools.js`) o `rule` (strategie JS in `strategies/`).
 - Approvazioni: anche i post per i social (`kind: "post"`), decisi da `lib/social/index.js`.
-- Approvazioni: gli agenti propongono ordini, l'utente sceglie "Fallo per me" o "Scarta".
+- Approvazioni: gli agenti propongono ordini, l'utente sceglie "Fallo per me" o "Scarta". Dal 22/10/2026 due schede
+  (`state.approvalsTab`): «Da approvare» (in attesa + domande aperte) e «Approvate» (decise + domande chiuse; le scartate
+  con la casella «Mostra anche le scartate»).
 - Dati utente in `data/` (mai toccata dagli aggiornamenti); valori iniziali in `defaults/`.
 - Struttura dei file e dettagli: `README.md`. Guida per l'utente: `GUIDA-MAC.md` (Parte 4 = cTrader).
 

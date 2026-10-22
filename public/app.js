@@ -20,6 +20,7 @@ const DEFAULT_SESSION = { auth: false, loggedIn: true, cloud: false, updater: tr
 
 const state = {
   office: null, notes: {}, log: [], approvals: [], requests: [], portfolio: null, stats: null,
+  approvalsTab: "pending", showRejected: false, // ✅ Approvazioni: scheda scelta e scartate visibili
   chat: { name: "", busy: false, transcript: [], live: "" }, status: {}, view: "office", room: null, editing: null,
   floorFocus: null, broker: null, brokerAccounts: null, session: { ...DEFAULT_SESSION },
 };
@@ -782,11 +783,13 @@ let requestFileFor = null;
 
 function renderRequests() {
   const el = $("#requests-list");
-  const open = state.requests.filter((r) => r.status === "open");
-  const closed = state.requests.filter((r) => r.status !== "open").slice(0, 3);
+  // Scheda «Da approvare»: le domande ancora aperte; scheda «Approvate»: le ultime già chiuse.
+  const done = state.approvalsTab === "done";
+  const open = done ? [] : state.requests.filter((r) => r.status === "open");
+  const closed = done ? state.requests.filter((r) => r.status !== "open").slice(0, 10) : [];
   const roomName = (id) => state.office?.rooms.find((r) => r.id === id)?.name ?? id;
   el.innerHTML = open.length || closed.length
-    ? `<h2 class="section-title">📩 Domande degli agenti${open.length ? ` (${open.length})` : ""}</h2>` +
+    ? `<h2 class="section-title">📩 ${done ? "Domande chiuse" : "Domande degli agenti"}${open.length ? ` (${open.length})` : ""}</h2>` +
       open.map((r) => `<article class="card request-card">
         <div class="kicker"><span>📩 Domanda</span><span class="meta">· ${esc(r.agentName)} · ${esc(roomName(r.roomId))} · ${when(r.at)}</span></div>
         <p class="post-text">${esc(r.text)}</p>
@@ -829,7 +832,7 @@ function upsertRequest(r) {
   const i = state.requests.findIndex((x) => x.id === r.id);
   if (i >= 0) state.requests[i] = r;
   else state.requests.unshift(r);
-  if (state.view === "approvals") renderRequests();
+  if (state.view === "approvals") renderApprovals(); // anche i numeri delle schede
   refreshStatsSoon();
 }
 
@@ -858,16 +861,35 @@ $("#request-file").addEventListener("change", async (e) => {
 });
 
 function renderApprovals() {
+  // Due schede: «Da approvare» (proposte in attesa e domande aperte) e «Approvate» (già decise; le scartate solo a richiesta).
+  const tab = state.approvalsTab === "done" ? "done" : "pending";
+  const pendingList = state.approvals.filter((a) => a.status === "pending");
+  const decided = state.approvals.filter((a) => a.status !== "pending");
+  const rejected = decided.filter((a) => a.status === "rejected").length;
+  const openRequests = state.requests.filter((r) => r.status === "open").length;
+  $("#approvals-count-pending").textContent = pendingList.length + openRequests ? String(pendingList.length + openRequests) : "";
+  $("#approvals-count-done").textContent = decided.length - rejected ? String(decided.length - rejected) : "";
+  document.querySelectorAll("#approvals-tabs [data-approvals-tab]").forEach((b) => {
+    const on = b.dataset.approvalsTab === tab;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", String(on));
+  });
   renderRequests();
-  const list = state.approvals;
+  const list = tab === "pending" ? pendingList : decided.filter((a) => state.showRejected || a.status !== "rejected");
+  const toggle = tab === "done" && rejected
+    ? `<label class="inline appr-filter"><input type="checkbox" id="approvals-show-rejected" ${state.showRejected ? "checked" : ""} /> Mostra anche le scartate (${rejected})</label>`
+    : "";
   if (!list.length) {
-    $("#approvals-list").innerHTML = `<p class="empty">Nessuna proposta. Quando un agente vuole comprare, vendere o pubblicare un post, la trovi qui (in alto, le sue eventuali domande per te).</p>`;
+    $("#approvals-list").innerHTML = toggle + (tab === "pending"
+      ? `<p class="empty">Niente da approvare. Quando un agente vuole comprare, vendere o pubblicare un post, la trovi qui (in alto, le sue eventuali domande per te).</p>`
+      : `<p class="empty">Ancora nessuna proposta decisa.</p>`);
+    bindRejectedToggle();
     return;
   }
   const label = { pending: "", executed: "✔ Eseguito", rejected: "Scartato", failed: "✖ Non eseguito", executing: "In esecuzione…", uncertain: "⚠️ Esito incerto", scheduled: "🕒 Programmato" };
   // Moduli dei segnali aperti (quantità e prezzo che stai scrivendo): restano aperti quando arriva un'altra proposta.
   const openForms = new Map([...document.querySelectorAll("#approvals-list [data-signal-form]:not(.hidden)")].map((f) => [f.dataset.signalForm, Object.fromEntries(new FormData(f))]));
-  $("#approvals-list").innerHTML = list
+  $("#approvals-list").innerHTML = toggle + list
     .map((a) => {
       if (a.kind === "post") return renderPostApproval(a, label);
       if (a.kind === "signal") return renderSignalApproval(a, label);
@@ -907,6 +929,7 @@ function renderApprovals() {
       }
     }),
   );
+  bindRejectedToggle();
   bindShareButtons($("#approvals-list"), list);
   bindSignalForms($("#approvals-list"));
   for (const [id, values] of openForms) {
@@ -917,6 +940,19 @@ function renderApprovals() {
     for (const [k, v] of Object.entries(values)) if (f.elements[k]) f.elements[k].value = v;
   }
 }
+
+function bindRejectedToggle() {
+  $("#approvals-show-rejected")?.addEventListener("change", (e) => {
+    state.showRejected = e.target.checked;
+    renderApprovals();
+  });
+}
+document.querySelectorAll("#approvals-tabs [data-approvals-tab]").forEach((b) =>
+  b.addEventListener("click", () => {
+    state.approvalsTab = b.dataset.approvalsTab;
+    renderApprovals();
+  }),
+);
 
 // ---------- segnali sulle azioni dell'utente ----------
 
@@ -2777,6 +2813,7 @@ if (window.visualViewport && touchMQ.matches) {
 function openFromHash(hash) {
   const view = String(hash ?? "").slice(1);
   if (["broker", "social", "approvals", "costs", "reports"].includes(view)) {
+    if (view === "approvals") state.approvalsTab = "pending"; // da una notifica: le cose da decidere
     showView(view);
     history.replaceState(null, "", location.pathname);
   }

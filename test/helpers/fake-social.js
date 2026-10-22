@@ -6,6 +6,8 @@ import http from "node:http";
 import crypto from "node:crypto";
 import sharp from "sharp";
 
+// Date dei post e dei commenti finti: ieri (le caselle dei commenti guardano solo gli ultimi giorni).
+const YESTERDAY = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
 const PNG = await sharp({ create: { width: 64, height: 80, channels: 3, background: "#3366cc" } }).png().toBuffer();
 
 export async function startFakeSocial({ port = 0 } = {}) {
@@ -84,16 +86,16 @@ export async function startFakeSocial({ port = 0 } = {}) {
           return json(200, { id });
         }
         if (m && req.method === "GET") {
-          return json(200, { data: [{ id: "ig-post-1", caption: "Primo post", media_type: "IMAGE", media_product_type: "FEED", timestamp: "2026-10-14T10:00:00+0000", permalink: "https://www.instagram.com/p/AAA/", like_count: 12, comments_count: 3 }] });
+          return json(200, { data: [{ id: "ig-post-1", caption: "Primo post", media_type: "IMAGE", media_product_type: "FEED", timestamp: `${YESTERDAY}T10:00:00+0000`, permalink: "https://www.instagram.com/p/AAA/", like_count: 12, comments_count: 3 }] });
         }
         if (/^\/[\w-]+\/media_publish$/.test(p)) return json(200, { id: `igp${++seq}` });
         if (/^\/[\w-]+\/insights$/.test(p)) return json(200, { data: [{ name: "reach", period: "lifetime", values: [{ value: 340 }] }, { name: "views", period: "lifetime", values: [{ value: 512 }] }] });
         if (/^\/[\w-]+\/comments$/.test(p)) {
           return json(200, {
             data: [
-              { id: "c-1", text: "Bellissimo!", username: "mario", timestamp: "2026-10-14T11:00:00+0000", like_count: 1 },
-              { id: "c-2", text: "Come si partecipa?", username: "anna", timestamp: "2026-10-14T12:00:00+0000", like_count: 0 },
-              { id: "c-3", text: "Grazie a tutti!", username: "antonello.prova", timestamp: "2026-10-14T12:30:00+0000", like_count: 0 },
+              { id: "c-1", text: "Bellissimo!", username: "mario", timestamp: `${YESTERDAY}T11:00:00+0000`, like_count: 1 },
+              { id: "c-2", text: "Come si partecipa?", username: "anna", timestamp: `${YESTERDAY}T12:00:00+0000`, like_count: 0 },
+              { id: "c-3", text: "Grazie a tutti!", username: "antonello.prova", timestamp: `${YESTERDAY}T12:30:00+0000`, like_count: 0 },
             ],
           });
         }
@@ -122,11 +124,11 @@ export async function startFakeSocial({ port = 0 } = {}) {
           for (const k of ["image_url", "video_url"]) if (body[k]) await download(body[k]);
           return json(200, { id: `thc${++seq}` });
         }
-        if (p === "/v1.0/me/threads" && req.method === "GET") return json(200, { data: [{ id: "th-post-1", text: "Ciao Threads", timestamp: "2026-10-14T09:00:00+0000", permalink: "https://www.threads.net/@antonello.prova/post/X", media_type: "TEXT_POST" }] });
+        if (p === "/v1.0/me/threads" && req.method === "GET") return json(200, { data: [{ id: "th-post-1", text: "Ciao Threads", timestamp: `${YESTERDAY}T09:00:00+0000`, permalink: "https://www.threads.net/@antonello.prova/post/X", media_type: "TEXT_POST" }] });
         if (p === "/v1.0/me/threads_publish") return json(200, { id: `thp${++seq}` });
         if (p === "/v1.0/me/threads_insights") return json(200, { data: [{ name: "views", values: [{ value: 900 }] }, { name: "followers_count", total_value: { value: 150 } }] });
         if (/\/insights$/.test(p)) return json(200, { data: [{ name: "likes", total_value: { value: 7 } }, { name: "replies", total_value: { value: 2 } }] });
-        if (/\/replies$/.test(p)) return json(200, { data: [{ id: "tr-1", text: "Vero!", username: "lucia", timestamp: "2026-10-14T10:00:00+0000" }] });
+        if (/\/replies$/.test(p)) return json(200, { data: [{ id: "tr-1", text: "Vero!", username: "lucia", timestamp: `${YESTERDAY}T10:00:00+0000` }] });
         const one = p.match(/^\/v1\.0\/([\w-]+)$/);
         if (one) return json(200, q.fields?.includes("permalink") ? { permalink: `https://www.threads.net/@antonello.prova/post/${one[1]}` } : { status: "FINISHED", id: one[1] });
       }
@@ -184,8 +186,8 @@ export async function startFakeSocial({ port = 0 } = {}) {
           if ([...String(body.text ?? "")].length > 280) return json(400, { title: "Invalid Request", detail: "text too long" });
           return json(201, { data: { id: `18${++seq}`, text: body.text } });
         }
-        if (/^\/2\/users\/\d+\/tweets$/.test(p)) return json(200, { data: [{ id: "1801", text: "Post su X", created_at: "2026-10-14T08:00:00.000Z", public_metrics: { like_count: 4, retweet_count: 1, reply_count: 0, impression_count: 230 } }] });
-        if (p === "/2/tweets/search/recent") return json(200, { data: [{ id: "1802", text: "@antonello_prova bello", author_id: "7", created_at: "2026-10-14T09:00:00.000Z" }], includes: { users: [{ id: "7", username: "pino" }] } });
+        if (/^\/2\/users\/\d+\/tweets$/.test(p)) return json(200, { data: [{ id: "1801", text: "Post su X", created_at: `${YESTERDAY}T08:00:00.000Z`, public_metrics: { like_count: 4, retweet_count: 1, reply_count: 0, impression_count: 230 } }] });
+        if (p === "/2/tweets/search/recent") return json(200, { data: [{ id: "1802", text: "@antonello_prova bello", author_id: "7", created_at: `${YESTERDAY}T09:00:00.000Z` }], includes: { users: [{ id: "7", username: "pino" }] } });
       }
       // ---------------- YouTube (accesso Google, canale, caricamento «ripristinabile», statistiche, commenti)
       if (host === "accounts.google.com" && p === "/o/oauth2/v2/auth") {
@@ -231,8 +233,8 @@ export async function startFakeSocial({ port = 0 } = {}) {
         if (p === "/youtube/v3/commentThreads") {
           return json(200, {
             items: [
-              { id: "th-a", snippet: { totalReplyCount: 0, topLevelComment: { id: "Ugw-commento1", snippet: { authorDisplayName: "@giulia", authorChannelId: { value: "UCgiulia" }, textOriginal: "Come si chiede questo bando?", publishedAt: "2026-10-20T08:00:00Z", likeCount: 1 } } } },
-              { id: "th-b", snippet: { totalReplyCount: 0, topLevelComment: { id: "Ugw-mio", snippet: { authorDisplayName: "Venturo", authorChannelId: { value: "UCventuro" }, textOriginal: "Fonte nel primo commento", publishedAt: "2026-10-20T08:01:00Z", likeCount: 0 } } } },
+              { id: "th-a", snippet: { totalReplyCount: 0, topLevelComment: { id: "Ugw-commento1", snippet: { authorDisplayName: "@giulia", authorChannelId: { value: "UCgiulia" }, textOriginal: "Come si chiede questo bando?", publishedAt: `${YESTERDAY}T08:00:00Z`, likeCount: 1 } } } },
+              { id: "th-b", snippet: { totalReplyCount: 0, topLevelComment: { id: "Ugw-mio", snippet: { authorDisplayName: "Venturo", authorChannelId: { value: "UCventuro" }, textOriginal: "Fonte nel primo commento", publishedAt: `${YESTERDAY}T08:01:00Z`, likeCount: 0 } } } },
             ],
           });
         }

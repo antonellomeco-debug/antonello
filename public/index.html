@@ -122,6 +122,10 @@
             <p class="sub">Gli agenti propongono ordini, segnali sulle tue azioni e post: tu decidi. Nulla parte senza il tuo ok (salvo i social per cui hai scelto la pubblicazione automatica in 📣 Social).</p>
           </div>
         </header>
+        <div class="appr-tabs" id="approvals-tabs" role="tablist">
+          <button type="button" class="appr-tab active" role="tab" aria-selected="true" data-approvals-tab="pending">Da approvare <b id="approvals-count-pending"></b></button>
+          <button type="button" class="appr-tab" role="tab" aria-selected="false" data-approvals-tab="done">Approvate <b id="approvals-count-done"></b></button>
+        </div>
         <div class="cards requests" id="requests-list"></div>
         <input type="file" id="request-file" accept="image/*,video/mp4,video/quicktime" hidden />
         <div class="cards" id="approvals-list"></div>
