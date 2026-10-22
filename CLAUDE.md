@@ -151,6 +151,8 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   `navigator.share` con i file; per Instagram solo i file) e **Fatto** (= approvazione → `published`, «Pubblicato da te»).
   Strade aperte se servirà l'automatico: un familiare crea l'app Meta e aggiunge l'utente come tester, oppure un servizio
   intermediario a pagamento.
+  **22/10/2026: Instagram è collegato via API** (i Reel partono dall'app, con la copertina `cover_url`). Da verificare dal vero:
+  che `cover_url` sia accettato e la copertina compaia nella griglia; al primo errore chiedere all'utente il messaggio esatto.
 - L'utente ha la pagina «Palazzo Social» (artifact claude.ai) con 8 messaggi per Orion: palazzo con 4 piani
   (Instagram, LinkedIn, Threads, X), 5 stanze per piano (Direzione, Trend, Studio, Redazione, Analisi), 29 agenti; il
   messaggio 8 aggiunge un «Brand Manager» per piano (KIT PROFILO: bio, info, copertine; domande all'utente con RICHIESTA).
