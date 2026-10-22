@@ -331,6 +331,8 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   (Apache 2.0, con NOTICE; il lanciatore scarica il motore da GitHub con controllo SHA-256), `diagram-design` (MIT, style guide con i
   colori di Venturo), `venturo-sito` (come fare venturoitalia.it: PRODUCT.md, DESIGN.md, pagine, obblighi legali, hosting, DNS senza
   toccare i record MX dell'email). L'utente aprirà presto il sito: chiedergli repository a parte o cartella `sito/` e servizio newsletter.
+- Messaggi per Orion (web_buzz ai Trend, all'Osservatorio e al sentiment di Gold e Azioni; create_diagram a chi ha create_graphic):
+  https://claude.ai/artifact/GM3Tf5f177Wai4nHFnqySa
 
 ## Spesa e risparmio (15 ottobre 2026)
 
