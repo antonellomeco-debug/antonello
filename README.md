@@ -155,6 +155,14 @@ Le strategie si trovano in [`strategies/`](strategies). Quelle già incluse sono
 
 Lo strumento `web_search` (anche per Orion) usa la ricerca web di Anthropic: la eseguono i server di Claude, quindi non serve un altro abbonamento né un'altra chiave. Un agente con `web_search` tra i suoi strumenti e un `everyMinutes` trova e pubblica da solo le notizie (per esempio sull'oro) senza che l'utente le incolli. Ogni ricerca costa 1 centesimo di dollaro più i token dei risultati e viene sommata nella stima dei costi. Se l'organizzazione Anthropic ha disattivato la ricerca web, l'errore spiega come riattivarla (platform.claude.com/settings/capabilities). Le ricerche lunghe possono fermarsi a metà (`stop_reason: "pause_turn"`): il programma rimanda la conversazione così com'è e la ricerca riprende. Test: `test/websearch.test.js`, con un finto server dell'API di Claude.
 
+### Ascolta la rete
+
+Lo strumento `web_buzz` (`lib/buzz.js`, anche per Orion) dice cosa scrive la gente negli ultimi giorni (fino a 30) su un argomento, da fonti pubbliche e gratuite, senza chiavi: discussioni di Reddit con punti e commenti (archivio pubblico arctic-shift, anche per subreddit italiani), probabilità delle scommesse di Polymarket, Hacker News, umore dei trader di StockTwits su un simbolo e video più visti di YouTube con il canale già collegato in 📣 Social (al massimo 20 ricerche al giorno, perché ognuna usa 100 delle 10.000 unità quotidiane del progetto Google). Le fonti lavorano in parallelo, i risultati restano 30 minuti, una fonte che non risponde finisce in `errori` senza fermare le altre. L'idea viene da [last30days](https://github.com/mvanhorn/last30days-skill) (MIT). Test: `test/buzz.test.js` (finto server, `BUZZ_API_BASE`).
+
+### Scrivere come una persona
+
+Chi scrive testi pubblici (agenti con `social_publish`, `create_*` o `weekly_report`, e Orion) riceve nel prompt le regole di `lib/style.js` (`WRITING_RULES`), adattate all'italiano da [Humanizer](https://github.com/blader/humanizer) (MIT): niente «non è solo X, è Y», chiusure a effetto, annunci prima del punto, trattini lunghi, parole gonfiate, resti da chat. `social_publish`, `create_video`, `create_motion_video` e `create_diagram` controllano i testi (`assertHumanText`): con un segno forte, o con almeno tre parole gonfiate diverse, la prima volta rifiutano e dicono quali frasi riscrivere; lo stesso testo rimandato identico (una citazione voluta) passa. Test: `test/style.test.js`.
+
 ### Spesa e risparmio
 
 Sezione **💰 Spesa**: spesa del mese (Claude, ricerche web, immagini IA, post su X) per palazzo e per agente, stima a
@@ -244,9 +252,12 @@ indirizzo https e scaricano foto e video da lì.
   (foto fino a 40 MB → JPEG con `sharp`, anteprima; video MP4/MOV fino a 500 MB così come sono; controllo dello spazio
   libero), indirizzi pubblici `/m/<codice casuale>.<estensione>` senza accesso (servono a Meta).
 - **Grafiche** (`create_graphic`): SVG scritto dall'agente → JPEG con `sharp`/librsvg nei formati square, portrait, story,
-  landscape; caratteri inclusi in `assets/fonts/` (Montserrat, Inter, Bebas Neue, Playfair Display, licenza OFL) con un
+  landscape; caratteri inclusi in `assets/fonts/` (Sora, Montserrat, Inter, Bebas Neue, Playfair Display, licenza OFL) con un
   `fonts.conf` creato all'avvio; niente script, DOCTYPE, risorse esterne; `media:ID` inserisce una foto dell'archivio.
-  `media_view` manda la foto all'agente come immagine. **Immagini IA** (`generate_image`, `lib/social/imagegen.js`):
+  `media_view` manda la foto all'agente come immagine. **Diagrammi** (`create_diagram`, `lib/social/diagram.js`, idea di
+  [diagram-design](https://github.com/cathrynlavery/diagram-design), MIT): l'agente passa solo i dati in JSON e il server
+  disegna passi, linea del tempo, imbuto, confronto, matrice 2×2, barre o ciclo con i colori di Venturo, titolo, fonte, logo
+  e numero di slide (test: `test/diagram.test.js`). **Immagini IA** (`generate_image`, `lib/social/imagegen.js`):
   Gemini con la chiave dell'utente (`geminiKey` in `settings.json`), modelli `gemini-3.1-flash-image-preview` poi
   `gemini-2.5-flash-image`, circa 0,07 $ a immagine.
 - **Video montati** (`create_video`, `lib/social/video.js`): schermate con sfondo clip/foto dell'archivio, SVG oppure solo
@@ -327,12 +338,14 @@ lib/ctrader/        cTrader Open API: protocollo, connessione, accesso OAuth, co
 lib/runner.js       esecuzione agenti (Claude con strumenti, oppure strategia JS)
 lib/schedule.js     orario di lavoro degli agenti, chiusura del venerdì, giorno e ora italiana
 lib/calendar.js     calendario economico (Forex Factory) con cache in data/calendar.json
+lib/buzz.js         «ascolta la rete»: Reddit, Polymarket, Hacker News, StockTwits, YouTube (web_buzz)
+lib/style.js        regole per scrivere come una persona e controllo dei testi pubblici
 lib/tools.js        strumenti disponibili agli agenti (compresa la ricerca web di Claude)
 lib/orchestrator.js il regista con cui parli in chat
 lib/voice.js        messaggi vocali: modello Whisper (scarico, estrazione) e trascrizione
 lib/voice-worker.js processo a parte che trascrive (sherpa-onnx)
 lib/social/         social: accesso e pubblicazione (networks.js), post e approvazioni (index.js),
-                    archivio di foto e video e grafiche (media.js), immagini IA (imagegen.js)
+                    archivio di foto e video e grafiche (media.js), diagrammi (diagram.js), immagini IA (imagegen.js)
 assets/fonts/       caratteri per le grafiche degli agenti (licenza OFL)
 lib/claude.js       client Claude condiviso, verifica della chiave, errori in italiano
 lib/updater.js      aggiornamento dall'app (spento sul server)
