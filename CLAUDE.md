@@ -170,7 +170,9 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   l'agente riceve un `avviso`; all'avvio si chiudono da sole quelle aperte così). Regola di autonomia nel prompt degli agenti
   (`lib/runner.js`). I post con `publishAt` compaiono in Approvazioni (e notificano) solo un'ora prima (`showAt`,
   `APPROVAL_LEAD_MIN`, `revealDueApprovals` ogni 30 s in server.js; anche quelli già in coda). Push: di partenza solo
-  approvazioni e domande (`DEFAULT_PREFS`, `prefsVersion` 2 riporta a questi valori anche le scelte salvate).
+  approvazioni e domande (`DEFAULT_PREFS`, `prefsVersion` 2 riporta a questi valori anche le scelte salvate). Un post
+  programmato o approvato che trova il limite del giorno si sposta da solo a domani alla stessa ora (`postponed`, max 3 volte)
+  invece di fallire.
 - **Video** (16 ottobre 2026): strumento `create_video` (`lib/social/video.js`, ffmpeg da `ffmpeg-static` in
   optionalDependencies, con libass): reel con clip/foto/schermate di testo, voce narrante italiana gratuita (Piper paola via
   sherpa-onnx, `lib/social/tts.js`, scaricata alla prima richiesta), sottotitoli parola per parola, titoli animati, transizioni,
