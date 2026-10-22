@@ -737,3 +737,12 @@ dialog.small-dlg { width: min(480px, 94vw); }
 .rpill { flex-shrink: 0; padding: 2px 8px; border-radius: 99px; font-size: 11px; border: 1px solid var(--border); color: var(--muted); }
 .rpill.ok { color: var(--good); border-color: var(--good); }
 .rpill.bad { color: var(--bad); border-color: var(--bad); }
+
+/* ✅ Approvazioni: schede «Da approvare» e «Approvate» */
+.appr-tabs { display: flex; gap: 6px; margin: 0 0 14px; border-bottom: 1px solid var(--border); }
+.appr-tab { position: relative; padding: 10px 16px; border: 0; background: none; color: var(--muted); font: inherit; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.appr-tab.active { color: var(--text, inherit); border-bottom-color: var(--accent); }
+.appr-tab b { display: inline-block; min-width: 20px; margin-left: 4px; padding: 1px 7px; border-radius: 99px; background: var(--accent); color: #fff; font-size: 12px; text-align: center; }
+.appr-tab b:empty { display: none; }
+.appr-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.appr-filter { display: flex; margin: 0 0 10px; color: var(--muted); font-size: 14px; }
