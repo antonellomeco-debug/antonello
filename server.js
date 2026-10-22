@@ -21,7 +21,7 @@ import { updateSettings } from "./lib/settings.js";
 import { checkUpdate, applyUpdate, isUpdating, installedVersion, RESTART_CODE } from "./lib/updater.js";
 import * as reports from "./lib/reports.js";
 import * as mailer from "./lib/mailer.js";
-import { isWorkingTime, scheduleStatus, updateSchedule, isFridayCloseTime, romeParts, resumeText, scheduleFor, getSchedule, hasAppointment, appointmentDue } from "./lib/schedule.js";
+import { isWorkingTime, scheduleStatus, updateSchedule, isFridayCloseTime, romeParts, resumeText, scheduleFor, getSchedule, hasAppointment, appointmentDue, lastRunFor, LONG_EVERY_MIN } from "./lib/schedule.js";
 import { PORT, HOST, PUBLIC_URL, CLOUD, AUTH_ENABLED, FAIL_CLOSED, CONFIG_PROBLEMS, TRUST_PROXY, UPDATER_ON, VOLUME_OK, REDIRECT_URI } from "./lib/env.js";
 import { securityHeaders, failClosed, hostCheck, originCheck } from "./lib/guard.js";
 import * as auth from "./lib/auth.js";
@@ -103,13 +103,14 @@ app.use(express.static(PUBLIC_DIR, { setHeaders: (res, file) => path.basename(fi
 app.use("/vendor/three", express.static(path.join(ROOT, "node_modules", "three")));
 
 // Ultimo avvio di ogni agente, salvato nello stato: un riavvio (es. una nuova versione sul server) non fa ripartire
-// tutti gli agenti insieme. All'apertura valgono solo gli avvii di oggi (ora italiana): il primo avvio della
-// giornata fa lavorare tutti, come prima.
+// tutti gli agenti insieme. Gli agenti «di giornata» contano solo gli avvii di oggi (ora italiana): il primo avvio
+// della giornata li fa lavorare tutti. Quelli con un intervallo di uno o più giorni (settimanali, mensili) tengono il
+// loro ultimo avvio anche nei giorni dopo (lastRunFor in lib/schedule.js); si dimenticano solo gli avvii di oltre 62 giorni.
 const lastRun = new Map();
 {
-  const today = romeParts().date;
+  const oldest = Date.now() - 62 * 86_400_000;
   for (const [id, at] of Object.entries(getState().lastRun ?? {})) {
-    if (typeof at === "string" && !Number.isNaN(Date.parse(at)) && romeParts(new Date(at)).date === today) lastRun.set(id, at);
+    if (typeof at === "string" && Date.parse(at) >= oldest) lastRun.set(id, at);
   }
 }
 function markRun(id) {
@@ -117,9 +118,11 @@ function markRun(id) {
   getState().lastRun = Object.fromEntries(lastRun);
   persist();
 }
+/** All'apertura dell'orario ripartono gli agenti «di giornata»; settimanali e mensili tengono il loro ultimo avvio. */
 function clearRuns() {
-  lastRun.clear();
-  getState().lastRun = {};
+  const every = new Map(office.agents().map((a) => [a.id, Number(a.everyMinutes) || 0]));
+  for (const id of [...lastRun.keys()]) if ((every.get(id) ?? 0) < LONG_EVERY_MIN) lastRun.delete(id);
+  getState().lastRun = Object.fromEntries(lastRun);
   persist();
 }
 const findAgent = (id) => office.agents().find((a) => a.id === id);
@@ -803,7 +806,7 @@ function schedulerTick() {
     }
     if (!(agent.everyMinutes > 0)) continue;
     if (!open.get(costs.palaceOfAgent(agent, building))) continue; // fuori dall'orario del suo palazzo
-    const prev = lastRun.has(agent.id) ? Date.parse(lastRun.get(agent.id)) : 0;
+    const prev = lastRunFor(agent.everyMinutes, lastRun.get(agent.id));
     // Almeno ogni 5 minuti anche per agenti salvati prima del limite o arrivati da una copia importata; il ritmo del
     // palazzo (💰 Spesa) può allungare l'intervallo.
     if (now - prev < costs.effectiveEvery(agent, building) * 60_000) continue;

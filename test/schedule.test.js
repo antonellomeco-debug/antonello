@@ -9,6 +9,7 @@ process.env.AGENTI_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "schedule-te
 const { romeParts, clockLine, getSchedule, updateSchedule, isWorkingTime, resumeText, isFridayCloseTime, scheduleStatus } =
   await import("../lib/schedule.js");
 const { firstMessage } = await import("../lib/runner.js");
+const scheduleLib = await import("../lib/schedule.js");
 
 const at = (iso) => new Date(iso);
 
@@ -83,4 +84,19 @@ test("primo messaggio degli agenti con giorno e ora italiana", () => {
     firstMessage("Fai il rapporto della settimana passata.", when),
     "Adesso è venerdì 16/10/2026, ore 15:05 (ora italiana; 2026-10-16 13:05 UTC).\n\nFai il rapporto della settimana passata.",
   );
+});
+
+test("agenti settimanali e mensili: non ripartono a ogni apertura; quelli di giornata sì", () => {
+  const { lastRunFor, LONG_EVERY_MIN } = scheduleLib;
+  const now = new Date("2026-10-21T06:00:00Z"); // mercoledì 08:00 in Italia
+  const yesterday = "2026-10-20T06:00:00Z";
+  const today = "2026-10-21T05:45:00Z";
+  assert.equal(LONG_EVERY_MIN, 1440);
+  assert.equal(lastRunFor(60, yesterday, now), 0, "ogni ora: il lavoro di ieri non conta, all'apertura riparte");
+  assert.equal(lastRunFor(60, today, now), Date.parse(today));
+  assert.equal(lastRunFor(10080, yesterday, now), Date.parse(yesterday), "settimanale: conta il lavoro di ieri");
+  assert.equal(lastRunFor(43200, "2026-10-01T06:00:00Z", now), Date.parse("2026-10-01T06:00:00Z"), "mensile");
+  assert.equal(lastRunFor(1440, yesterday, now), Date.parse(yesterday), "ogni giorno: riparte dopo 24 ore, non prima");
+  assert.equal(lastRunFor(10080, undefined, now), 0, "mai lavorato: parte subito");
+  assert.equal(lastRunFor(10080, "non è una data", now), 0);
 });

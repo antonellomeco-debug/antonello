@@ -333,6 +333,17 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   toccare i record MX dell'email). L'utente aprirà presto il sito: chiedergli repository a parte o cartella `sito/` e servizio newsletter.
 - Messaggi per Orion (web_buzz ai Trend, all'Osservatorio e al sentiment di Gold e Azioni; create_diagram a chi ha create_graphic):
   https://claude.ai/artifact/GM3Tf5f177Wai4nHFnqySa
+- Superpowers (obra) valutato e sconsigliato: metodo per sviluppatori, troppe domande e passaggi per un utente che vuole autonomia.
+- **Consiglio del marketing** (23/10/2026, dalla raccolta Marketing Skills di Corey Haines, MIT): skill `marketing-council`,
+  `product-marketing`, `copywriting`, `site-architecture`, `seo-audit`, `lead-magnets`, `emails`, `launch` in `.claude/skills/`;
+  scheda di Venturo in `.agents/product-marketing.md` (dal brief; fuori da Docker); il consiglio scrive in italiano e passa dal
+  «filtro Venturo» (niente urgenza finta, garanzie, promesse). Nella piattaforma: agente mensile «🏛️ Consiglio del Marketing»
+  (Sonnet medium, everyMinutes 43200, stanza Consiglio al Piano Terra del Palazzo R&S), messaggi per Orion:
+  https://claude.ai/artifact/1on5qkHiTXnevuNZCvi6j2
+- **Bug degli agenti lunghi** (23/10/2026): all'apertura dell'orario `clearRuns` azzerava l'ultimo avvio di TUTTI gli agenti e al
+  riavvio si tenevano solo gli avvii di oggi, quindi gli agenti settimanali e mensili lavoravano ogni giorno. Ora `lastRunFor`
+  (`lib/schedule.js`, `LONG_EVERY_MIN` 1440): sotto un giorno conta solo il lavoro di oggi, da un giorno in su conta sempre
+  (fino a 62 giorni); `clearRuns` toglie solo gli agenti «di giornata».
 
 ## Spesa e risparmio (15 ottobre 2026)
 
