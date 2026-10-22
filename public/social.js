@@ -390,6 +390,9 @@ function postCard(p) {
   </article>`;
 }
 
+/** Copertina del Reel (video animati): solo per Instagram, dove la griglia del profilo mostra la copertina. */
+const coverOf = (p) => (p.network === "instagram" && p.format !== "story" ? (p.media ?? []).find((m) => m.kind === "video" && m.cover)?.cover ?? null : null);
+
 /** Scheda di un post da approvare in ✅ Approvazioni. */
 export function renderPostApproval(a, outcomeLabel) {
   const p = a.post ?? {};
@@ -415,8 +418,9 @@ export function renderPostApproval(a, outcomeLabel) {
       <li>Torna qui e tocca <b>Fatto</b>.</li>
     </ol>` : ""}
     ${pending && p.manual && !p.page ? `<ol class="share-steps">
+      ${coverOf(p) ? `<li>Tocca <b>🖼️ Salva copertina</b> e scegli <b>Salva immagine</b>: è la copertina con il titolo per la griglia del profilo.</li>` : ""}
       <li>Tocca <b>📲 Condividi</b>: ${(p.media ?? []).length ? `${(p.media ?? []).some((m) => m.kind === "video") ? "i file sono pronti" : "le foto sono pronte"} e ${p.network === "youtube" ? "il titolo è" : "il testo è"} già copiato` : "il testo è pronto (ed è già copiato)"}.</li>
-      <li>Scegli <b>${esc(net)}</b>${p.network === "instagram" ? (p.format === "story" ? " → <b>Storia</b>" : " → <b>Feed</b>") : ""}${p.network === "instagram" ? ", tieni premuto nella didascalia → <b>Incolla</b>" : ""}${p.network === "youtube" ? " (se non c'è: <b>Salva video</b> e caricalo dall'app YouTube con <b>+</b>). Incolla il titolo; poi torna qui, tocca <b>📋 Copia descrizione</b> e incollala nella descrizione" : ""} e pubblica.</li>
+      <li>Scegli <b>${esc(net)}</b>${p.network === "instagram" ? (p.format === "story" ? " → <b>Storia</b>" : " → <b>Feed</b>") : ""}${p.network === "instagram" ? `, tieni premuto nella didascalia → <b>Incolla</b>${coverOf(p) ? "; tocca <b>Modifica copertina</b> → <b>Aggiungi dal rullino</b> e scegli la copertina salvata" : ""}` : ""}${p.network === "youtube" ? " (se non c'è: <b>Salva video</b> e caricalo dall'app YouTube con <b>+</b>). Incolla il titolo; poi torna qui, tocca <b>📋 Copia descrizione</b> e incollala nella descrizione" : ""} e pubblica.</li>
       <li>Torna qui e tocca <b>Fatto</b>.</li>
     </ol>` : ""}
     <div class="actions">
@@ -424,7 +428,7 @@ export function renderPostApproval(a, outcomeLabel) {
         ? p.manual && p.page
           ? `${(p.media ?? []).length ? `<button class="btn" data-share="${a.id}">📲 Salva i file</button>` : ""}<button class="btn primary" data-open-page="${a.id}">🏢 Apri la pagina</button><button class="btn good" data-approve="${a.id}">✔ Fatto</button><button class="btn ghost" data-reject="${a.id}">Scarta</button>`
           : p.manual
-          ? `<button class="btn primary" data-share="${a.id}">📲 Condividi su ${esc(net)}</button>${p.network === "youtube" ? `<button class="btn" data-copy-desc="${a.id}">📋 Copia descrizione</button>` : ""}<button class="btn good" data-approve="${a.id}">✔ Fatto</button><button class="btn ghost" data-reject="${a.id}">Scarta</button>`
+          ? `${coverOf(p) ? `<button class="btn" data-save-cover="${a.id}">🖼️ Salva copertina</button>` : ""}<button class="btn primary" data-share="${a.id}">📲 Condividi su ${esc(net)}</button>${p.network === "youtube" ? `<button class="btn" data-copy-desc="${a.id}">📋 Copia descrizione</button>` : ""}<button class="btn good" data-approve="${a.id}">✔ Fatto</button><button class="btn ghost" data-reject="${a.id}">Scarta</button>`
           : `<button class="btn good" data-approve="${a.id}">${p.publishAt ? "Approva" : "Pubblica"}</button><button class="btn ghost" data-reject="${a.id}">Scarta</button>`
         : `<span class="meta">${outcome}</span>`}
     </div>
@@ -475,6 +479,13 @@ export function bindShareButtons(container, approvals) {
       if (a) sharePost(a, btn);
     }),
   );
+  // Copertina del Reel: si salva nelle foto (condivisione → «Salva immagine»), poi su Instagram «Aggiungi dal rullino».
+  container.querySelectorAll("[data-save-cover]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      const a = approvals.find((x) => x.id === btn.dataset.saveCover);
+      if (a) saveCover(a, btn);
+    }),
+  );
   // YouTube a mano: il titolo si copia con «Condividi», la descrizione con questo pulsante.
   container.querySelectorAll("[data-copy-desc]").forEach((btn) =>
     btn.addEventListener("click", () => {
@@ -491,6 +502,43 @@ export function bindShareButtons(container, approvals) {
       window.open(`https://www.linkedin.com/company/${encodeURIComponent(a.post.page.id)}/admin/page-posts/published/`, "_blank", "noopener");
     }),
   );
+}
+
+const coverFiles = new Map(); // id dell'approvazione → File della copertina (scaricato al primo tocco)
+
+async function saveCover(a, btn) {
+  const src = coverOf(a.post ?? {});
+  if (!src) return;
+  const file = coverFiles.get(a.id);
+  // La condivisione dell'iPhone parte solo dentro un tocco: al primo si scarica, al secondo si condivide.
+  if (!file) {
+    const label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Preparo la copertina…";
+    try {
+      const r = await fetch(src);
+      if (!r.ok) throw new Error(`errore ${r.status}`);
+      const blob = await r.blob();
+      coverFiles.set(a.id, new File([blob], "copertina-reel.jpg", { type: "image/jpeg" }));
+      btn.textContent = "🖼️ Tocca di nuovo per salvarla";
+    } catch (err) {
+      btn.textContent = label;
+      alert(`Non riesco a scaricare la copertina: ${err.message}`);
+    } finally {
+      btn.disabled = false;
+    }
+    return;
+  }
+  if (navigator.share && navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file] });
+      btn.textContent = "✔ Copertina pronta";
+    } catch (err) {
+      if (err.name !== "AbortError") alert(`Non riesco a salvarla: ${err.message}`);
+    }
+    return;
+  }
+  window.open(src, "_blank", "noopener"); // computer: si apre l'immagine e si salva con il tasto destro
 }
 
 async function sharePost(a, btn) {

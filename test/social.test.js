@@ -164,6 +164,22 @@ test("Instagram: carosello con foto e video (Reel in lavorazione), storia, rispo
   social.setNetworkSettings("instagram", { auto: false });
 });
 
+test("Instagram: il Reel parte con la copertina con il titolo (cover_url), non con il primo fotogramma", async () => {
+  const id = media.newId();
+  fs.writeFileSync(path.join(media.MEDIA_DIR, `${id}.mp4`), Buffer.alloc(4096));
+  const reel = await media.addVideoFile(id, { cover: await tmpImage(108, 192), title: "Reel con copertina", width: 1080, height: 1920, duration: 20 });
+  assert.match(reel.cover, /-c\.jpg$/);
+  assert.equal(media.fileForPublicName(reel.cover.slice(3)).mime, "image/jpeg");
+  social.setNetworkSettings("instagram", { auto: true, maxPerDay: 10 });
+  const r = await social.proposePost(agent, { network: "instagram", text: "Reel", media: [reel.id], reason: "test" });
+  assert.equal(r.status, "published", JSON.stringify(r));
+  const create = fake.calls.filter((c) => c.host === "graph.instagram.com" && c.body.media_type === "REELS").at(-1);
+  assert.equal(create.body.cover_url, `${process.env.PUBLIC_URL}${reel.cover}`);
+  social.setNetworkSettings("instagram", { auto: false });
+  media.deleteMedia(reel.id);
+  assert.equal(fs.existsSync(path.join(media.MEDIA_DIR, `${id}-c.jpg`)), false, "la copertina si cancella con il video");
+});
+
 test("Instagram: le storie hanno un massimo al giorno a parte dai post", async () => {
   const ig = () => social.socialStatus().networks.find((n) => n.id === "instagram");
   assert.equal(ig().maxStoriesPerDay, 5);

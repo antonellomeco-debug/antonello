@@ -430,5 +430,13 @@ test("video animati (create_motion_video): scene controllate, pagina animata di 
   assert.match(page, /class="cap" id="c0"/, "sottotitoli dalla voce");
   assert.ok(!/>undefined</.test(page), "parole dei sottotitoli scritte davvero");
   assert.match(page, /<video class="mbg clip"/);
+  // Copertina per Instagram: la prima scena con il titolo in vista (non il primo fotogramma, che è solo lo sfondo).
+  const m = media.getMedia(v.id);
+  assert.match(v.cover, /^\/m\/[a-f0-9]+-c\.jpg$/);
+  assert.equal(media.fileForPublicName(v.cover.slice(3)).file, path.join(media.MEDIA_DIR, m.cover));
+  assert.ok(fs.statSync(path.join(media.MEDIA_DIR, m.cover)).size > 1000);
+  const t0 = motion.coverTime({ type: "hook", text: "Il 70% delle PMI non chiede i bandi", highlight: ["70%"], at: 0, dur: 3.5 });
+  assert.ok(t0 > 1 && t0 < 3.5 - 0.26, `copertina a ${t0} s`);
+  assert.equal(motion.coverTime({ type: "hook", text: "uno due tre quattro cinque sei sette otto nove dieci undici", highlight: ["due", "tre"], at: 0, dur: 1.6 }), 1.6 - 0.26 - 0.08, "mai dentro la tendina");
   delete process.env.MOTION_RENDERER;
 });
