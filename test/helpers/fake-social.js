@@ -228,6 +228,17 @@ export async function startFakeSocial({ port = 0 } = {}) {
           if (opts.ytThumbFail) return json(403, { error: { code: 403, message: "The authenticated user doesn't have permissions to upload and set custom video thumbnails." } });
           return json(200, { items: [{ default: { url: "https://i.ytimg.com/x.jpg" } }] });
         }
+        if (p === "/youtube/v3/search") {
+          return json(200, { items: [{ id: { kind: "youtube#video", videoId: "yt-s1" } }, { id: { kind: "youtube#video", videoId: "yt-s2" } }] });
+        }
+        if (p === "/youtube/v3/videos" && q.id?.includes("yt-s1")) {
+          return json(200, {
+            items: [
+              { id: "yt-s1", snippet: { title: "Bandi 2026 spiegati", channelTitle: "Canale A", publishedAt: `${YESTERDAY}T10:00:00Z` }, statistics: { viewCount: "1200", likeCount: "80", commentCount: "12" }, contentDetails: { duration: "PT9M" } },
+              { id: "yt-s2", snippet: { title: "Credito d'imposta: come funziona", channelTitle: "Canale B", publishedAt: `${YESTERDAY}T08:00:00Z` }, statistics: { viewCount: "54000", likeCount: "900", commentCount: "150" }, contentDetails: { duration: "PT58S" } },
+            ],
+          });
+        }
         if (p === "/youtube/v3/playlistItems") return json(200, { items: [{ contentDetails: { videoId: "yt-v1" } }] });
         if (p === "/youtube/v3/videos") return json(200, { items: [{ id: "yt-v1", snippet: { title: "Primo Short", publishedAt: new Date().toISOString() }, statistics: { viewCount: "300", likeCount: "20", commentCount: "2" }, status: { privacyStatus: "public" }, contentDetails: { duration: "PT35S" } }] });
         if (p === "/youtube/v3/commentThreads") {
@@ -362,6 +373,46 @@ export async function startFakeSocial({ port = 0 } = {}) {
       if (host === "images.pexels.com") {
         res.writeHead(200, { "content-type": "image/png" });
         return res.end(PNG);
+      }
+      // ---------------- «Ascolta la rete» (lib/buzz.js, BUZZ_API_BASE)
+      if (host === "arctic-shift.photon-reddit.com" && p === "/api/posts/search") {
+        if (opts.redditDown) return json(429, { error: "slow down" });
+        const now = Math.floor(Date.now() / 1000);
+        return json(200, {
+          data: [
+            { id: "r1", title: `Bandi per startup: qualcuno li ha usati? (${q.subreddit ?? q.title})`, subreddit: q.subreddit ?? "startups", score: 340, num_comments: 120, created_utc: now - 86400, permalink: "/r/x/comments/r1/bandi/", selftext: "Ho provato Smart&Start e..." },
+            { id: "r2", title: "Post rimosso", subreddit: "x", score: 9000, num_comments: 1, created_utc: now - 3600, permalink: "/r/x/comments/r2/", selftext: "[removed]" },
+            { id: "r3", title: "Domanda veloce sui bandi", subreddit: "x", score: 3, num_comments: 2, created_utc: now - 7200, permalink: "/r/x/comments/r3/" },
+          ],
+        });
+      }
+      if (host === "gamma-api.polymarket.com" && p === "/public-search") {
+        return json(200, {
+          events: [
+            { id: "e1", title: "Fed decision in December?", slug: "fed-december", volume1mo: 2500000, active: true, closed: false, markets: [
+              { question: "Fed cuts 25 bps?", outcomes: "[\"Yes\", \"No\"]", outcomePrices: "[\"0.72\", \"0.28\"]", volume: "900000", oneWeekPriceChange: 0.05, endDate: "2026-12-10T00:00:00Z", active: true, closed: false },
+              { question: "Fed holds?", outcomes: ["Yes", "No"], outcomePrices: ["0.25", "0.75"], volume: "400000", active: true, closed: false },
+              { question: "Old market", outcomes: "[]", outcomePrices: "[]", volume: "1", closed: true },
+            ] },
+            { id: "e2", title: "Closed event", slug: "closed", volume1mo: 9e9, closed: true, markets: [] },
+          ],
+        });
+      }
+      if (host === "hn.algolia.com" && p === "/api/v1/search") {
+        return json(200, { hits: [
+          { objectID: "11", title: "Show HN: a tool for small businesses", url: "https://example.com/tool", points: 50, num_comments: 10, created_at: `${YESTERDAY}T09:00:00Z` },
+          { objectID: "12", title: "Ask HN: funding in Europe?", url: null, points: 300, num_comments: 200, created_at: `${YESTERDAY}T07:00:00Z` },
+        ] });
+      }
+      if (host === "api.stocktwits.com" && p.startsWith("/api/2/streams/symbol/")) {
+        const sym = decodeURIComponent(p.split("/").pop().replace(/\.json$/, ""));
+        const at = `${YESTERDAY}T12:00:00Z`;
+        return json(200, { symbol: { symbol: sym }, messages: [
+          { id: 1, body: `$${sym} to the moon`, created_at: at, user: { username: "bull1" }, entities: { sentiment: { basic: "Bullish" } }, likes: { total: 5 } },
+          { id: 2, body: `$${sym} breakout`, created_at: at, user: { username: "bull2" }, entities: { sentiment: { basic: "Bullish" } } },
+          { id: 3, body: `$${sym} overvalued`, created_at: at, user: { username: "bear1" }, entities: { sentiment: { basic: "Bearish" } }, likes: { total: 9 } },
+          { id: 4, body: "old", created_at: "2020-01-01T00:00:00Z", user: { username: "old" }, entities: { sentiment: { basic: "Bearish" } } },
+        ] });
       }
       if (host === "videos.pexels.com") {
         fetched.push({ url: p, status: 200 });

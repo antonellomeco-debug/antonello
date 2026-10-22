@@ -308,6 +308,32 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   solo dall'interfaccia). Senza dominio verificato si scrive solo all'email della registrazione, da onboarding@resend.dev.
   Test: `test/reports.test.js` (finto Resend con `RESEND_BASE`, `REPORT_PDF=fake`).
 
+## Progetti esterni adottati (22 ottobre 2026)
+
+- L'utente ha proposto 10 progetti GitHub; scelti 4 (Onyx, REA, Scrapling, UI UX Pro Max e Ponytail scartati: doppioni,
+  costi o rischi).
+- **Scrivere come una persona** (da Humanizer, MIT): `lib/style.js` = `WRITING_RULES` nel prompt di chi ha `social_publish`,
+  `create_*` o `weekly_report` (`WRITING_TOOLS` in runner.js) e in quello di Orion; `assertHumanText` in `social_publish`,
+  `create_video`, `create_motion_video`, `create_diagram`: segno forte (contrasto finto, chiusura a effetto, massime, annunci,
+  obiezioni inventate, resti da chat, 2+ trattini lunghi) o 3+ parole gonfiate diverse → rifiuto la prima volta, lo stesso testo
+  identico rimandato entro 3 ore passa. `\b` di JavaScript non conosce le lettere accentate: confine di parola `B` in style.js.
+  Skill `scrittura-umana` (versione completa in italiano, per i testi del sito).
+- **Ascolta la rete** (da last30days, MIT): strumento `web_buzz` (`lib/buzz.js`, agenti e Orion), gratis: Reddit dall'archivio
+  arctic-shift (`/api/posts/search`: `subreddit`+`query`, senza subreddit `title`), Polymarket `gamma-api.polymarket.com/public-search`,
+  Hacker News (Algolia), StockTwits (`/api/2/streams/symbol/<SIM>.json`), YouTube `search.list` con il canale collegato (max 20 al
+  giorno). Dal container nessuna di queste fonti è raggiungibile: formati presi dal codice di last30days, test con il finto server
+  (`BUZZ_API_BASE`, rotte in fake-social.js). Da verificare dal vero: parametri di arctic-shift senza subreddit, che Railway non
+  sia bloccato, la quota di YouTube.
+- **Diagrammi** (da diagram-design, MIT): `create_diagram` (`lib/social/diagram.js`), 7 tipi, accento su massimo 2 elementi, temi
+  chiaro/notte, formati portrait/square/story/landscape. `assets/fonts/Sora.ttf` convertito da `Sora-latin.woff2` con fontTools
+  (prima Sora nelle grafiche diventava Montserrat).
+- **Skill di design** in `.claude/skills/` (aggiunte con `git add -f`, fuori dall'immagine Docker): `hallmark` (MIT), `impeccable`
+  (Apache 2.0, con NOTICE; il lanciatore scarica il motore da GitHub con controllo SHA-256), `diagram-design` (MIT, style guide con i
+  colori di Venturo), `venturo-sito` (come fare venturoitalia.it: PRODUCT.md, DESIGN.md, pagine, obblighi legali, hosting, DNS senza
+  toccare i record MX dell'email). L'utente aprirà presto il sito: chiedergli repository a parte o cartella `sito/` e servizio newsletter.
+- Messaggi per Orion (web_buzz ai Trend, all'Osservatorio e al sentiment di Gold e Azioni; create_diagram a chi ha create_graphic):
+  https://claude.ai/artifact/GM3Tf5f177Wai4nHFnqySa
+
 ## Spesa e risparmio (15 ottobre 2026)
 
 - `lib/store.js`: `costScope` (AsyncLocalStorage) dice chi spende: `runAgent` → `{agentId, palace}`, chat di Orion →

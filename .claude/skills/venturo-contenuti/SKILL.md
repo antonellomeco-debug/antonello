@@ -55,7 +55,12 @@ nella pagina del nuovo ritmo): totale ~45.000 su 100.000.
 5. `list` — «Cosa vuol dire per te» in 3 punti
 6. `cta` — «Mandalo a un imprenditore che conosci», sub «Newsletter gratuita · link in bio»
 
-## Caroselli (strumento `create_graphic`, formato portrait 1080×1350)
+## Caroselli (strumenti `create_diagram` e `create_graphic`, formato portrait 1080×1350)
+
+- Slide con passi, scadenze, confronti, classifiche, imbuti, matrici o cicli: `create_diagram` (solo dati in JSON, disegno già con
+  i colori di Venturo, fonte e numero di slide `page`). Il resto (copertina con foto, citazioni): `create_graphic` con Sora.
+- Temi caldi della settimana: `web_buzz` (Reddit italiano, Polymarket, YouTube) prima di scegliere l'argomento; i numeri poi si
+  verificano su fonti ufficiali.
 
 - 8–10 slide. Slide 1: titolo con un numero e una promessa («7 bandi aperti a novembre (scadenze incluse)») e immagine forte.
 - 25–40 parole per slide, una idea per slide; stile «da salvare»: guide passo per passo, liste di controllo, tabelle, mappe.
