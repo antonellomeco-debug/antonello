@@ -94,6 +94,7 @@ test("da approvare: una notifica cifrata (si legge solo con la chiave del telefo
 test("post pubblicati e non riusciti; preferenze; i post pubblicati a mano non si notificano", async () => {
   const p = phone("iphone3");
   push.subscribe(p.sub, "iPhone");
+  push.setPrefs({ published: true }); // di partenza spenti: si accendono in ⚙️ Impostazioni → 🔔
   received.length = 0;
   const ev = (o) => bus.emit("event", { type: "post-status", label: "Threads", reply: false, manual: false, text: "Ciao a tutti", url: "https://www.threads.net/@x/post/1", ...o });
   ev({ status: "published" });
@@ -119,6 +120,7 @@ test("post pubblicati e non riusciti; preferenze; i post pubblicati a mano non s
 test("report delle spese: notifica che apre 💰 Spesa; si può spegnere; le note normali no", async () => {
   const p = phone("iphone4");
   push.subscribe(p.sub, "iPhone");
+  push.setPrefs({ reports: true });
   received.length = 0;
   postNote("sala", { id: "contabile", name: "Contabile Social" }, "REPORT SPESE — settimana 12–18 ottobre: 1,20 $ (+15%).", []);
   postNote("sala", { id: "contabile", name: "Contabile Social" }, "appunti di lavoro", ["SPESE"]);
@@ -150,4 +152,26 @@ test("dispositivo sparito (410): tolto dall'elenco; prova manuale", async () => 
   received.length = 0;
   assert.equal((await push.sendTest()).sent, 1);
   assert.equal(decrypt(p, received[0].body).title, "🔔 Notifiche attive");
+});
+
+test("di partenza solo approvazioni e domande; un post programmato notifica solo un'ora prima", async () => {
+  assert.deepEqual(push.DEFAULT_PREFS, { approvals: true, published: false, replies: false, reports: false });
+  const { revealDueApprovals, approvalVisible } = await import("../lib/store.js");
+  const p = phone("iphone7");
+  push.subscribe(p.sub, "iPhone");
+  push.setPrefs({ approvals: true });
+  received.length = 0;
+  const showAt = new Date(Date.now() + 60_000).toISOString();
+  const a = addApproval({ id: "editore", name: "Editore YouTube", room: "sala", target: { mode: "social", network: "youtube", label: "YouTube" } }, null, { kind: "post", post: { network: "youtube", text: "Short" }, showAt });
+  await push.flush();
+  assert.equal(received.filter((r) => r.path === "/push/iphone7").length, 0, "prima dell'ora: niente notifica");
+  assert.equal(approvalVisible(a), false);
+  assert.equal(revealDueApprovals(Date.now() + 120_000), 1);
+  assert.equal(revealDueApprovals(Date.now() + 180_000), 0, "una volta sola");
+  a.showAt = new Date(Date.now() - 1000).toISOString(); // l'ora è arrivata davvero
+  bus.emit("event", { type: "approval", approval: a });
+  await push.flush();
+  const mine = received.filter((r) => r.path === "/push/iphone7").map((r) => decrypt(p, r.body));
+  assert.equal(mine.length, 1);
+  assert.match(mine[0].title, /Post da approvare · YouTube/);
 });

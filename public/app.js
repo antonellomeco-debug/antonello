@@ -863,7 +863,11 @@ $("#request-file").addEventListener("change", async (e) => {
 function renderApprovals() {
   // Due schede: «Da approvare» (proposte in attesa e domande aperte) e «Approvate» (già decise; le scartate solo a richiesta).
   const tab = state.approvalsTab === "done" ? "done" : "pending";
-  const pendingList = state.approvals.filter((a) => a.status === "pending");
+  // I post con un'ora di pubblicazione compaiono un'ora prima (showAt): prima restano nascosti.
+  const now = Date.now();
+  const allPending = state.approvals.filter((a) => a.status === "pending");
+  const pendingList = allPending.filter((a) => !a.showAt || Date.parse(a.showAt) <= now);
+  const later = allPending.length - pendingList.length;
   const decided = state.approvals.filter((a) => a.status !== "pending");
   const rejected = decided.filter((a) => a.status === "rejected").length;
   const openRequests = state.requests.filter((r) => r.status === "open").length;
@@ -876,7 +880,8 @@ function renderApprovals() {
   });
   renderRequests();
   const list = tab === "pending" ? pendingList : decided.filter((a) => state.showRejected || a.status !== "rejected");
-  const toggle = tab === "done" && rejected
+  const laterNote = tab === "pending" && later ? `<p class="meta appr-filter">🕒 ${later === 1 ? "1 post arriva" : `${later} post arrivano`} più tardi, un'ora prima dell'ora di pubblicazione.</p>` : "";
+  const toggle = tab === "pending" ? laterNote : tab === "done" && rejected
     ? `<label class="inline appr-filter"><input type="checkbox" id="approvals-show-rejected" ${state.showRejected ? "checked" : ""} /> Mostra anche le scartate (${rejected})</label>`
     : "";
   if (!list.length) {
