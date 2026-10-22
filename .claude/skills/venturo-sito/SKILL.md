@@ -18,6 +18,13 @@ programmatore: spiega in italiano, a passi numerati, e chiedi conferma prima di 
 | Schemi e diagrammi (come funziona Venturo, le fasi, il percorso di vendita di un'azienda) | `diagram-design` | Già con i colori di Venturo (`references/style-guide.md`, profilo venturo). |
 | Testi della pagina | `scrittura-umana` | Prima riga = il fatto; niente promesse di guadagno. |
 | Grafiche per i social dalla pagina | strumenti della piattaforma (`create_graphic`) | |
+| Quali pagine, menu, indirizzi | `site-architecture` | Raccolta Marketing Skills (MIT): legge `.agents/product-marketing.md`. |
+| Testi delle pagine | `copywriting` poi `scrittura-umana` | In italiano, con il filtro delle regole di Venturo. |
+| Regalo in cambio dell'iscrizione | `lead-magnets` | Per esempio una guida PDF ai bandi del mese. |
+| Email di benvenuto e newsletter | `emails` | Sequenza dopo l'iscrizione. |
+| Lancio del sito | `launch` | Lista d'attesa, annuncio sui social. |
+| SEO (Google) | `seo-audit` | Dopo la messa online. |
+| Decisioni grosse (prezzi, nome, lancio) | `marketing-council` | Consiglio simulato di 12 grandi del marketing, con il filtro Venturo. |
 
 Hallmark e Impeccable non si usano insieme sulla stessa pagina nello stesso passaggio: Hallmark costruisce, Impeccable controlla e rifinisce.
 
