@@ -159,6 +159,10 @@ Lo strumento `web_search` (anche per Orion) usa la ricerca web di Anthropic: la 
 
 Lo strumento `web_buzz` (`lib/buzz.js`, anche per Orion) dice cosa scrive la gente negli ultimi giorni (fino a 30) su un argomento, da fonti pubbliche e gratuite, senza chiavi: discussioni di Reddit con punti e commenti (archivio pubblico arctic-shift, anche per subreddit italiani), probabilità delle scommesse di Polymarket, Hacker News, umore dei trader di StockTwits su un simbolo e video più visti di YouTube con il canale già collegato in 📣 Social (al massimo 20 ricerche al giorno, perché ognuna usa 100 delle 10.000 unità quotidiane del progetto Google). Le fonti lavorano in parallelo, i risultati restano 30 minuti, una fonte che non risponde finisce in `errori` senza fermare le altre. L'idea viene da [last30days](https://github.com/mvanhorn/last30days-skill) (MIT). Test: `test/buzz.test.js` (finto server, `BUZZ_API_BASE`).
 
+### Notizie RSS e lettura delle pagine
+
+Due strumenti gratuiti senza chiavi (`lib/reader.js`, anche per Orion), idea presa da [Agent Reach](https://github.com/Panniantong/agent-reach) (MIT). `read_feeds` legge fino a 8 feed RSS o Atom: si può dare un nome tra le fonti pronte (`FEED_PRESETS`: ANSA Economia, Sole 24 Ore, Invitalia, MIMIT, Gazzetta Ufficiale, Agenzia delle Entrate), l'indirizzo di un feed oppure la pagina principale di un sito, dove si cerca il link RSS dichiarato. Restituisce le notizie più recenti, filtrate per giorni e parole. `read_page` dà il testo pulito di una pagina (articolo o parte principale, senza menu, script e piè di pagina), con titolo, data e link a PDF e allegati, oppure il testo di un PDF con `pdftotext` (pacchetto `poppler-utils` nel `Dockerfile`). Le pagine lunghe arrivano a pezzi (`max_chars`, `from`). Sicurezza: solo http e https, niente nome utente o password nell'indirizzo, niente indirizzi interni (localhost, reti private, metadati del cloud) né al primo indirizzo né dopo un redirect, risposte fino a 3 MB (15 MB per i PDF), cache di 15 minuti. Test: `test/reader.test.js` (finto server, `READER_API_BASE`).
+
 ### Scrivere come una persona
 
 Chi scrive testi pubblici (agenti con `social_publish`, `create_*` o `weekly_report`, e Orion) riceve nel prompt le regole di `lib/style.js` (`WRITING_RULES`), adattate all'italiano da [Humanizer](https://github.com/blader/humanizer) (MIT): niente «non è solo X, è Y», chiusure a effetto, annunci prima del punto, trattini lunghi, parole gonfiate, resti da chat. `social_publish`, `create_video`, `create_motion_video` e `create_diagram` controllano i testi (`assertHumanText`): con un segno forte, o con almeno tre parole gonfiate diverse, la prima volta rifiutano e dicono quali frasi riscrivere; lo stesso testo rimandato identico (una citazione voluta) passa. Test: `test/style.test.js`.
@@ -339,6 +343,7 @@ lib/runner.js       esecuzione agenti (Claude con strumenti, oppure strategia JS
 lib/schedule.js     orario di lavoro degli agenti, chiusura del venerdì, giorno e ora italiana
 lib/calendar.js     calendario economico (Forex Factory) con cache in data/calendar.json
 lib/buzz.js         «ascolta la rete»: Reddit, Polymarket, Hacker News, StockTwits, YouTube (web_buzz)
+lib/reader.js       notizie dai feed RSS (read_feeds) e testo di pagine e PDF (read_page), senza indirizzi interni
 lib/style.js        regole per scrivere come una persona e controllo dei testi pubblici
 lib/tools.js        strumenti disponibili agli agenti (compresa la ricerca web di Claude)
 lib/orchestrator.js il regista con cui parli in chat
