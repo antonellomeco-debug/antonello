@@ -700,6 +700,8 @@ dialog.small-dlg { width: min(480px, 94vw); }
 .hist-kpis .kpi small { display: block; }
 .hist-table td small.hint { display: block; font-size: 11px; margin-top: 2px; }
 .hist-result b { font-variant-numeric: tabular-nums; }
+.bt-table td small.hint { display: block; font-size: 11px; margin-top: 2px; }
+.bt-table td { vertical-align: top; font-variant-numeric: tabular-nums; }
 
 
 /* Il mio portafoglio e segnali sulle azioni */

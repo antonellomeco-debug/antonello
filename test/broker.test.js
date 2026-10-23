@@ -16,6 +16,8 @@ Object.assign(process.env, {
   CTRADER_PORT: String(fake.port),
   CTRADER_AUTH_URL: "http://127.0.0.1/auth",
   CTRADER_TOKEN_URL: `http://127.0.0.1:${fake.tokenPort}/apps/token`,
+  CTRADER_SL_TRIES: "2",
+  CTRADER_SL_WAIT_MS: "20",
 });
 const ct = await import("../lib/ctrader/service.js");
 const safety = await import("../lib/safety.js");
@@ -197,6 +199,54 @@ test("stop loss negativo rifiutato; senza stop loss si usa quello predefinito an
   const p = (await ct.positions(demo)).find((x) => x.positionId === r.positionId);
   assert.ok(p.stopLoss > 0);
   await broker.placeOrder(agent(), { action: "close", positionId: r.positionId });
+});
+
+test("stop loss controllato dopo l'apertura: se manca si mette, se non si può la posizione si chiude", async () => {
+  resetSafety();
+  office.setFloorTrading(FLOOR, { mode: "ctrader", accountId: demo });
+  fake.state.dropStopLoss = true;
+  try {
+    const r = await broker.placeOrder(agent(), { symbol: "EURUSD", side: "buy", lots: 0.01, stop_loss_pct: 1, take_profit_pct: 2 });
+    assert.equal(r.stopLossFixed, true);
+    const p = (await ct.positions(demo)).find((x) => x.positionId === r.positionId);
+    assert.ok(p.stopLoss > 0 && p.stopLoss < r.price, "stop sotto il prezzo d'entrata");
+    assert.ok(p.takeProfit > r.price, "il take profit resta");
+    await broker.placeOrder(agent(), { action: "close", positionId: r.positionId });
+
+    fake.state.failAmend = true;
+    const r2 = await broker.placeOrder(agent(), { symbol: "EURUSD", side: "sell", lots: 0.01, stop_loss_pct: 1 });
+    assert.equal(r2.closedForSafety, true);
+    assert.ok(!(await ct.positions(demo)).some((x) => x.positionId === r2.positionId), "nessuna posizione senza protezione");
+    assert.match(getState().log.filter((e) => e.agentId === "trader").at(-1).message, /chiusa subito per sicurezza/);
+  } finally {
+    fake.state.dropStopLoss = false;
+    fake.state.failAmend = false;
+  }
+});
+
+test("storico lungo a pagine (solo candele chiuse) e lotti calcolati dal rischio con il cambio del broker", async () => {
+  const before = fake.state.trendbarWindows.length;
+  const bars = await ct.history(demo, "EURUSD", "H1", 400);
+  assert.ok(bars.length >= 300 && bars.length <= 400, `candele: ${bars.length}`);
+  assert.ok(fake.state.trendbarWindows.length - before >= 3, "più richieste all'indietro nel tempo");
+  assert.ok(bars.every((b, i) => i === 0 || b.time > bars[i - 1].time), "in ordine, senza doppioni");
+  assert.ok(bars.at(-1).time + 3_600_000 <= Date.now(), "la candela in formazione non c'è");
+
+  // EURUSD: stop a 10 pip, rischio 50 € → 100.000 unità per lotto, 100 $ per lotto ≈ 92 € → 0,54 lotti.
+  const r = await ct.riskLots(demo, "EURUSD", 0.001, 50);
+  assert.equal(r.currency, "EUR");
+  assert.equal(r.lots, 0.54);
+  assert.ok(r.risk <= 50);
+  const tooSmall = await ct.riskLots(demo, "EURUSD", 0.05, 1);
+  assert.equal(tooSmall.lots, 0);
+  assert.match(tooSmall.note, /anche il minimo/);
+  const eni = await ct.riskLots(demo, "ENI.IT", 0.5, 100); // in euro: nessun cambio
+  assert.equal(eni.lots, 200);
+  resetSafety(); // massimo 0,1 lotti per ordine
+  const { riskLots } = await import("../lib/market.js");
+  const capped = await riskLots("EURUSD", 0.001, 50, { accountId: demo });
+  assert.equal(capped.lots, 0.1, "mai oltre il massimo di Sicurezza: si rischia di meno");
+  assert.match(capped.note, /Sicurezza/);
 });
 
 test("ordini in parallelo: i limiti valgono lo stesso", async () => {

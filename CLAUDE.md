@@ -355,6 +355,23 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   (`lib/schedule.js`, `LONG_EVERY_MIN` 1440): sotto un giorno conta solo il lavoro di oggi, da un giorno in su conta sempre
   (fino a 62 giorni); `clearRuns` toglie solo gli agenti «di giornata».
 
+## Analisi del progetto e nuovo Palazzo Investimenti (24 ottobre 2026)
+
+- Analisi completa dalla Mappa del progetto (121 agenti): https://claude.ai/artifact/1UqLcsBmSH1Cem91Rn8iPR. L'utente ha chiesto di
+  applicare tutti i miglioramenti agli altri palazzi e di **rifare da zero il Palazzo Investimenti** («deve guadagnare per finanziare
+  il progetto»): detto chiaramente che nessuno può garantirlo; si prova prima sui dati, poi sul demo, i soldi veri solo con criteri.
+- **Giri a vuoto**: `isQuietNote` in `lib/costs.js` (note «niente di nuovo», «nessuna novità», etichetta STATO) non svegliano gli agenti
+  `onlyOnNews`; nel prompt (`lib/runner.js`) chi lavora solo con novità non scrive note se non ha niente, gli altri una riga «NESSUNA NOVITÀ».
+- **Stop loss dopo l'apertura**: `ensureStopLoss` in `lib/ctrader/service.js` (attese `CTRADER_SL_TRIES`/`CTRADER_SL_WAIT_MS`), poi
+  `ProtoOAAmendPositionSLTPReq` con prezzo assoluto, altrimenti chiusura (`closedForSafety`). Finto cTrader: `dropStopLoss`, `failAmend`.
+- **Scanner**: `maxSpreadAtr` (0,2) scarta i mercati con spread alto rispetto all'ATR (solo i candidati in classifica, con `getQuote`).
+- **Sistemi e banco di prova**: `lib/systems.js` (turtle, momentum, pullback, rsi2, squeeze; `backtest`, `stats`, `verdict`, archivio
+  `state.backtests`, `passedBacktest`), strumento `backtest` (agenti e Orion; `flat_weekend` di partenza come la chiusura del venerdì),
+  `longHistory`/`riskLots` in `lib/market.js`, `history()`/`riskLots()` in `lib/ctrader/service.js` (il finto cTrader ora ha valute:
+  `baseAssetId`/`quoteAssetId`, asset EUR/USD/XAU/US500/ENI), strategia `strategies/sistema.js` (agente rule gratuito, opera solo con
+  prova SUPERATA, filtro notizie `highImpactNear`/`currenciesOf` di `lib/calendar.js`, lotti dal rischio entro Sicurezza), riquadro
+  🧪 Banco di prova in 🔌 Broker. Dal container cTrader e Yahoo non si raggiungono: le prove vere le fa l'agente sul server.
+
 ## Spesa e risparmio (15 ottobre 2026)
 
 - `lib/store.js`: `costScope` (AsyncLocalStorage) dice chi spende: `runAgent` → `{agentId, palace}`, chat di Orion →

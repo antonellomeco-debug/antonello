@@ -42,7 +42,7 @@ test("gruppi dai nomi del broker (e dai simboli quando la categoria non basta)",
   assert.equal(groupOf({ assetClass: "Stocks", category: "US Shares", symbol: "AAPL.US" }), "azioni");
 });
 
-function ctx({ catalog, history, params = {}, watchlist = [] }) {
+function ctx({ catalog, history, params = {}, watchlist = [], spreads }) {
   const posted = [];
   const asked = [];
   return {
@@ -53,6 +53,7 @@ function ctx({ catalog, history, params = {}, watchlist = [] }) {
       params: { pauseMs: 0, ...params },
       market: {
         symbols: async () => catalog,
+        ...(spreads ? { getQuote: async (s) => ({ symbol: s, spread: spreads[s] ?? null }) } : {}),
         getHistory: async (s, opts) => {
           asked.push([s, opts]);
           if (!history[s]) throw new Error("niente dati");
@@ -95,6 +96,20 @@ test("scanner: tutti i mercati del broker tranne le azioni, classifica con i mig
   assert.deepEqual(tags.slice(0, 1), ["SCANNER"]);
   assert.ok(tags.includes("XAUUSD") && tags.includes("GBPUSD"));
   assert.match(out, /4 mercati controllati, 2 in classifica/);
+});
+
+test("scanner: i mercati con lo spread troppo alto rispetto all'escursione escono dalla classifica", async () => {
+  const catalog = [
+    { symbol: "GBPUSD", assetClass: "Forex", category: "Majors" },
+    { symbol: "XAUUSD", assetClass: "Metals", category: "Spot Metals" },
+  ];
+  const history = { GBPUSD: mirror(series(120, { step: 0.05, wave: 3, last: 1 })), XAUUSD: series(120, { step: 0.05, wave: 3, last: 1 }) };
+  const { ctx: c, posted } = ctx({ catalog, history, spreads: { GBPUSD: 1000, XAUUSD: 0.0001 } });
+  await scanner(c);
+  const { text } = posted[0];
+  assert.match(text, /1 scartati per spread troppo alto/);
+  assert.match(text, /1\. XAUUSD · RIALZO .* spread 0% dell'escursione/);
+  assert.ok(!/GBPUSD ·/.test(text));
 });
 
 test("scanner: gruppi scelti, include, exclude, limite e mercati a turno tra i gruppi", async () => {
