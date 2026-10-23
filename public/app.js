@@ -2370,6 +2370,43 @@ $("#export-data").onclick = async () => {
   }
 };
 
+// Mappa del progetto: niente chiavi né password, quindi niente password da chiedere.
+$("#export-map").onclick = async () => {
+  $("#data-errors").textContent = "";
+  $("#data-status").textContent = "Preparo la mappa…";
+  try {
+    const res = await fetch("/api/project-map", { cache: "no-store" });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      if (res.status === 401 && body.login) return goLogin();
+      throw new Error(body.error ?? res.statusText);
+    }
+    const name = /filename=([^;]+)/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? "mappa-progetto.json";
+    const blob = await res.blob();
+    const file = new File([blob], name, { type: "application/json" });
+    // Sull'iPhone il foglio di condivisione permette di mandarla subito (per esempio all'app di Claude).
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: "Mappa del progetto" });
+        $("#data-status").textContent = "Mappa condivisa ✅";
+        return;
+      } catch (err) {
+        if (err.name === "AbortError") return void ($("#data-status").textContent = "");
+      }
+    }
+    const url = URL.createObjectURL(blob);
+    const link = Object.assign(document.createElement("a"), { href: url, download: name });
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    $("#data-status").textContent = `File «${name}» scaricato ✅ (senza chiavi né password).`;
+  } catch (err) {
+    $("#data-status").textContent = "";
+    $("#data-errors").textContent = err.message;
+  }
+};
+
 // ---------- password per le operazioni delicate ----------
 
 const passDlg = $("#password-dialog");
