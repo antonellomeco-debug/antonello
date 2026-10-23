@@ -340,6 +340,11 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   «filtro Venturo» (niente urgenza finta, garanzie, promesse). Nella piattaforma: agente mensile «🏛️ Consiglio del Marketing»
   (Sonnet medium, everyMinutes 43200, stanza Consiglio al Piano Terra del Palazzo R&S), messaggi per Orion:
   https://claude.ai/artifact/1on5qkHiTXnevuNZCvi6j2
+- **Agent Reach** (23/10/2026) valutato: installatore cinese di programmi per assistenti sul computer, con accessi ai social tramite
+  cookie (rischio blocco degli account): non installato. Prese due idee in `lib/reader.js`: `read_feeds` (RSS/Atom, fonti pronte
+  `FEED_PRESETS` da verificare dal vero, ricerca del feed nella home) e `read_page` (testo pulito di pagine e PDF con `pdftotext`,
+  `poppler-utils` nel Dockerfile; blocco degli indirizzi interni anche dopo i redirect). Dal container i siti italiani non si
+  raggiungono (prova vera solo su raw.githubusercontent.com con `NODE_USE_ENV_PROXY=1`); test con finto server (`READER_API_BASE`).
 - **Bug degli agenti lunghi** (23/10/2026): all'apertura dell'orario `clearRuns` azzerava l'ultimo avvio di TUTTI gli agenti e al
   riavvio si tenevano solo gli avvii di oggi, quindi gli agenti settimanali e mensili lavoravano ogni giorno. Ora `lastRunFor`
   (`lib/schedule.js`, `LONG_EVERY_MIN` 1440): sotto un giorno conta solo il lavoro di oggi, da un giorno in su conta sempre
