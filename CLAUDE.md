@@ -345,6 +345,11 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   `FEED_PRESETS` da verificare dal vero, ricerca del feed nella home) e `read_page` (testo pulito di pagine e PDF con `pdftotext`,
   `poppler-utils` nel Dockerfile; blocco degli indirizzi interni anche dopo i redirect). Dal container i siti italiani non si
   raggiungono (prova vera solo su raw.githubusercontent.com con `NODE_USE_ENV_PROXY=1`); test con finto server (`READER_API_BASE`).
+- **Mappa del progetto** (23/10/2026): `lib/projectmap.js` + `GET /api/project-map` + pulsante 🗺️ in ⚙️ Impostazioni → 💾 Dati
+  (condivisione dell'iPhone o download): palazzi, piani, stanze con ultime 3 note, agenti con istruzioni intere, strumenti, lavori e
+  spesa degli ultimi 30 giorni, stima del mese, avvisi degli ultimi 7 giorni, collegamenti, spesa, social (`statusForAgents`),
+  trading e profilo d'investimento in breve, SENZA chiavi né password (test `test/projectmap.test.js`). Serve per le analisi
+  complete del progetto: chiederla all'utente invece dell'esportazione zip, che contiene le chiavi.
 - **Bug degli agenti lunghi** (23/10/2026): all'apertura dell'orario `clearRuns` azzerava l'ultimo avvio di TUTTI gli agenti e al
   riavvio si tenevano solo gli avvii di oggi, quindi gli agenti settimanali e mensili lavoravano ogni giorno. Ora `lastRunFor`
   (`lib/schedule.js`, `LONG_EVERY_MIN` 1440): sotto un giorno conta solo il lavoro di oggi, da un giorno in su conta sempre

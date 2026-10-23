@@ -639,10 +639,11 @@
 
       <fieldset class="update-box" id="data-box">
         <legend>💾 Dati</legend>
-        <p class="hint">Salva una copia di agenti, palazzo, portafoglio e impostazioni in un file, oppure riprendi una copia salvata (per esempio per portare i dati dal Mac al server). Importando, i dati di adesso vengono sostituiti: prima il programma ne salva comunque una copia.</p>
+        <p class="hint">Salva una copia di agenti, palazzo, portafoglio e impostazioni in un file, oppure riprendi una copia salvata (per esempio per portare i dati dal Mac al server). Importando, i dati di adesso vengono sostituiti: prima il programma ne salva comunque una copia. La <b>Mappa del progetto</b> è diversa: palazzi, piani, stanze, agenti, collegamenti, spese e ultime note in un file, <b>senza chiavi né password</b>, da mandare a Claude per un'analisi.</p>
         <div class="row wrap">
           <button type="button" class="btn" id="export-data">⬇️ Esporta i dati</button>
           <button type="button" class="btn" id="import-data">⬆️ Importa i dati</button>
+          <button type="button" class="btn" id="export-map">🗺️ Mappa del progetto</button>
           <input type="file" id="import-file" accept=".zip,application/zip" hidden />
         </div>
         <p class="hint" id="data-status"></p>

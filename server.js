@@ -32,6 +32,7 @@ import * as social from "./lib/social/index.js";
 import * as platform from "./lib/platform.js";
 import * as push from "./lib/push.js";
 import * as holdings from "./lib/holdings.js";
+import { projectMap } from "./lib/projectmap.js";
 import * as priceSources from "./lib/pricesources.js";
 import * as marketdata from "./lib/marketdata.js";
 import * as media from "./lib/social/media.js";
@@ -693,6 +694,13 @@ app.delete("/api/links", handle((req) => office.deleteLink(String(req.query.from
 app.post("/api/reset", auth.requireStepUp({ password: auth.bodyPassword }), (_req, res) => {
   resetState();
   res.json({ ok: true });
+});
+
+// ---------- mappa del progetto (⚙️ Impostazioni): struttura e risultati SENZA chiavi né password ----------
+app.get("/api/project-map", (_req, res) => {
+  const day = romeParts().date;
+  res.set({ "Content-Type": "application/json; charset=utf-8", "Content-Disposition": `attachment; filename=mappa-progetto-${day}.json`, "Cache-Control": "no-store" });
+  res.send(JSON.stringify(projectMap(), null, 2));
 });
 
 // ---------- copia dei dati (⚙️ Impostazioni): scarica e importa ----------
