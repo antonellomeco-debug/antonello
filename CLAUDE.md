@@ -371,6 +371,12 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   `baseAssetId`/`quoteAssetId`, asset EUR/USD/XAU/US500/ENI), strategia `strategies/sistema.js` (agente rule gratuito, opera solo con
   prova SUPERATA, filtro notizie `highImpactNear`/`currenciesOf` di `lib/calendar.js`, lotti dal rischio entro Sicurezza), riquadro
   🧪 Banco di prova in 🔌 Broker. Dal container cTrader e Yahoo non si raggiungono: le prove vere le fa l'agente sul server.
+- Messaggi per Orion (pagina «Il nuovo Palazzo Investimenti»): https://claude.ai/artifact/8uh3Dzsbvkej4wsW7hYCuX — 1–3 altri palazzi
+  (Social più leggero, Spese da 12 a 7 agenti, Redattore Newsletter il venerdì), 4 vecchio palazzo spento e in «🗄️ Archivio»
+  (hours «sempre»), 5 quattro piani nuovi (Direzione, Laboratorio Quant, Trading Sistematico sul demo 49155138, Azioni di Qualità),
+  6 Direttore (lun), Reporter (dom), Ricercatore Quant (sab), 7 cinque agenti «sistema», 8 Analista Qualità, Avvocato del diavolo,
+  Capo Azioni (nucleo ETF alla Bogle, azioni ≤ 30%), 9 eliminazione dell'archivio dopo due settimane. Costo previsto ~5 $/mese invece
+  di ~104. Da fare per l'utente: perdita massima del giorno 3% (era 10%), capitale vero nel profilo (c'è 500.000 €).
 
 ## Spesa e risparmio (15 ottobre 2026)
 
