@@ -38,6 +38,7 @@ import * as priceSources from "./lib/pricesources.js";
 import * as marketdata from "./lib/marketdata.js";
 import * as media from "./lib/social/media.js";
 import * as ideas from "./lib/ideas.js";
+import { resumeLongVideos } from "./lib/social/longvideo.js";
 import { setGeminiKey } from "./lib/social/imagegen.js";
 import { setStockKey } from "./lib/social/stock.js";
 import { setGoogleTtsKey, setVideoVoice, setVoiceFallback, previewVoice } from "./lib/social/googletts.js";
@@ -1064,6 +1065,7 @@ if (importedAtBoot) setTimeout(confirmImportWorked, 150_000).unref();
 const server = app.listen(PORT, HOST, (err) => {
   if (err) return onListenError(err);
   ideas.resumePending(); // video delle 💡 Idee rimasti a metà alla chiusura
+  resumeLongVideos(); // video lunghi di YouTube rimasti a metà (i capitoli pronti restano)
   if (CLOUD) {
     // Sul server: righe semplici per il registro del servizio di hosting.
     console.log(`Ufficio agenti avviato su ${URL_APP} (porta ${PORT}).`);
