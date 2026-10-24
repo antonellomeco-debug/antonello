@@ -173,6 +173,13 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   approvazioni e domande (`DEFAULT_PREFS`, `prefsVersion` 2 riporta a questi valori anche le scelte salvate). Un post
   programmato o approvato che trova il limite del giorno si sposta da solo a domani alla stessa ora (`postponed`, max 3 volte)
   invece di fallire.
+- **Post distanziati e niente doppioni** (24/10/2026, X e Threads pubblicavano 3 post nella stessa ora e a volte lo stesso contenuto):
+  in `lib/social/index.js` `nextFreeSlot`/`gapMinutes` (post non risposta e non storia: distanza minima per social, `minGapMinutes`
+  null = automatica = fascia `POST_HOURS` 08–22 divisa per `maxPerDay`, tra 60 e 240 minuti; 0 = nessuna) applicata quando si propone
+  con `publish_at` e quando si pubblica (anche dopo un'approvazione): il post troppo vicino diventa `scheduled` più avanti (`spaced`),
+  spostato dentro la fascia. `assertNotRepeated` in `dispatch`: sullo stesso social (profilo/pagina e storie/post a parte) rifiuta lo
+  stesso file o lo stesso testo (`sameText`: uguale, o da 8 parole in su con il 60% delle terne di parole in comune) tra i post usciti,
+  programmati o in attesa. Interfaccia «Distanza tra i post» in 📣 Social, `min_gap_minutes` di Orion. Nei test `SOCIAL_MIN_GAP_MIN=0`.
 - **Video** (16 ottobre 2026): strumento `create_video` (`lib/social/video.js`, ffmpeg da `ffmpeg-static` in
   optionalDependencies, con libass): reel con clip/foto/schermate di testo, voce narrante italiana gratuita (Piper paola via
   sherpa-onnx, `lib/social/tts.js`, scaricata alla prima richiesta), sottotitoli parola per parola, titoli animati, transizioni,
