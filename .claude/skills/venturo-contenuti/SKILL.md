@@ -19,7 +19,9 @@ la settimana, **metà dei post sono CLIENTI e metà VALORE** (`purpose` in `soci
   «Entra nella lista d'attesa, link in bio». Schede di esempio scritte «ESEMPIO».
 - VALORE: far crescere il capitale, gestire meglio l'azienda (margini, costi, personale, finanziamenti, comprare e vendere bene).
 - La piattaforma non è aperta: «stiamo costruendo», «su Venturo potrai», mai «trovi già»; niente iscritti, annunci o
-  testimonianze inventati, niente urgenza finta. Strategia, modulo Tally, brief e messaggi per Orion:
+  testimonianze inventati, niente urgenza finta. Banca dei ganci per pubblico (4 idee «BANCA CLIENTI» da mettere in 💡 Idee:
+  «Quanto vale?», annuncio smontato, piano dei primi 100 giorni, Costruiamo Venturo, prime attività da accompagnare nella vendita).
+  Strategia, modulo Tally, brief e messaggi per Orion:
   https://claude.ai/artifact/ESmfDKT6RozfM6EzpojN54
 
 ## Ritmo di Instagram (deciso da Antonello il 18/10/2026, Reel raddoppiati il 20/10/2026)
