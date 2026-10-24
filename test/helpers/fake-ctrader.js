@@ -6,10 +6,10 @@ import { encodeMessage, decodeMessage, frame, unframe } from "../../lib/ctrader/
 
 export const ACCOUNTS = { demo: 1001, live: 2002 };
 const SYMBOLS = [
-  { symbolId: 1, symbolName: "EURUSD", description: "Euro vs US Dollar", enabled: true, sortingNumber: 1, symbolCategoryId: 10 },
-  { symbolId: 2, symbolName: "XAUUSD", description: "Gold vs US Dollar", enabled: true, sortingNumber: 2, symbolCategoryId: 20 },
-  { symbolId: 3, symbolName: "US500", description: "US 500 Index", enabled: true, sortingNumber: 3, symbolCategoryId: 30 },
-  { symbolId: 4, symbolName: "ENI.IT", description: "Eni SpA", enabled: true, sortingNumber: 4, symbolCategoryId: 40 },
+  { symbolId: 1, symbolName: "EURUSD", description: "Euro vs US Dollar", enabled: true, sortingNumber: 1, symbolCategoryId: 10, baseAssetId: 1, quoteAssetId: 2 },
+  { symbolId: 2, symbolName: "XAUUSD", description: "Gold vs US Dollar", enabled: true, sortingNumber: 2, symbolCategoryId: 20, baseAssetId: 3, quoteAssetId: 2 },
+  { symbolId: 3, symbolName: "US500", description: "US 500 Index", enabled: true, sortingNumber: 3, symbolCategoryId: 30, baseAssetId: 4, quoteAssetId: 2 },
+  { symbolId: 4, symbolName: "ENI.IT", description: "Eni SpA", enabled: true, sortingNumber: 4, symbolCategoryId: 40, baseAssetId: 5, quoteAssetId: 1 },
 ];
 // Categorie e classi come le dà il broker (nomi in inglese, decisi da lui).
 const CATEGORIES = [
@@ -43,6 +43,8 @@ export function startFake({ port = 0, tokenPort = 0, validTokens = new Set(["tok
     balanceVersion: 1,
     cashFlows: [],
     failPnl: false,
+    dropStopLoss: false, // true = le posizioni aperte arrivano senza stop loss (per provare il controllo dopo l'apertura)
+    failAmend: false, // true = la modifica dello stop loss viene rifiutata
     hook: null, // (nome del messaggio) => void, chiamato a ogni richiesta ricevuta
     clients: new Set(), // { authed, send } per ogni connessione
   };
@@ -154,7 +156,7 @@ export function startFake({ port = 0, tokenPort = 0, validTokens = new Set(["tok
           return send("ProtoOAGetTrendbarsRes", { ctidTraderAccountId: acc, period: data.period, trendbar, symbolId: data.symbolId }, id);
         }
         case "ProtoOAAssetListReq":
-          return send("ProtoOAAssetListRes", { ctidTraderAccountId: acc, asset: [{ assetId: 1, name: "EUR", displayName: "EUR" }] }, id);
+          return send("ProtoOAAssetListRes", { ctidTraderAccountId: acc, asset: [{ assetId: 1, name: "EUR", displayName: "EUR" }, { assetId: 2, name: "USD", displayName: "USD" }, { assetId: 3, name: "XAU", displayName: "XAU" }, { assetId: 4, name: "US500", displayName: "US500" }, { assetId: 5, name: "ENI", displayName: "ENI" }] }, id);
         case "ProtoOATraderReq":
           return send(
             "ProtoOATraderRes",
@@ -203,7 +205,7 @@ export function startFake({ port = 0, tokenPort = 0, validTokens = new Set(["tok
           const sl = data.relativeStopLoss ? (data.tradeSide === "BUY" ? price - data.relativeStopLoss / 100000 : price + data.relativeStopLoss / 100000) : undefined;
           const tradeData = { symbolId: data.symbolId, volume: data.volume, tradeSide: data.tradeSide, label: data.label, comment: data.comment, openTimestamp: Date.now() };
           const order = { orderId, tradeData, orderType: "MARKET", orderStatus: "ORDER_STATUS_ACCEPTED" };
-          const position = { positionId, tradeData, positionStatus: "POSITION_STATUS_OPEN", swap: 0, price, stopLoss: sl, moneyDigits: 2 };
+          const position = { positionId, tradeData, positionStatus: "POSITION_STATUS_OPEN", swap: 0, price, stopLoss: state.dropStopLoss ? undefined : sl, moneyDigits: 2 };
           // Prima la conferma di accettazione (risposta alla richiesta), poi l'esecuzione come evento separato.
           send("ProtoOAExecutionEvent", { ctidTraderAccountId: acc, executionType: "ORDER_ACCEPTED", order, position: { ...position, positionStatus: "POSITION_STATUS_CREATED" } }, id);
           setTimeout(() => {
@@ -221,6 +223,14 @@ export function startFake({ port = 0, tokenPort = 0, validTokens = new Set(["tok
             });
           }, 80);
           return;
+        }
+        case "ProtoOAAmendPositionSLTPReq": {
+          state.amends = [...(state.amends ?? []), data];
+          const p = state.positions.get(data.positionId);
+          if (!p) return send("ProtoOAOrderErrorEvent", { ctidTraderAccountId: acc, errorCode: "POSITION_NOT_FOUND", positionId: data.positionId }, id);
+          if (state.failAmend) return send("ProtoOAOrderErrorEvent", { ctidTraderAccountId: acc, errorCode: "TRADING_BAD_STOPS", description: "bad stops" }, id);
+          p.proto = { ...p.proto, stopLoss: data.stopLoss, takeProfit: data.takeProfit };
+          return send("ProtoOAExecutionEvent", { ctidTraderAccountId: acc, executionType: "ORDER_REPLACED", position: p.proto }, id);
         }
         case "ProtoOAClosePositionReq": {
           const p = state.positions.get(data.positionId);

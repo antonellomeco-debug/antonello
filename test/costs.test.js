@@ -75,8 +75,13 @@ test("solo con novità: c'è lavoro solo se altri hanno scritto nelle stanze che
   await new Promise((r) => setTimeout(r, 5));
   postNote(room(), { id: "editore", name: "Editore" }, "nota mia");
   assert.equal(costs.hasNews(agent, b(), since), false, "le proprie note non contano");
+  postNote(room(), { id: "titoli", name: "Titoli" }, "PACCHETTO YOUTUBE, stato di venerdì ore 17:30. Niente di nuovo da preparare.");
+  postNote(room(), { id: "editore2", name: "Editore 2" }, "NESSUNA NOVITÀ: il piano resta quello di ieri.");
+  postNote(room(), { id: "kit", name: "Brand" }, "KIT invariato, nessuna domanda.", ["STATO"]);
+  assert.equal(costs.hasNews(agent, b(), since), false, "le note «niente di nuovo» non svegliano nessuno");
   postNote(room(), { id: "trend", name: "Trend" }, "nuovo trend");
   assert.equal(costs.hasNews(agent, b(), since), true);
+  assert.equal(costs.isQuietNote({ text: `CONTROLLO RISCHI: VIA LIBERA EURUSD. ${"x".repeat(200)} niente di nuovo sul resto.` }), false, "conta solo l'inizio della nota");
   assert.deepEqual(validate({ ...agent, instructions: "x" }, b().rooms), []);
 });
 

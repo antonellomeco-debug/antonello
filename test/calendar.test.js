@@ -103,6 +103,11 @@ test("scarica dalla prima fonte che risponde e filtra per valuta, impatto e gior
   const all = await cal.calendarFor({ giorni: "domani", impatto_minimo: "basso" }, tue);
   assert.ok(all.eventi.some((l) => l.includes("Import Prices")));
 
+  // Filtro delle notizie per i sistemi: CPI USD alle 12:30 UTC del 14/10, solo ad alto impatto e vicino all'ora.
+  assert.equal((await cal.highImpactNear(["USD"], 30, new Date("2026-10-14T12:10:00Z"))).length, 1);
+  assert.equal((await cal.highImpactNear(["USD"], 30, new Date("2026-10-14T11:30:00Z"))).length, 0);
+  assert.equal((await cal.highImpactNear(["JPY"], 30, new Date("2026-10-14T12:30:00Z"))).length, 0);
+
   const none = await cal.calendarFor({ giorni: "domani", valute: ["JPY"], impatto_minimo: "alto" }, tue);
   assert.deepEqual(none.eventi, []);
   assert.match(none.nota, /Nessun evento/);
@@ -146,4 +151,12 @@ test("get_calendar è uno strumento degli agenti", async () => {
   assert.ok(Array.isArray(out.eventi));
   assert.match(out.fonte, /Forex Factory/);
   await assert.rejects(() => runTool(normalize({ id: "x", room: "ricerca", tools: ["post_note"] }), "get_calendar", {}), /non abilitato/);
+});
+
+test("valute di uno strumento per il filtro delle notizie", () => {
+  assert.deepEqual(cal.currenciesOf("EURUSD"), ["EUR", "USD"]);
+  assert.deepEqual(cal.currenciesOf("XAUUSD"), ["USD"]);
+  assert.deepEqual(cal.currenciesOf("US500"), ["USD"]);
+  assert.deepEqual(cal.currenciesOf("GER40"), ["EUR"]);
+  assert.deepEqual(cal.currenciesOf("GBPJPY"), ["GBP", "JPY"]);
 });

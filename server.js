@@ -9,6 +9,7 @@ import path from "node:path";
 import { runAgent, isRunning } from "./lib/runner.js";
 import { getState, resetState, bus, log, persistNow, persist, costScope, answerRequest, approvalVisible, revealDueApprovals } from "./lib/store.js";
 import { portfolioValue, decide, monitorAccounts, settleInFlight, closeAgentPositionsEverywhere, stopNewOrders, recoverInterruptedApprovals, tradeHistory, accountSummary } from "./lib/broker.js";
+import { listBacktests, SYSTEMS } from "./lib/systems.js";
 import * as ctrader from "./lib/ctrader/service.js";
 import { codeFromInput } from "./lib/ctrader/oauth.js";
 import * as safety from "./lib/safety.js";
@@ -321,6 +322,7 @@ app.post("/api/holdings/:id/sell", handle((req) => holdings.addSell(req.params.i
 app.put("/api/holdings/:id", handle((req) => holdings.updatePosition(req.params.id, req.body ?? {})));
 app.delete("/api/holdings/:id", handle((req) => holdings.removePosition(req.params.id)));
 app.get("/api/broker/summary", handleAsync(() => accountSummary()));
+app.get("/api/backtests", (req, res) => res.json(listBacktests({ limit: 40 }).map(({ lastTrades, inSample, outSample, params, ...b }) => ({ ...b, label: SYSTEMS[b.system]?.label ?? b.system }))));
 app.get("/api/broker/history", handleAsync((req) => tradeHistory({ days: [7, 30, 90].includes(Number(req.query.days)) ? Number(req.query.days) : 30 })));
 app.put("/api/broker/credentials", handle((req) => {
   ctrader.setCredentials({ clientId: req.body?.clientId, clientSecret: req.body?.clientSecret });

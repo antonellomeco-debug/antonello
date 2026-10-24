@@ -12,6 +12,8 @@
 //   include     mercati da controllare sempre, es. ["XAUUSD"]
 //   exclude     mercati da saltare
 //   pauseMs     pausa tra un mercato e l'altro, per i limiti di cTrader (predefinito 250)
+//   maxSpreadAtr spread massimo in rapporto all'escursione media di una candela (predefinito 0.2 = 20%): i mercati con
+//               costi più alti (coppie esotiche, orari morti) escono dalla classifica. 0 = nessun filtro.
 
 const GROUPS = [
   ["metalli", /metal|gold|silver|oro|argento|precious|xau|xag/i],
@@ -125,6 +127,7 @@ export default async function ({ agent, params, market, notes, log }) {
     include = [],
     exclude = [],
     pauseMs = 250,
+    maxSpreadAtr = 0.2,
   } = params;
   const norm = (s) => String(s).toUpperCase().replace(/[^A-Z0-9]/g, "");
   const skip = new Set(exclude.map(norm));
@@ -154,13 +157,36 @@ export default async function ({ agent, params, market, notes, log }) {
     }
     if (pauseMs) await sleep(pauseMs);
   }
-  const ranked = results.filter((r) => r.score >= minScore).sort((a, b) => b.score - a.score).slice(0, top);
+  const candidates = results.filter((r) => r.score >= minScore).sort((a, b) => b.score - a.score);
+  // Costo d'entrata: lo spread del broker in rapporto all'escursione media. Si controlla solo chi entrerebbe in classifica.
+  const ranked = [];
+  let costly = 0;
+  for (const r of candidates) {
+    if (ranked.length >= top) break;
+    if (catalog && maxSpreadAtr > 0) {
+      let q = null;
+      try {
+        q = market.getQuote ? await market.getQuote(r.symbol) : null;
+      } catch {
+        // senza prezzo si tiene il mercato: il filtro è solo una protezione in più
+      }
+      const atrAbs = (r.atrPct / 100) * r.price;
+      if (q?.spread != null && atrAbs > 0) {
+        r.spreadAtr = q.spread / atrAbs;
+        if (r.spreadAtr > maxSpreadAtr) {
+          costly++;
+          continue;
+        }
+      }
+    }
+    ranked.push(r);
+  }
   const when = new Intl.DateTimeFormat("it-IT", { timeZone: "Europe/Rome", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date());
   const groupsSeen = [...new Set(list.map((m) => m.group))].join(", ");
-  const head = `CLASSIFICA SCANNER · ${catalog ? period : "D1"} · ${when} — ${results.length} mercati controllati (${groupsSeen})${failed ? `, ${failed} senza dati` : ""}.`;
+  const head = `CLASSIFICA SCANNER · ${catalog ? period : "D1"} · ${when} — ${results.length} mercati controllati (${groupsSeen})${failed ? `, ${failed} senza dati` : ""}${costly ? `, ${costly} scartati per spread troppo alto` : ""}.`;
   const body = ranked.length
     ? ranked
-        .map((r, i) => `${i + 1}. ${r.symbol} · ${r.dir.toUpperCase()} · punteggio ${r.score} — ${r.why.join("; ")}. Prezzo ${fmt(r.price)} · escursione media ${r.atrPct.toFixed(2).replace(".", ",")}%`)
+        .map((r, i) => `${i + 1}. ${r.symbol} · ${r.dir.toUpperCase()} · punteggio ${r.score} — ${r.why.join("; ")}. Prezzo ${fmt(r.price)} · escursione media ${r.atrPct.toFixed(2).replace(".", ",")}%${r.spreadAtr != null ? ` · spread ${Math.round(r.spreadAtr * 100)}% dell'escursione` : ""}`)
         .join("\n")
     : `Nessun mercato sopra ${minScore} punti: niente di chiaro in questo momento.`;
   notes.post(`${head}\n${body}\nÈ un filtro a regole fisse per gli analisti, non un segnale per operare.`, ["SCANNER", ...ranked.map((r) => r.symbol)]);

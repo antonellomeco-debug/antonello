@@ -7,6 +7,9 @@
 //   params     → i parametri impostati nella configurazione
 //   market     → getQuote(sym), getHistory(sym, { period, count }) → { candles:[{date,open,high,low,close,volume}] },
 //                symbols() → tutti i mercati del broker [{ symbol, description, category, assetClass }] (null senza cTrader),
+//                longHistory(sym, { period, bars }) → storico lungo di candele chiuse (+ spread attuale del broker),
+//                riskLots(sym, distanzaStop, rischioInValuta) → { lots, risk, currency, note } (solo cTrader),
+//                newsNear(sym, minuti) → notizie ad alto impatto vicine per le valute dello strumento (null = calendario assente),
 //                indicators.{ sma, rsi, volatility, returnPct, summary }
 //   notes      → read(roomId?, limit?), post(testo, tags?)
 //   trading    → dove opera il piano: { mode: "paper" } oppure { mode: "ctrader", accountId, isLive, label }

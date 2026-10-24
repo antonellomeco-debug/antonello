@@ -382,6 +382,7 @@ function showView(view) {
   if (view === "broker") {
     loadBrokerAccounts();
     loadBrokerHistory();
+    loadBacktests();
   }
   if (view === "costs") loadCosts().then(() => state.view === "costs" && renderCosts(), () => {});
   if (view === "reports") loadReports().then(() => state.view === "reports" && renderReports(), () => {});
@@ -1488,6 +1489,48 @@ document.addEventListener("click", (e) => {
   loadBrokerHistory();
 });
 
+// ---------- banco di prova dei sistemi ----------
+
+async function loadBacktests() {
+  try {
+    state.backtests = await api("/api/backtests");
+  } catch (err) {
+    state.backtests = { error: err.message };
+  }
+  if (state.view === "broker") renderBacktests();
+}
+
+function renderBacktests() {
+  const el = $("#backtests");
+  if (!el) return;
+  const b = state.backtests;
+  if (!b) {
+    el.innerHTML = `<p class="hint">Carico le prove…</p>`;
+    return;
+  }
+  if (b.error) {
+    el.innerHTML = `<p class="errors">${esc(b.error)}</p>`;
+    return;
+  }
+  if (!b.length) {
+    el.innerHTML = `<p class="empty">Nessuna prova ancora. Le fa l'agente di ricerca dei sistemi (strumento backtest) oppure Orion se glielo chiedi.</p>`;
+    return;
+  }
+  const badge = (e) => `<b class="${e === "SUPERATO" ? "up" : e === "BOCCIATO" ? "down" : ""}">${esc(e ?? "—")}</b>`;
+  const day = (d) => (d ? new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—");
+  el.innerHTML = `<table class="stack bt-table"><tr><th>Quando</th><th>Sistema</th><th>Mercato</th><th>Dati</th><th>Operazioni</th><th>Guadagno medio</th><th>Perdita massima</th><th>Verdetto</th></tr>
+    ${b.map((x) => `<tr>
+      <td data-label="Quando">${when(x.at)}</td>
+      <td data-label="Sistema"><b>${esc(x.label ?? x.system)}</b></td>
+      <td data-label="Mercato">${esc(x.symbol)} · ${esc(x.period)}</td>
+      <td data-label="Dati">${day(x.from)} → ${day(x.to)}</td>
+      <td data-label="Operazioni">${x.trades ?? 0}${x.winRate != null ? ` · ${fmt(x.winRate, 0)}% vinte` : ""}</td>
+      <td data-label="Guadagno medio">${x.expectancyR == null ? "—" : `<span class="${x.expectancyR > 0 ? "up" : "down"}">${fmt(x.expectancyR)} R</span>`}${x.yearlyPct != null ? `<small class="hint">${fmt(x.yearlyPct, 1)}% l'anno rischiando ${fmt(x.riskPct, 1)}%</small>` : ""}</td>
+      <td data-label="Perdita massima">${x.maxDrawdownPct == null ? "—" : `${fmt(x.maxDrawdownPct, 1)}%`}</td>
+      <td data-label="Verdetto">${badge(x.verdict?.esito)}<small class="hint">${esc(x.verdict?.motivo ?? "")}</small></td>
+    </tr>`).join("")}</table>`;
+}
+
 /** Non riscrive un modulo mentre l'utente ci sta scrivendo. */
 const editing = (el) => el.contains(document.activeElement) && document.activeElement !== el;
 
@@ -1662,6 +1705,7 @@ function renderBroker() {
         <td data-label="Strumento">${esc(t.symbol)}</td><td data-label="Lotti">${fmt(t.lots)}</td><td data-label="Prezzo">${t.status === "incerto" ? '<span class="warn-line" title="Connessione interrotta durante l\'invio">esito incerto</span>' : t.status === "accepted" ? `${esc(t.price ?? "—")} <small class="hint">(da confermare)</small>` : esc(t.price ?? "—")}</td></tr>`).join("")}</table>`
     : `<p class="empty">Nessun ordine degli agenti sul broker.</p>`;
   renderBrokerHistory();
+  renderBacktests();
 }
 
 /** Chiamata al server per il broker: mostra l'errore e aggiorna lo stato. */
