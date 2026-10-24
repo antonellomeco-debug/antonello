@@ -748,3 +748,36 @@ dialog.small-dlg { width: min(480px, 94vw); }
 .appr-tab b:empty { display: none; }
 .appr-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .appr-filter { display: flex; margin: 0 0 10px; color: var(--muted); font-size: 14px; }
+
+/* 💡 Idee */
+.idea-form { display: grid; gap: 12px; margin-bottom: 16px; }
+.idea-form h2 { margin: 0; font-size: 17px; }
+.idea-form label { display: grid; gap: 6px; font-weight: 600; font-size: 14px; }
+.idea-form { min-width: 0; }
+.idea-form textarea, .idea-form input[type="file"] { width: 100%; max-width: 100%; box-sizing: border-box; font: inherit; font-weight: 400; }
+.idea-form .req { color: var(--bad); font-size: 11px; font-weight: 600; margin-left: 4px; }
+.idea-form fieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.idea-form legend { font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+.chip-radio, .chip-check { display: inline-flex !important; cursor: pointer; font-weight: 400 !important; }
+.chip-radio input, .chip-check input { position: absolute; opacity: 0; pointer-events: none; }
+.chip-radio span, .chip-check span { font-size: 13px; padding: 6px 12px; border-radius: 99px; border: 1px solid var(--border); }
+.chip-radio input:checked + span, .chip-check input:checked + span { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip-radio input:focus-visible + span, .chip-check input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.idea-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.idea-list { display: grid; gap: 12px; }
+.idea { display: grid; gap: 8px; }
+.idea.muted { opacity: .7; }
+.idea-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.idea-motive, .idea-status { font-size: 12px; padding: 2px 9px; border-radius: 99px; border: 1px solid var(--border); }
+.idea-motive.m-evitare { border-color: var(--bad); color: var(--bad); }
+.idea-status.s-nuova { background: var(--accent); border-color: var(--accent); color: #fff; }
+.idea-text, .idea-reason { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.idea-files { display: flex; flex-wrap: wrap; gap: 8px; }
+.idea-file { display: grid; gap: 4px; max-width: 220px; min-width: 0; font-size: 12px; }
+.idea-file img { width: 100%; max-height: 180px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
+.idea-video { max-width: 320px; }
+.idea-video img { object-fit: contain; background: #111; }
+.idea-file details p { white-space: pre-wrap; margin: 4px 0 0; }
+.idea-uses { margin: 0; padding-left: 4px; list-style: none; display: grid; gap: 3px; font-size: 13px; }
+.idea-add-file { cursor: pointer; }
+.btn.danger { color: var(--bad); }

@@ -33,6 +33,7 @@
       <button class="nav desktop-only" data-view="building" title="Universo: palazzi, piani, stanze e collegamenti"><span>🌌</span><em>Universo</em></button>
       <button class="nav" data-view="approvals" title="Approvazioni"><span>✅</span><em>Approvazioni</em><b class="badge hidden" id="badge-approvals"></b></button>
       <button class="nav" data-view="notes" title="Bacheca"><span>📝</span><em>Bacheca</em></button>
+      <button class="nav desktop-only" data-view="ideas" title="Idee per i contenuti: testi, link, foto, video e documenti per gli agenti dei social"><span>💡</span><em>Idee</em></button>
       <button class="nav desktop-only" data-view="portfolio" title="Portafoglio"><span>💼</span><em>Portafoglio</em></button>
       <button class="nav desktop-only" data-view="social" title="Social: account, archivio foto e video, post"><span>📣</span><em>Social</em><b class="badge hidden" id="badge-social">!</b></button>
       <button class="nav desktop-only" data-view="costs" title="Spesa: quanto costano palazzi e agenti, budget e risparmio"><span>💰</span><em>Spesa</em><b class="badge hidden" id="badge-costs">!</b></button>
@@ -176,6 +177,18 @@
           </div>
         </header>
         <div id="reports-body"><p class="hint">Carico…</p></div>
+      </section>
+
+      <!-- IDEE -->
+      <section class="view hidden" id="view-ideas">
+        <button class="btn ghost back-btn mobile-only" data-go="more">‹ Altro</button>
+        <header class="page-head">
+          <div>
+            <h1>💡 Idee</h1>
+            <p class="sub">Lascia qui idee, argomenti, link, foto, video e documenti per i contenuti, e scrivi sempre perché. Gli agenti dei social li guardano prima di preparare i post e qui ti dicono quando li hanno usati.</p>
+          </div>
+        </header>
+        <div id="ideas-body"><p class="hint">Carico…</p></div>
       </section>
 
       <!-- SOCIAL -->
@@ -331,6 +344,7 @@
         <header class="page-head"><div><h1>Altro</h1></div></header>
         <div class="more-list">
           <button class="more-row" data-go="building"><span class="ico">🌌</span><span class="txt"><b>Universo</b><small>Palazzi, piani, stanze e collegamenti</small></span><span class="chev">›</span></button>
+          <button class="more-row" data-go="ideas"><span class="ico">💡</span><span class="txt"><b>Idee</b><small>Idee, esempi, foto, video e documenti per i contenuti</small></span><span class="chev">›</span></button>
           <button class="more-row" data-go="portfolio"><span class="ico">💼</span><span class="txt"><b>Portafoglio</b><small>Le tue azioni, il loro valore e i risultati</small></span><span class="chev">›</span></button>
           <button class="more-row" data-go="costs"><span class="ico">💰</span><span class="txt"><b>Spesa</b><small id="more-costs-state">Quanto costano palazzi e agenti, budget</small></span><b class="pill hidden" id="more-costs-badge">!</b><span class="chev">›</span></button>
           <button class="more-row" data-go="reports"><span class="ico">📄</span><span class="txt"><b>Report</b><small>I report della settimana in PDF, anche per email</small></span><span class="chev">›</span></button>

@@ -6,6 +6,7 @@ import * as speech from "./speech.js";
 import { initSocial, loadSocial, renderSocial, renderPostApproval, bindShareButtons } from "./social.js";
 import { initCosts, renderCosts, loadCosts } from "./costs.js";
 import { initReports, renderReports, loadReports } from "./reports.js";
+import { initIdeas, renderIdeas, loadIdeas } from "./ideas.js";
 import { initPlatform, loadPlatform, onPlatformEvent } from "./platform.js";
 import { initNotify, renderNotify } from "./notify.js";
 
@@ -32,7 +33,7 @@ const voice = { status: null, rec: null, sending: false, speakTurn: false };
 const phoneMQ = matchMedia("(max-width: 860px)");
 const touchMQ = matchMedia("(hover: none) and (pointer: coarse)");
 // Sezioni che sul telefono stanno dentro "Altro".
-const MORE_VIEWS = ["building", "costs", "reports", "social", "portfolio", "broker", "log"];
+const MORE_VIEWS = ["building", "ideas", "costs", "reports", "social", "portfolio", "broker", "log"];
 
 // ---------- utilità sul palazzo ----------
 const B = () => state.office.building;
@@ -386,6 +387,7 @@ function showView(view) {
   }
   if (view === "costs") loadCosts().then(() => state.view === "costs" && renderCosts(), () => {});
   if (view === "reports") loadReports().then(() => state.view === "reports" && renderReports(), () => {});
+  if (view === "ideas") loadIdeas().then(() => state.view === "ideas" && renderIdeas(), () => {});
   if (view === "social") loadSocial().then(() => state.view === "social" && renderSocial(), () => {});
   if (view === "chat") $("#chat-body").scrollTop = $("#chat-body").scrollHeight;
   else if (phoneMQ.matches && document.activeElement?.closest(".chat-form")) document.activeElement.blur(); // chiude la tastiera
@@ -425,6 +427,7 @@ function renderView() {
   else if (state.view === "social") renderSocial();
   else if (state.view === "costs") renderCosts();
   else if (state.view === "reports") renderReports();
+  else if (state.view === "ideas") renderIdeas();
 }
 
 // ---------- ufficio ----------
@@ -2806,6 +2809,9 @@ function handleEvent(ev) {
     case "report":
       if (state.view === "costs") loadCosts().then(() => state.view === "costs" && renderCosts(), () => {});
       break;
+    case "ideas":
+      if (state.view === "ideas") loadIdeas().then(() => state.view === "ideas" && renderIdeas(), () => {});
+      break;
     case "platform":
       onPlatformEvent();
       break;
@@ -2898,7 +2904,7 @@ if (window.visualViewport && touchMQ.matches) {
 /** Sezione indicata nell'indirizzo (#approvals, #social, #broker): ritorno da un social o tocco su una notifica. */
 function openFromHash(hash) {
   const view = String(hash ?? "").slice(1);
-  if (["broker", "social", "approvals", "costs", "reports"].includes(view)) {
+  if (["broker", "social", "approvals", "costs", "reports", "ideas"].includes(view)) {
     if (view === "approvals") state.approvalsTab = "pending"; // da una notifica: le cose da decidere
     showView(view);
     history.replaceState(null, "", location.pathname);
@@ -2937,6 +2943,7 @@ initPlatform(api, {
   palaces: () => B().palaces,
 });
 initReports(api);
+initIdeas(api);
 initCosts(api, { palaceName: (id) => B().palaces.find((p) => p.id === id)?.name ?? id, openAgent: (id) => openEditor(state.office.agents.find((a) => a.id === id)) });
 /** Avviso "!" su 📣 Social quando un accesso è scaduto o sta per scadere. */
 let socialBadgeTimer = null;
