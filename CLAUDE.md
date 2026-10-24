@@ -298,6 +298,15 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   YouTube ha `studio` con totali, 10 video migliori, fonti di traffico in italiano e, se l'API li dà, `videoThumbnailImpressions` /
   `videoThumbnailImpressionsClickRate` (nomi non verificati sulla documentazione: dal container developers.google.com è bloccato;
   se falliscono la richiesta si salta). Senza permesso → «Ricollega»; API spenta → «Abilita YouTube Analytics API». Da verificare dal vero.
+- **Video lunghi** (24/10/2026; prima gli strumenti video arrivavano a 90 s, quindi il video lungo del piano non si poteva fare):
+  `lib/social/longvideo.js` + strumenti `create_long_video` (con capitoli: 2–15, ognuno ≤ 25 scene e ≤ 150 s, scene di create_motion_video;
+  totale 2–15 minuti, voce ≤ 14.000 caratteri, uno per volta, max 4 in 30 giorni) e `long_video_status` (dato da solo a chi ha il primo).
+  Ogni capitolo = `renderMotionClip` in `motion.js` (stessa coda dei Reel, file fuori dall'archivio, timeout che cresce con la durata);
+  dal capitolo 2 cartello «CAPITOLO N» (`statement` con `chapter: true`, senza virgolette); unione con il concat di ffmpeg senza ricodifica
+  del video, musica una sola sotto la voce; lavori in `<dati>/longvideos.json`, capitoli in `<archivio>/.long-<id>/`, ripresa all'avvio
+  (`resumeLongVideos`). Finito: nota «VIDEO LUNGO PRONTO» nella stanza dell'agente con id e capitoli `00:00 …` per la descrizione. Il
+  rendering vero richiede ~6–7 s di lavoro per secondo di video (provato nel container). Corretto anche il logo che usciva dal bordo nei
+  formati orizzontale e quadrato. Test: `test/longvideo.test.js`.
 - **Copia automatica** (`mirrorToYouTube` in `lib/social/index.js`, chiamata da `setPost` quando un post diventa `published`): ogni
   video uscito su un altro social va su YouTube una volta sola; l'Editore YouTube può sostituire la copia in attesa con titoli SEO.
 - Piano YouTube nel Palazzo Social (8 agenti, blocco «come ragionano i migliori esperti»): https://claude.ai/artifact/SkW7dyN8rMJskbyp5xYwqw
