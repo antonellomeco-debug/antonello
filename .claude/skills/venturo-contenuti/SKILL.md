@@ -9,6 +9,19 @@ Leggi prima `venturo-brand` (identità e regole). Qui ci sono il **ritmo**, i **
 ricerca di ottobre 2026 sui contenuti più visti nel business e nella finanza (account senza volto). Antonello **non appare
 mai**: al massimo la sua voce clonata (ElevenLabs), dichiarata come voce generata con IA.
 
+## Obiettivo dal 24/10/2026: clienti prima dell'informazione
+
+Antonello ha deciso: l'obiettivo dei social è portare persone nella **lista d'attesa** di Venturo. Su ogni social, contando
+la settimana, **metà dei post sono CLIENTI e metà VALORE** (`purpose` in `social_publish`; `clienti_e_valore` in `social_status`).
+- CLIENTI: un pubblico alla volta (chi compra un'azienda o un locale per migliorarlo e rivenderlo; chi cerca capitali oltre
+  la banca, con un investitore che porta contatti e idee; chi cerca un socio operativo; chi vende e vuole visibilità e un
+  dossier credibile; chi investe e vuole aziende con la scheda completa). Schema: problema vero → come funzionerà su Venturo →
+  «Entra nella lista d'attesa, link in bio». Schede di esempio scritte «ESEMPIO».
+- VALORE: far crescere il capitale, gestire meglio l'azienda (margini, costi, personale, finanziamenti, comprare e vendere bene).
+- La piattaforma non è aperta: «stiamo costruendo», «su Venturo potrai», mai «trovi già»; niente iscritti, annunci o
+  testimonianze inventati, niente urgenza finta. Strategia, modulo Tally, brief e messaggi per Orion:
+  https://claude.ai/artifact/ESmfDKT6RozfM6EzpojN54
+
 ## Ritmo di Instagram (deciso da Antonello il 18/10/2026, Reel raddoppiati il 20/10/2026)
 
 Dal 20/10/2026 nei giorni dei Reel (lun–ven) escono **2 Reel**: alle 11:30 «La notizia del giorno per chi fa impresa»

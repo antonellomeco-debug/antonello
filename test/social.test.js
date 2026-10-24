@@ -586,3 +586,17 @@ test("i post dello stesso social escono distanziati nella giornata e mai ripetut
     process.env.SOCIAL_MIN_GAP_MIN = prev;
   }
 });
+
+test("metà clienti e metà valore: il conto della settimana per gli agenti", async () => {
+  social.setNetworkSettings("linkedin", { auto: false, pageId: "" });
+  const before = social.purposeMix("linkedin");
+  await social.proposePost(agent, { network: "linkedin", text: "Vuoi comprare un locale? Su Venturo potrai vedere la scheda completa prima di parlare con chi vende", purpose: "clienti", reason: "lista d'attesa" });
+  await social.proposePost(agent, { network: "linkedin", text: "Tre costi che mangiano il margine di un ristorante e come tenerli sotto controllo", purpose: "valore", reason: "valore" });
+  await social.proposePost(agent, { network: "linkedin", text: "Un socio operativo giusto vale più di un finanziamento: come sceglierlo bene", purpose: "clienti", reason: "soci" });
+  await social.proposePost(agent, { network: "linkedin", text: "Bandi di novembre per chi apre un'attività in Lombardia, con le scadenze", purpose: "boh", reason: "senza tipo valido" });
+  const m = social.purposeMix("linkedin");
+  assert.deepEqual([m.clienti - before.clienti, m.valore - before.valore, m.senza - before.senza], [2, 1, 1]);
+  const st = social.statusForAgents().social.find((n) => n.network === "linkedin").clienti_e_valore;
+  assert.match(st, /obiettivo metà e metà/);
+  if (m.clienti > m.valore) assert.match(st, /prossimo post: VALORE/);
+});
