@@ -29,6 +29,22 @@ const ORIGIN = { upload: "Caricato da te", graphic: "Grafica di un agente", ai: 
 const NET_ICON = { instagram: "📸", threads: "🧵", linkedin: "💼", x: "𝕏", youtube: "▶️" };
 const NET_LABEL = { instagram: "Instagram", threads: "Threads", linkedin: "LinkedIn", x: "X", youtube: "YouTube" };
 
+// Distanza minima tra i post dello stesso social: automatica (fascia 08:00–22:00 divisa per i post al giorno) o scelta.
+const hoursLabel = (m) => (m % 60 ? `${Math.floor(m / 60) ? `${Math.floor(m / 60)} h ` : ""}${m % 60} min` : `${m / 60} ${m === 60 ? "ora" : "ore"}`);
+function gapSelect(n) {
+  const set = Number.isInteger(n.minGapMinutes) ? n.minGapMinutes : null;
+  const opts = [60, 120, 180, 240, 360];
+  if (set !== null && set !== 0 && !opts.includes(set)) opts.push(set);
+  const autoText = set === null ? (n.minGap ? hoursLabel(n.minGap) : "nessuna") : "fascia 8–22 divisa per i post al giorno";
+  return `<label title="Se due post sono troppo vicini, il secondo si sposta da solo più avanti, tra le 8 e le 22">Distanza tra i post
+        <select data-gap="${n.id}">
+          <option value="" ${set === null ? "selected" : ""}>Automatica (${autoText})</option>
+          ${opts.map((m) => `<option value="${m}" ${set === m ? "selected" : ""}>Almeno ${hoursLabel(m)}</option>`).join("")}
+          <option value="0" ${set === 0 ? "selected" : ""}>Nessuna</option>
+        </select>
+      </label>`;
+}
+
 /** Spiegazioni passo passo per creare l'app di ogni social (una volta sola). */
 function howto(net, redirect, server) {
   const copy = `<span class="copy-row"><code>${esc(redirect)}</code><button type="button" class="btn small" data-copy="${esc(redirect)}">Copia</button></span>`;
@@ -116,6 +132,7 @@ function networkCard(n, st) {
         </select>
       </label>
       <label>Post al giorno (massimo) <input type="number" min="0" max="50" step="1" value="${n.maxPerDay}" data-max="${n.id}" /></label>
+      ${gapSelect(n)}
       ${n.id === "instagram" ? `<label>Storie al giorno (massimo) <input type="number" min="0" max="25" step="1" value="${n.maxStoriesPerDay ?? 5}" data-max-stories="${n.id}" /></label>` : ""}
       ${n.id !== "linkedin" ? `<label>Risposte ai commenti
         <select data-replies="${n.id}">
@@ -790,6 +807,10 @@ function bindEvents() {
         return;
       }
       status = await api("/api/social/youtube/settings", { method: "PUT", body: JSON.stringify({ [f]: value }) });
+      t.blur();
+      renderSocial();
+    } else if (t.dataset.gap) {
+      status = await api(`/api/social/${t.dataset.gap}/settings`, { method: "PUT", body: JSON.stringify({ minGapMinutes: t.value === "" ? null : Number(t.value) }) });
       t.blur();
       renderSocial();
     } else if (t.dataset.maxStories) {

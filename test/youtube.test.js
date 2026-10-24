@@ -12,7 +12,7 @@ const fake = await startFakeSocial();
 after(() => fake.close());
 
 const DATA = fs.mkdtempSync(path.join(os.tmpdir(), "youtube-test-"));
-Object.assign(process.env, { AGENTI_DATA_DIR: DATA, MARKET_MODE: "demo", SOCIAL_API_BASE: fake.url, SOCIAL_POLL_MS: "5" });
+Object.assign(process.env, { AGENTI_DATA_DIR: DATA, MARKET_MODE: "demo", SOCIAL_API_BASE: fake.url, SOCIAL_POLL_MS: "5", SOCIAL_MIN_GAP_MIN: "0" });
 const media = await import("../lib/social/media.js");
 const social = await import("../lib/social/index.js");
 const { getState } = await import("../lib/store.js");

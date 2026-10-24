@@ -23,6 +23,7 @@ after(() => Promise.all([fake.close(), new Promise((r) => pub.close(r))]));
 
 const DATA = fs.mkdtempSync(path.join(os.tmpdir(), "social-test-"));
 Object.assign(process.env, {
+  SOCIAL_MIN_GAP_MIN: "0", // la distanza tra i post si prova a parte
   AGENTI_DATA_DIR: DATA,
   MARKET_MODE: "demo",
   SOCIAL_API_BASE: fake.url,
@@ -98,6 +99,9 @@ test("archivio: foto caricata → JPEG con anteprima; formati sbagliati rifiutat
 });
 
 let graphic;
+// Un file nuovo per ogni post: sullo stesso social lo stesso file non esce due volte.
+let fresh = 0;
+const freshImage = async () => media.ingestUpload(await tmpImage(640 + ++fresh, 640), { name: `nuova-${fresh}.png`, mime: "image/png" });
 test("grafiche disegnate dagli agenti: SVG → JPEG nel formato giusto, con foto dell'archivio", async () => {
   graphic = await media.createGraphic({
     svg: `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350"><rect width="1080" height="1350" fill="#123"/>` +
@@ -185,14 +189,16 @@ test("Instagram: le storie hanno un massimo al giorno a parte dai post", async (
   assert.equal(ig().maxStoriesPerDay, 5);
   // I post del giorno sono al completo, ma le storie escono lo stesso.
   social.setNetworkSettings("instagram", { auto: true, maxPerDay: ig().today, maxStoriesPerDay: ig().storiesToday + 1 });
-  const story = await social.proposePost(agent, { network: "instagram", text: "", format: "story", media: [graphic.id], reason: "storia" });
+  const s1 = await freshImage();
+  const story = await social.proposePost(agent, { network: "instagram", text: "", format: "story", media: [s1.id], reason: "storia" });
   assert.equal(story.status, "published", JSON.stringify(story));
-  await assert.rejects(social.proposePost(agent, { network: "instagram", text: "Carosello", media: [graphic.id, graphic.id], reason: "post" }), /limite di \d+ post al giorno/);
-  await assert.rejects(social.proposePost(agent, { network: "instagram", text: "", format: "story", media: [graphic.id], reason: "storia" }), /limite di \d+ storie al giorno/);
+  const c1 = await freshImage();
+  await assert.rejects(social.proposePost(agent, { network: "instagram", text: "Carosello", media: [c1.id, c1.id], reason: "post" }), /limite di \d+ post al giorno/);
+  await assert.rejects(social.proposePost(agent, { network: "instagram", text: "", format: "story", media: [(await freshImage()).id], reason: "storia" }), /limite di \d+ storie al giorno/);
   assert.match(social.statusForAgents().social.find((n) => n.network === "instagram").storie_oggi, /su \d+ al giorno/);
   assert.throws(() => social.setNetworkSettings("instagram", { maxStoriesPerDay: 26 }), /da 0 a 25/);
   social.setNetworkSettings("instagram", { maxStoriesPerDay: 0 });
-  await assert.rejects(social.proposePost(agent, { network: "instagram", text: "", format: "story", media: [graphic.id], reason: "x" }), /0 storie al giorno/);
+  await assert.rejects(social.proposePost(agent, { network: "instagram", text: "", format: "story", media: [(await freshImage()).id], reason: "x" }), /0 storie al giorno/);
   social.setNetworkSettings("instagram", { auto: false, maxPerDay: 10, maxStoriesPerDay: 5 });
 });
 
@@ -460,7 +466,8 @@ test("LinkedIn: post anche sulla pagina aziendale (a mano finché LinkedIn non d
   await connect("linkedin");
   assert.equal(social.socialStatus().networks.find((n) => n.id === "linkedin").pageAuto, true);
   const before = fake.calls.filter((c) => c.path === "/rest/posts").length;
-  const r2 = await social.proposePost(agent, { network: "linkedin", text: "Secondo post", media: [pic.id], reason: "x" });
+  const pic2 = await freshImage();
+  const r2 = await social.proposePost(agent, { network: "linkedin", text: "Secondo post", media: [pic2.id], reason: "x" });
   assert.equal(r2.status, "published");
   assert.equal(r2.pagina.status, "published", JSON.stringify(r2.pagina));
   const posts = fake.calls.filter((c) => c.path === "/rest/posts").slice(before);
@@ -517,4 +524,65 @@ test("commenti da rispondere: solo i nuovi, mai due risposte allo stesso comment
   assert.equal(social.socialStatus().networks.find((n) => n.id === "threads").autoReplies, undefined, "di nuovo come i post");
 
   await assert.rejects(social.inbox("linkedin"), /LinkedIn non permette/);
+});
+
+test("i post dello stesso social escono distanziati nella giornata e mai ripetuti", async () => {
+  const { romeParts } = await import("../lib/schedule.js");
+  const prev = process.env.SOCIAL_MIN_GAP_MIN;
+  delete process.env.SOCIAL_MIN_GAP_MIN;
+  const scheduled = [];
+  try {
+    // Distanza automatica: la fascia 08:00–22:00 divisa per i post al giorno, tra 1 e 4 ore.
+    social.setNetworkSettings("threads", { maxPerDay: 3 });
+    assert.equal(social.gapMinutes("threads"), 240);
+    social.setNetworkSettings("threads", { maxPerDay: 5 });
+    assert.equal(social.gapMinutes("threads"), 165);
+    assert.throws(() => social.setNetworkSettings("threads", { minGapMinutes: 800 }), /da 0 a 720/);
+
+    // Tre post preparati insieme (dopo quelli già usciti nelle prove): nessuno esce a meno di 2 ore da un altro.
+    social.setNetworkSettings("threads", { auto: true, maxPerDay: 50, minGapMinutes: 120 });
+    assert.match(social.statusForAgents().social.find((n) => n.network === "threads").distanza_tra_i_post, /almeno 2 ore/);
+    const texts = ["Tre bandi aperti questa settimana per chi apre un locale", "Quanto costa davvero rilevare un bar in centro", "Le PMI italiane e il credito: cosa cambia a novembre"];
+    for (const text of texts) {
+      const r = await social.proposePost(agent, { network: "threads", text, reason: "prova distanza" });
+      assert.equal(r.status, "scheduled", JSON.stringify(r));
+      assert.match(r.message, /troppo vicino|distribuiscono/);
+      scheduled.push(r.post_id);
+    }
+    const times = social.socialStatus().posts.filter((p) => scheduled.includes(p.id)).map((p) => Date.parse(p.publishAt)).sort((a, b) => a - b);
+    for (let i = 1; i < times.length; i++) assert.ok(times[i] - times[i - 1] >= 120 * 60_000, "almeno 2 ore tra un post e l'altro");
+    for (const t of times) {
+      const m = romeParts(new Date(t)).minutes;
+      assert.ok(m >= 8 * 60 && m < 22 * 60, "spostati solo dentro la fascia 08:00–22:00");
+    }
+
+    // Niente doppioni sullo stesso social: lo stesso testo, quasi lo stesso testo, lo stesso file.
+    await assert.rejects(social.proposePost(agent, { network: "threads", text: texts[0], reason: "copia" }), /contenuto ripetuto.*stesso testo/);
+    await assert.rejects(
+      social.proposePost(agent, { network: "threads", text: "Quanto costa davvero rilevare un bar in centro città? #venturo", reason: "quasi uguale" }),
+      /contenuto ripetuto/,
+    );
+    assert.equal(social.sameText("Tre bandi aperti questa settimana per chi apre un locale a Milano", "Tre bandi aperti questa settimana per chi apre un locale a Roma"), true);
+    assert.equal(social.sameText("Tre bandi aperti questa settimana", "Il mercato dei bar in Italia nel 2026"), false);
+    const pic = await freshImage();
+    social.setNetworkSettings("x", { auto: true, minGapMinutes: 0 });
+    assert.equal((await social.proposePost(agent, { network: "x", text: "Un grafico nuovo sui bandi", media: [pic.id], reason: "file" })).status, "published");
+    await assert.rejects(social.proposePost(agent, { network: "x", text: "Tutt'altro testo, stesso file", media: [pic.id], reason: "file" }), /stesso file/);
+    // Lo stesso testo su un ALTRO social va bene.
+    const other = await social.proposePost(agent, { network: "x", text: texts[1], reason: "altro social" });
+    assert.equal(other.status, "published");
+    // Uno scartato si può riproporre.
+    social.cancelPost(scheduled.pop());
+    const again = await social.proposePost(agent, { network: "threads", text: texts[2], reason: "di nuovo" });
+    scheduled.push(again.post_id);
+  } finally {
+    for (const id of scheduled) {
+      try {
+        social.cancelPost(id);
+      } catch {}
+    }
+    social.setNetworkSettings("threads", { auto: false, minGapMinutes: null });
+    social.setNetworkSettings("x", { auto: false, minGapMinutes: null });
+    process.env.SOCIAL_MIN_GAP_MIN = prev;
+  }
 });
