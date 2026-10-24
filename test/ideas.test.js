@@ -19,14 +19,18 @@ const tmpFile = (name, buf) => {
   fs.writeFileSync(f, buf);
   return f;
 };
-const hasFfmpeg = (() => {
+const { ffmpegPath } = await import("../lib/social/video.js");
+const FFMPEG = await ffmpegPath(); // lo stesso ffmpeg che usa il programma (ffmpeg-static o quello del sistema)
+const works = (bin, args) => {
   try {
-    execFileSync("ffmpeg", ["-version"], { stdio: "ignore" });
+    execFileSync(bin, args, { stdio: "ignore" });
     return true;
   } catch {
     return false;
   }
-})();
+};
+const hasFfmpeg = works(FFMPEG, ["-version"]);
+const hasPdftotext = works(process.env.PDFTOTEXT_PATH || "pdftotext", ["-v"]);
 
 function tinyPdf(text) {
   const objs = ["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>", "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>", null, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"];
@@ -72,7 +76,8 @@ test("foto ridotte a JPEG, documenti (testo, Word, PDF) letti; file e idee si el
   assert.equal(txt.kind, "document");
   assert.match(txt.preview, /Titoli corti/);
   assert.match(docx.preview, /credito d'imposta\nSeconda riga/);
-  assert.match(pdf.preview, /Piano editoriale/);
+  if (hasPdftotext) assert.match(pdf.preview, /Piano editoriale/);
+  else assert.match(pdf.state, /manca il programma per leggerlo/, "senza pdftotext il PDF si salva e lo si dice");
 
   await assert.rejects(ideas.addFile(i.id, tmpFile("x.exe", "MZ"), { name: "virus.exe", mime: "application/x-msdownload" }), /Formato non supportato/);
   assert.equal(fs.readdirSync(DATA).filter((f) => f.startsWith(".t-")).length, 0, "i file temporanei si cancellano sempre");
@@ -86,7 +91,7 @@ test("foto ridotte a JPEG, documenti (testo, Word, PDF) letti; file e idee si el
 
 test("video: foglio di 6 fotogrammi e parlato trascritto, pronto per gli agenti", { skip: !hasFfmpeg && "ffmpeg non disponibile" }, async () => {
   const video = path.join(DATA, "esempio.mp4");
-  execFileSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=duration=3:size=320x568:rate=10", "-f", "lavfi", "-i", "sine=frequency=440:duration=3", "-shortest", "-pix_fmt", "yuv420p", video]);
+  execFileSync(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=duration=3:size=320x568:rate=10", "-f", "lavfi", "-i", "sine=frequency=440:duration=3", "-shortest", "-pix_fmt", "yuv420p", video]);
   ideas._setTranscriber(async (wav) => {
     assert.equal(wav.toString("ascii", 0, 4), "RIFF", "al riconoscimento arriva un WAV");
     return "Tre numeri che ogni imprenditore deve sapere";
