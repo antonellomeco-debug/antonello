@@ -418,8 +418,9 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   Venturo per chi compra, chi cerca capitali, chi cerca un socio, chi vende, chi investe) e metà VALORE (far crescere capitale e azienda).
 - Codice: `purpose` («clienti»/«valore») in `social_publish` e nei post, `purposeMix`/`clienti_e_valore` in `social_status` (ultimi
   7 giorni per social, indica il tipo del prossimo post), etichetta «🎯 Porta clienti»/«📚 Valore» in ✅ Approvazioni.
-- Brief riscritto più corto (4.703 caratteri) con la sezione OBIETTIVO DEI CONTENUTI e `[LINK]` della lista d'attesa (modulo Tally
-  dell'utente, da creare). Pagina con strategia, testi del modulo, brief e 3 messaggi per Orion (il 3 = Soci Fondatori, solo se lo
+- Brief riscritto più corto (~5.000 caratteri) con la sezione OBIETTIVO DEI CONTENUTI. Lista d'attesa = modulo Tally dell'utente
+  **https://tally.so/r/labpaV** (in fondo a ogni contenuto; su X solo nei post CLIENTI per il costo dei link, su Instagram «link in bio»;
+  su YouTube con `youtube_footer`). Tally è collegato anche come connettore di Claude Code (strumenti mcp__Tally__*). Pagina con strategia, testi del modulo, brief e 3 messaggi per Orion (il 3 = Soci Fondatori, solo se lo
   decide l'utente): https://claude.ai/artifact/ESmfDKT6RozfM6EzpojN54
 
 ## 💡 Idee per i contenuti (24 ottobre 2026)
