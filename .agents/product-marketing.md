@@ -79,7 +79,7 @@ skill `venturo-brand`. Se questa scheda e il brief non coincidono, vale il brief
 ## 12. Obiettivi
 - 90 giorni: sito con lista d'attesa e newsletter, 1.000–2.000 iscritti email, 1.500–3.000 follower Instagram.
 - 12 mesi: SRL aperta, prima versione della piattaforma, 5.000+ iscritti, primi abbonati, ricavi 20–40 mila €.
-- **Azione principale:** iscriversi alla newsletter. Metriche: iscritti email, salvataggi, condivisioni, commenti veri.
+- **Azione principale (dal 24/10/2026):** iscriversi alla lista d'attesa (modulo Tally, link in bio), poi alla newsletter. Metà dei post portano clienti, metà danno valore. Metriche: iscritti email, salvataggi, condivisioni, commenti veri.
 - Budget iniziale fino a 5.000 €.
 
 ## Vincoli che non si toccano (filtro per ogni consiglio)

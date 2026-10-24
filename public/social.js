@@ -428,7 +428,7 @@ export function renderPostApproval(a, outcomeLabel) {
     ${postMediaStrip(p.media)}
     ${p.publishAt ? `<p class="meta">${p.manual ? "Ora consigliata" : "Da pubblicare"}: ${when(p.publishAt)}</p>` : ""}
     ${p.network === "x" ? `<p class="meta">Costo su X: ${/(https?:\/\/|www\.)\S+|\b[a-z0-9-]+\.(com|it|net|org|io|ly|co|eu|me|app|dev|ai)\b/i.test(p.text ?? "") ? "0,20 $ (contiene un link)" : "0,015 $"}</p>` : ""}
-    <p>${esc(p.reason) || ""}</p>
+    <p>${p.purpose ? `<b>${p.purpose === "clienti" ? "🎯 Porta clienti" : "📚 Valore"}</b> · ` : ""}${esc(p.reason) || ""}</p>
     ${pending && p.manual && p.page ? `<ol class="share-steps">
       ${(p.media ?? []).length ? `<li>Tocca <b>📲 Salva i file</b> e scegli <b>Salva immagine</b> (o <b>Salva video</b>).</li>` : ""}
       <li>Tocca <b>🏢 Apri la pagina</b>: il testo è già copiato. Su LinkedIn premi <b>Crea</b> (o «Inizia un post») come pagina ${esc(p.page.name)}, tieni premuto → <b>Incolla</b>${(p.media ?? []).length ? ", aggiungi i file dalla galleria" : ""} e pubblica.</li>

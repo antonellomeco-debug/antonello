@@ -412,6 +412,17 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   pitch deck (slide «perche»). Testi pronti e messaggio per Orion: https://claude.ai/artifact/9bUhyxrnvfYMvwFvsCVexN (l'utente incolla il
   brief in ⚙️ Impostazioni → 📌 Brief).
 
+## Contenuti che portano clienti (24 ottobre 2026)
+
+- L'utente vuole che i social portino persone nella lista d'attesa, non solo informazione: metà dei post CLIENTI (cosa si potrà fare su
+  Venturo per chi compra, chi cerca capitali, chi cerca un socio, chi vende, chi investe) e metà VALORE (far crescere capitale e azienda).
+- Codice: `purpose` («clienti»/«valore») in `social_publish` e nei post, `purposeMix`/`clienti_e_valore` in `social_status` (ultimi
+  7 giorni per social, indica il tipo del prossimo post), etichetta «🎯 Porta clienti»/«📚 Valore» in ✅ Approvazioni.
+- Brief riscritto più corto (~5.000 caratteri) con la sezione OBIETTIVO DEI CONTENUTI. Lista d'attesa = modulo Tally dell'utente
+  **https://tally.so/r/labpaV** (in fondo a ogni contenuto; su X solo nei post CLIENTI per il costo dei link, su Instagram «link in bio»;
+  su YouTube con `youtube_footer`). Tally è collegato anche come connettore di Claude Code (strumenti mcp__Tally__*). Pagina con strategia, testi del modulo, brief e 3 messaggi per Orion (il 3 = Soci Fondatori, solo se lo
+  decide l'utente): https://claude.ai/artifact/ESmfDKT6RozfM6EzpojN54
+
 ## 💡 Idee per i contenuti (24 ottobre 2026)
 
 - L'utente vuole una sezione dove incollare idee, link, foto, video e documenti per i contenuti di tutti i social, sempre con il perché
