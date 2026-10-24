@@ -207,6 +207,47 @@ test("statistiche, commenti nuovi (non i propri) e risposta", async () => {
   await assert.rejects(social.proposePost(agent, { network: "youtube", text: "Ancora", reply_to: "Ugw-commento1", reason: "x" }), /già una risposta/);
 });
 
+test("numeri di YouTube Studio: totali, video migliori con titolo, fonti di traffico in italiano, miniature", async () => {
+  const st = await social.stats("youtube", { limit: 5 });
+  const s = st.studio;
+  assert.equal(s.totale.visualizzazioni, 1200);
+  assert.equal(s.totale.percentuale_media_guardata, 63.4);
+  assert.equal(s.totale.iscritti_guadagnati, 9);
+  assert.equal(s.video_migliori[0].titolo, "Primo Short");
+  assert.equal(s.video_migliori[0].impressioni_miniatura, 5000);
+  assert.deepEqual(s.fonti_di_traffico.map((x) => x.fonte), ["Feed degli Shorts", "Ricerca su YouTube", "NUOVA_FONTE"]);
+  const q = fake.calls.filter((c) => c.host === "youtubeanalytics.googleapis.com").map((c) => c.query);
+  assert.ok(q.length >= 4 && q.every((x) => x.ids === "channel==MINE" && x.startDate < x.endDate), "sempre il proprio canale e un periodo");
+
+  fake.opts.ytNoThumbs = true;
+  const noThumbs = (await social.stats("youtube", {})).studio;
+  assert.ok(!("impressioni_miniatura" in noThumbs.video_migliori[0]));
+  assert.match(noThumbs.miniature, /YouTube Studio/);
+  fake.opts.ytNoThumbs = false;
+
+  fake.opts.ytAnalytics = "disabled";
+  const off = await social.stats("youtube", {});
+  assert.equal(off.subscribers, 42, "le statistiche normali arrivano lo stesso");
+  assert.match(off.studio.errore, /YouTube Analytics API.*Abilita/);
+  fake.opts.ytAnalytics = null;
+});
+
+test("collegamento vecchio senza il permesso di Studio: si chiede di ricollegare, senza chiamare Google", async () => {
+  const file = path.join(DATA, "social.json");
+  const d = JSON.parse(fs.readFileSync(file, "utf8"));
+  const before = d.accounts.youtube.scopes;
+  d.accounts.youtube.scopes = before.filter((x) => !x.includes("yt-analytics"));
+  fs.writeFileSync(file, JSON.stringify(d));
+  social._reload();
+  const n = fake.calls.filter((c) => c.host === "youtubeanalytics.googleapis.com").length;
+  const st = await social.stats("youtube", {});
+  assert.match(st.studio.errore, /Ricollega/);
+  assert.equal(fake.calls.filter((c) => c.host === "youtubeanalytics.googleapis.com").length, n);
+  d.accounts.youtube.scopes = before;
+  fs.writeFileSync(file, JSON.stringify(d));
+  social._reload();
+});
+
 test("accesso: si rinnova da solo; se Google lo revoca, il messaggio spiega «In produzione»", async () => {
   const file = path.join(DATA, "social.json");
   const d = JSON.parse(fs.readFileSync(file, "utf8"));

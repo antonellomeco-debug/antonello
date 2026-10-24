@@ -196,11 +196,24 @@ export async function startFakeSocial({ port = 0 } = {}) {
       }
       if (host === "oauth2.googleapis.com" && p === "/token") {
         if (!body.client_secret) return json(401, { error: "invalid_client", error_description: "The OAuth client was not found." });
-        if (body.grant_type === "authorization_code") return json(200, { access_token: "yt-access-1", expires_in: 3599, refresh_token: "yt-refresh-1", scope: "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.force-ssl", token_type: "Bearer" });
+        if (body.grant_type === "authorization_code") return json(200, { access_token: "yt-access-1", expires_in: 3599, refresh_token: "yt-refresh-1", scope: `https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.force-ssl${opts.ytOldScopes ? "" : " https://www.googleapis.com/auth/yt-analytics.readonly"}`, token_type: "Bearer" });
         if (body.grant_type === "refresh_token") {
           if (opts.ytRevoked) return json(400, { error: "invalid_grant", error_description: "Token has been expired or revoked." });
           return json(200, { access_token: `yt-access-${++seq}`, expires_in: 3599, token_type: "Bearer" });
         }
+      }
+      if (host === "youtubeanalytics.googleapis.com" && p === "/v2/reports") {
+        if (opts.ytAnalytics === "disabled") return json(403, { error: { code: 403, message: "YouTube Analytics API has not been used in project 123 before or it is disabled.", status: "PERMISSION_DENIED", details: [{ reason: "SERVICE_DISABLED" }] } });
+        if (q.ids !== "channel==MINE" || !q.startDate || !q.endDate) return json(400, { error: { code: 400, message: "bad request" } });
+        const metrics = String(q.metrics).split(",");
+        if (metrics.includes("videoThumbnailImpressions") && opts.ytNoThumbs) return json(400, { error: { code: 400, message: "Unknown identifier (videoThumbnailImpressions) given in field parameters.metrics." } });
+        const VAL = { views: 1200, estimatedMinutesWatched: 340, averageViewDuration: 17, averageViewPercentage: 63.4, subscribersGained: 9, subscribersLost: 1, likes: 80, shares: 12, comments: 5, videoThumbnailImpressions: 5000, videoThumbnailImpressionsClickRate: 4.2 };
+        const dims = q.dimensions ? String(q.dimensions).split(",") : [];
+        const cols = [...dims, ...metrics].map((name) => ({ name, columnType: dims.includes(name) ? "DIMENSION" : "METRIC", dataType: "INTEGER" }));
+        let rows = [metrics.map((m) => VAL[m] ?? 0)];
+        if (dims[0] === "video") rows = [["yt-v1", ...metrics.map((m) => VAL[m] ?? 0)], ["yt-vecchio", ...metrics.map((m) => Math.round((VAL[m] ?? 0) / 4))]];
+        if (dims[0] === "insightTrafficSourceType") rows = [["SHORTS", 900, 200], ["YT_SEARCH", 200, 90], ["NUOVA_FONTE", 100, 50]];
+        return json(200, { kind: "youtubeAnalytics#resultTable", columnHeaders: cols, rows });
       }
       if (host === "www.googleapis.com") {
         if (!String(req.headers.authorization ?? "").startsWith("Bearer yt-access-")) return json(401, { error: { code: 401, message: "Request had invalid authentication credentials.", status: "UNAUTHENTICATED" } });

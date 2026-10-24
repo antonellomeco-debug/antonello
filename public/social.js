@@ -62,7 +62,7 @@ function howto(net, redirect, server) {
     ],
     youtube: [
       `Apri <a href="https://console.cloud.google.com" target="_blank" rel="noopener">console.cloud.google.com</a> con lo stesso account Google del canale. Puoi usare il progetto che hai già per la voce di Google, oppure crearne uno: in alto <b>Seleziona un progetto</b> → <b>Nuovo progetto</b> (nome «Venturo»).`,
-      `Menu ☰ → <b>API e servizi</b> → <b>Libreria</b>: cerca <b>YouTube Data API v3</b> e premi <b>Abilita</b>. È gratis.`,
+      `Menu ☰ → <b>API e servizi</b> → <b>Libreria</b>: cerca <b>YouTube Data API v3</b> e premi <b>Abilita</b>. Poi cerca anche <b>YouTube Analytics API</b> e premi <b>Abilita</b> (servono per i numeri di YouTube Studio: tempo di visione, fidelizzazione, fonti di traffico). Sono gratis.`,
       `Menu ☰ → <b>Google Auth Platform</b> (o «Schermata consenso OAuth») → <b>Inizia</b>: nome dell'app «Venturo Agenti», la tua email, pubblico <b>Esterno</b>, di nuovo la tua email come contatto → <b>Crea</b>.`,
       `Sempre lì, <b>Pubblico</b> → <b>Pubblica app</b> → <b>Conferma</b> (stato «In produzione»). Se resta «Test» il collegamento scade ogni 7 giorni.`,
       `<b>Client</b> → <b>Crea client</b> → tipo <b>Applicazione web</b>, nome «Venturo». In <b>URI di reindirizzamento autorizzati</b> → <b>Aggiungi URI</b> e incolla:${copy} poi <b>Crea</b>.`,
