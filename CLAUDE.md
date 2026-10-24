@@ -383,6 +383,18 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   Capo Azioni (nucleo ETF alla Bogle, azioni ≤ 30%), 9 eliminazione dell'archivio dopo due settimane. Costo previsto ~5 $/mese invece
   di ~104. Da fare per l'utente: perdita massima del giorno 3% (era 10%), capitale vero nel profilo (c'è 500.000 €).
 
+## 💡 Idee per i contenuti (24 ottobre 2026)
+
+- L'utente vuole una sezione dove incollare idee, link, foto, video e documenti per i contenuti di tutti i social, sempre con il perché
+  («argomenti nuovi da usare», «mi piace questo video, facciamo qualcosa di simile»). `lib/ideas.js` (`<dati>/ideas.json` nei backup,
+  file in `<dati>/ideas/<id>/` fuori dai backup e fuori dall'archivio dei social), `public/ideas.js` (vista `ideas`, anche in «Altro»
+  sul telefono), API `/api/ideas*`. `MOTIVES`: argomenti, stile, formato, evitare, altro; il perché è obbligatorio. Video: foglio di 6
+  fotogrammi (ffmpeg + sharp) e parlato dei primi 2 minuti con `voice.transcribe` (se il modello non è scaricato lo dice; `_setTranscriber`
+  nei test), uno per volta, `resumePending()` all'avvio. Documenti: PDF (`pdfText` esportato da `lib/reader.js`), .docx con adm-zip, testo.
+- Strumenti `ideas` e `idea_used`: dati in automatico (`CONTENT_TOOLS` in `enabledTools` di `lib/tools.js`) a chi ha social_publish,
+  social_status, social_stats o create_*; blocco «💡 IDEE DELL'UTENTE» nel prompt (`lib/runner.js`); anche Orion. Le idee «da evitare»
+  arrivano sempre in `da_evitare_sempre`. Test: `test/ideas.test.js`.
+
 ## Spesa e risparmio (15 ottobre 2026)
 
 - `lib/store.js`: `costScope` (AsyncLocalStorage) dice chi spende: `runAgent` → `{agentId, palace}`, chat di Orion →

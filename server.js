@@ -37,6 +37,7 @@ import { projectMap } from "./lib/projectmap.js";
 import * as priceSources from "./lib/pricesources.js";
 import * as marketdata from "./lib/marketdata.js";
 import * as media from "./lib/social/media.js";
+import * as ideas from "./lib/ideas.js";
 import { setGeminiKey } from "./lib/social/imagegen.js";
 import { setStockKey } from "./lib/social/stock.js";
 import { setGoogleTtsKey, setVideoVoice, setVoiceFallback, previewVoice } from "./lib/social/googletts.js";
@@ -632,6 +633,83 @@ app.post("/api/media", async (req, res) => {
   }
 });
 
+// ---------- 💡 Idee per i contenuti ----------
+const ideaError = (res, e) => res.status(e.status ?? 400).json({ error: e.message });
+app.get("/api/ideas", (req, res) => res.json({ ideas: ideas.listIdeas({ status: req.query.status }), motives: ideas.MOTIVES, networks: ideas.NETWORKS, limits: ideas.LIMITS }));
+app.post("/api/ideas", (req, res) => {
+  try {
+    res.json(ideas.addIdea(req.body ?? {}));
+  } catch (e) {
+    ideaError(res, e);
+  }
+});
+app.put("/api/ideas/:id", (req, res) => {
+  try {
+    res.json(ideas.updateIdea(req.params.id, req.body ?? {}));
+  } catch (e) {
+    ideaError(res, e);
+  }
+});
+app.delete("/api/ideas/:id", (req, res) => {
+  try {
+    res.json(ideas.deleteIdea(req.params.id));
+  } catch (e) {
+    ideaError(res, e);
+  }
+});
+app.delete("/api/ideas/:id/files/:fid", (req, res) => {
+  try {
+    res.json(ideas.deleteFile(req.params.id, req.params.fid));
+  } catch (e) {
+    ideaError(res, e);
+  }
+});
+app.get("/api/ideas/:id/files/:fid", (req, res) => {
+  try {
+    const f = ideas.filePath(req.params.id, req.params.fid, ["sheet", "thumb"].includes(req.query.v) ? req.query.v : "");
+    res.set({ "Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff" });
+    res.type(f.mime);
+    if (!req.query.v) res.set("Content-Disposition", `inline; filename*=UTF-8''${encodeURIComponent(f.name)}`);
+    res.sendFile(f.file, (err) => err && !res.headersSent && res.status(404).end());
+  } catch (e) {
+    ideaError(res, e);
+  }
+});
+app.post("/api/ideas/:id/files", async (req, res) => {
+  let name = "";
+  try {
+    name = decodeURIComponent(req.get("x-file-name") ?? "");
+  } catch {
+    // nome non leggibile: resta vuoto
+  }
+  const type = ideas.fileType(req.get("content-type"), name);
+  const kind = ideas.kindOf(type);
+  const max = ideas.LIMITS[kind] ?? ideas.LIMITS.document;
+  if ((Number(req.get("content-length")) || 0) > max) return res.status(413).json({ error: `File troppo grande: massimo ${Math.round(max / 1024 / 1024)} MB.` });
+  const tmp = path.join(ideas.IDEAS_DIR, `.upload-${crypto.randomUUID()}`);
+  let size = 0;
+  try {
+    ideas.getIdea(req.params.id); // l'idea deve esistere prima di ricevere il file
+    fs.mkdirSync(ideas.IDEAS_DIR, { recursive: true });
+    await pipeline(
+      req,
+      async function* (src) {
+        for await (const chunk of src) {
+          size += chunk.length;
+          if (size > max) throw Object.assign(new Error(`File troppo grande: massimo ${Math.round(max / 1024 / 1024)} MB.`), { status: 413 });
+          yield chunk;
+        }
+      },
+      fs.createWriteStream(tmp),
+    );
+    if (!size) throw new Error("File vuoto.");
+    res.json(await ideas.addFile(req.params.id, tmp, { name, mime: type }));
+  } catch (e) {
+    fs.rmSync(tmp, { force: true });
+    if (!res.headersSent) ideaError(res, e);
+  }
+});
+
 app.get("/api/voice", (_req, res) => res.json(voice.publicStatus()));
 app.post("/api/voice/prepare", handle(() => voice.prepare()));
 app.post("/api/chat/voice", express.raw({ type: ["audio/wav", "audio/x-wav", "audio/wave"], limit: "6mb" }), async (req, res) => {
@@ -985,6 +1063,7 @@ if (importedAtBoot) setTimeout(confirmImportWorked, 150_000).unref();
 // Express 5 passa anche l'eventuale errore di avvio (es. porta occupata) a questa callback.
 const server = app.listen(PORT, HOST, (err) => {
   if (err) return onListenError(err);
+  ideas.resumePending(); // video delle 💡 Idee rimasti a metà alla chiusura
   if (CLOUD) {
     // Sul server: righe semplici per il registro del servizio di hosting.
     console.log(`Ufficio agenti avviato su ${URL_APP} (porta ${PORT}).`);
