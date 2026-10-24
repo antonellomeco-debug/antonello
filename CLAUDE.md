@@ -286,6 +286,11 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   «a mano» anche con l'account collegato (📲 Condividi copia il titolo, 📋 Copia descrizione), commenti e statistiche via API; se un
   caricamento torna privato (`lockedPrivate`) `apiVerified` torna false da solo. Da verificare dal vero: risposta
   dell'upload, nomi delle voci in Google Cloud, se l'app YouTube compare nella condivisione dell'iPhone.
+- **Numeri di YouTube Studio** (24/10/2026): permesso `yt-analytics.readonly` (`YT_ANALYTICS_SCOPE`) e `youtube.studio()` in
+  `lib/social/networks.js` (YouTube Analytics API `youtubeanalytics.googleapis.com/v2/reports`, ultimi 28 giorni): `social_stats` di
+  YouTube ha `studio` con totali, 10 video migliori, fonti di traffico in italiano e, se l'API li dà, `videoThumbnailImpressions` /
+  `videoThumbnailImpressionsClickRate` (nomi non verificati sulla documentazione: dal container developers.google.com è bloccato;
+  se falliscono la richiesta si salta). Senza permesso → «Ricollega»; API spenta → «Abilita YouTube Analytics API». Da verificare dal vero.
 - **Copia automatica** (`mirrorToYouTube` in `lib/social/index.js`, chiamata da `setPost` quando un post diventa `published`): ogni
   video uscito su un altro social va su YouTube una volta sola; l'Editore YouTube può sostituire la copia in attesa con titoli SEO.
 - Piano YouTube nel Palazzo Social (8 agenti, blocco «come ragionano i migliori esperti»): https://claude.ai/artifact/SkW7dyN8rMJskbyp5xYwqw

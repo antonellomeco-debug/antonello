@@ -220,7 +220,7 @@ indirizzo https e scaricano foto e video da lì.
   (OAuth 2 con PKCE, caricamento a pezzi `/2/media/upload/*`; a consumo: 0,015 $ a post, 0,20 $ con un link, 0,005 $ a
   post letto, sommati alla spesa con `addCost`). Codici d'accesso: X si rinnova ogni 2 ore (il codice di rinnovo cambia e
   si salva subito), Instagram e Threads prima dei 60 giorni (controllo ogni ora), LinkedIn va ricollegato dopo 60 giorni.
-- **YouTube** (YouTube Data API v3, app OAuth di Google Cloud «In produzione»; permessi `youtube.upload` e `youtube.force-ssl`,
+- **YouTube** (YouTube Data API v3 e YouTube Analytics API, app OAuth di Google Cloud «In produzione»; permessi `youtube.upload`, `youtube.force-ssl` e `yt-analytics.readonly` per i numeri di YouTube Studio in `social_stats` → `studio`: minuti guardati, durata e percentuale guardata, iscritti, fonti di traffico, clic sulle miniature se Google li dà;
   `access_type=offline`): un post = un video (`title` fino a 100 caratteri, testo = descrizione, `thumbnail` facoltativa con
   `thumbnails.set`), caricamento «ripristinabile», visibilità, etichetta IA (`containsSyntheticMedia`) e testo fisso in fondo
   alla descrizione scelti in 📣 Social → YouTube (anche Orion con `set_social_settings`); statistiche, commenti (`commentThreads`)
