@@ -29,7 +29,16 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .app.kb { height: var(--app-h, 100dvh); }
 
 /* ---------- barra di navigazione ---------- */
-.rail { background: color-mix(in srgb, var(--bg), var(--surface) 30%); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 0; }
+.rail { background: color-mix(in srgb, var(--bg), var(--surface) 30%); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 0; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.rail::-webkit-scrollbar { display: none; }
+.rail > * { flex-shrink: 0; }
+/* Finestre basse (portatili): le sezioni sono tante, la barra si stringe e se non bastasse scorre. */
+@media (max-height: 900px) and (min-width: 861px) {
+  .rail { gap: 2px; padding: 8px 0; }
+  .logo { font-size: 22px; margin-bottom: 4px; }
+  .nav { padding: 5px 0; gap: 1px; }
+  .nav span { font-size: 17px; }
+}
 .logo { font-size: 26px; margin-bottom: 10px; }
 .nav { position: relative; width: 60px; padding: 8px 0; border: 0; border-radius: 12px; background: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--muted); }
 .nav span { font-size: 19px; filter: grayscale(.6); }
@@ -463,6 +472,7 @@ dialog.small-dlg { width: min(480px, 94vw); }
   .rail {
     grid-row: 2; grid-column: 1; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px;
     padding: 4px 4px calc(4px + env(safe-area-inset-bottom)); border-right: 0; border-top: 1px solid var(--border);
+    overflow: visible;
   }
   .logo { display: none; }
   .rail .nav { width: auto; min-width: 0; min-height: 56px; padding: 6px 0; justify-content: center; touch-action: manipulation; }

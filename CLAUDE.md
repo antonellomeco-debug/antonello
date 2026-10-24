@@ -383,6 +383,19 @@ si parla in chat e che può creare/modificare piani, stanze, agenti e collegamen
   Capo Azioni (nucleo ETF alla Bogle, azioni ≤ 30%), 9 eliminazione dell'archivio dopo due settimane. Costo previsto ~5 $/mese invece
   di ~104. Da fare per l'utente: perdita massima del giorno 3% (era 10%), capitale vero nel profilo (c'è 500.000 €).
 
+## La storia di Venturo e i piani a pagamento (24 ottobre 2026)
+
+- L'utente ha riscritto il perché di Venturo: sei motivi vissuti da titolare di locali (soldi solo dalla banca → investitori privati;
+  soci giusti e onesti; annunci di locali e aziende poco affidabili → **Dossier Venturo** con documenti, fatturato, costi e personale
+  controllati prima di parlare con chi vende; rete di imprenditori; le opportunità migliori girano tra pochi; professionisti). Percorso:
+  16 anni in cucine di alto livello tra Miami, Caraibi, Ibiza, Parigi e Zanzibar, 8 da titolare nella ristorazione. Non inventare altro.
+- Guadagni voluti dall'utente: piani di visibilità per chi vende (Base 99 €/3 mesi, In evidenza 199 €, Dossier 490–1.490 €, professionista
+  in evidenza 29 €/mese) e anteprima per chi compra (Investor 29 €/mese; i gratuiti vedono gli annunci dopo 7 giorni). L'anteprima a
+  pagamento vale per aziende e locali in vendita, mai per offerte di quote al pubblico (solo portali Consob); sempre prezzi fissi.
+- Aggiornati: `brief.txt` della skill `venturo-brand` (5.885 caratteri, sotto `MAX_BRIEF`), `.agents/product-marketing.md`, business plan v2,
+  pitch deck (slide «perche»). Testi pronti e messaggio per Orion: https://claude.ai/artifact/9bUhyxrnvfYMvwFvsCVexN (l'utente incolla il
+  brief in ⚙️ Impostazioni → 📌 Brief).
+
 ## 💡 Idee per i contenuti (24 ottobre 2026)
 
 - L'utente vuole una sezione dove incollare idee, link, foto, video e documenti per i contenuti di tutti i social, sempre con il perché
